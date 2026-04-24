@@ -37,36 +37,740 @@
   --ruler-text: rgba(200,200,200,0.55);
 }
 
-/* ══════════════════ LIGHT MODE ══════════════════
-   Activated via <html data-theme="light">. Designed as a professional
-   raster-editor light palette — refined neutral warm-white surfaces,
-   Apple-style near-black text, deepened accent for WCAG contrast.
+/* ══════════════════ LIGHT MODE — PAINT.NET AESTHETIC ══════════════════
+   Activated via <html data-theme="light">. Inspired by Paint.NET's classic
+   Windows-style chrome: cool silver surfaces with a subtle blue undertone,
+   dark navy menu/status bands top & bottom, steel-blue panel title bars,
+   Luna-blue selection highlights, and beveled silver buttons. Designed for
+   high legibility while staying true to the Paint.NET visual language.
    Dark mode (default :root) is intentionally untouched. */
 :root[data-theme="light"] {
-  --bg:            #F2F3F5;
-  --bg-secondary:  #E8EAED;
+  --bg:            #D6DBE1;
+  --bg-secondary:  #E1E5EA;
   --bg-tertiary:   #FFFFFF;
-  --bg-hover:      #DCDFE3;
-  --bg-active:     #C9CDD2;
-  --surface:       #FAFBFC;
+  --bg-hover:      #C6CDD7;
+  --bg-active:     #A8B1BE;
+  --surface:       #EEF1F5;
   --surface-raised:#FFFFFF;
-  --border:        rgba(15,23,42,0.09);
-  --border-strong: rgba(15,23,42,0.18);
-  --text:          #1D1D1F;
-  --text-secondary:#5E5E63;
-  --text-tertiary: #8E8E93;
-  --accent:        #0066D6;
-  --accent-hover:  #0A84FF;
-  --accent-dim:    rgba(0,102,214,0.12);
-  --danger:        #D70015;
-  --success:       #1E8E3E;
-  --warning:       #B05200;
-  --shadow:        0 4px 20px rgba(15,23,42,0.08);
-  --shadow-lg:     0 12px 40px rgba(15,23,42,0.16);
-  --workspace-grid-1: #E3E5E8;
-  --workspace-grid-2: #D5D8DC;
-  --ruler-tick:    rgba(55,65,81,0.55);
-  --ruler-text:    rgba(55,65,81,0.75);
+  --border:        rgba(40,55,80,0.18);
+  --border-strong: rgba(40,55,80,0.34);
+  --text:          #1A2030;
+  --text-secondary:#3F4A5F;
+  --text-tertiary: #68728A;
+  --accent:        #2B6CC9;
+  --accent-hover:  #3B7CD9;
+  --accent-dim:    rgba(43,108,201,0.14);
+  --danger:        #C82031;
+  --success:       #1F893E;
+  --warning:       #A85100;
+  --shadow:        0 2px 8px rgba(40,55,80,0.14);
+  --shadow-lg:     0 10px 32px rgba(40,55,80,0.24);
+  --workspace-grid-1: #BAC2CC;
+  --workspace-grid-2: #A6AFBC;
+  --ruler-tick:    rgba(30,42,60,0.58);
+  --ruler-text:    rgba(30,42,60,0.80);
+}
+
+/* ══════════════════ LIGHT MODE — PAINT.NET CHROME OVERRIDES ══════════════════
+   Layered on top of the base light-mode variables above. Overrides the
+   hardcoded rgba white/black/accent values used throughout the CSS, and
+   applies Paint.NET-specific chrome: dark navy menubar/statusbar, silver
+   gradient options bar/toolbar, steel-blue panel title bars with white
+   text, beveled classic-Windows buttons, and cool-silver sliders. */
+
+/* ── Menu bar — Paint.NET dark navy band with subtle vertical gradient ── */
+:root[data-theme="light"] .menubar {
+  background: linear-gradient(to bottom, #323848 0%, #272C3B 100%);
+  border-bottom: 1px solid rgba(0,0,0,0.45);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.04);
+}
+:root[data-theme="light"] .menu-item { color: #D4D9E1; }
+:root[data-theme="light"] .menu-item:hover,
+:root[data-theme="light"] .menu-item.open {
+  background: rgba(255,255,255,0.14);
+  color: #FFFFFF;
+}
+:root[data-theme="light"] .menu-item-action { color: #D4D9E1; }
+:root[data-theme="light"] .menu-item-action:hover {
+  background: rgba(255,255,255,0.14);
+  color: #FFFFFF;
+}
+:root[data-theme="light"] .menubar #statusVersion { color: rgba(212,217,225,0.55); }
+:root[data-theme="light"] .menubar #statusVersion:hover { color: rgba(212,217,225,0.95); }
+
+/* Menu dropdowns — remain crisp white popups (Windows classic) */
+:root[data-theme="light"] .menu-dropdown {
+  box-shadow: 0 6px 20px rgba(40,55,80,0.28), 0 0 0 1px rgba(40,55,80,0.10);
+}
+
+/* ── Status bar — matching dark navy band at bottom ── */
+:root[data-theme="light"] .statusbar {
+  background: linear-gradient(to bottom, #272C3B 0%, #323848 100%);
+  border-top: 1px solid rgba(0,0,0,0.45);
+  color: rgba(212,217,225,0.72);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+:root[data-theme="light"] .status-sep { background: rgba(255,255,255,0.16); }
+:root[data-theme="light"] #statusVersionAlt { color: rgba(212,217,225,0.55); }
+:root[data-theme="light"] #statusVersionAlt:hover { color: rgba(212,217,225,0.95); }
+
+/* ── Options bar — silver gradient chrome (Windows Luna feel) ── */
+:root[data-theme="light"] .options-bar {
+  background: linear-gradient(to bottom, #EBEEF2 0%, #D3D8DE 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(40,55,80,0.22);
+}
+
+/* Brand badge (right side of options bar) */
+:root[data-theme="light"] .brand-badge {
+  background: linear-gradient(to bottom, #EBEEF2 0%, #D3D8DE 100%);
+  border-left: 1px solid rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .brand-badge:hover {
+  background: linear-gradient(to bottom, #F2F4F7 0%, #DBDFE5 100%);
+}
+
+/* Tool indicator (active tool emblem, options bar far-left) */
+:root[data-theme="light"] .tool-indicator-single,
+:root[data-theme="light"] .tool-indicator-group {
+  background: #FFFFFF;
+  border-color: rgba(40,55,80,0.28);
+  box-shadow: inset 0 1px 2px rgba(40,55,80,0.18);
+}
+:root[data-theme="light"] .tool-indicator-single svg {
+  filter: drop-shadow(0 0 3px rgba(43,108,201,0.14));
+}
+:root[data-theme="light"] .tool-indicator-btn:hover:not(.active) {
+  background: rgba(40,55,80,0.08);
+  color: var(--text-secondary);
+}
+:root[data-theme="light"] .tool-indicator-btn.active {
+  box-shadow: 0 0 0 1px rgba(43,108,201,0.38);
+}
+
+/* Options bar dividers — darker for silver chrome */
+:root[data-theme="light"] .opt-group { border-left-color: rgba(40,55,80,0.2); }
+:root[data-theme="light"] .opt-divider { background: rgba(40,55,80,0.2); }
+
+/* ── Toolbar (left sidebar) — silver chrome ── */
+:root[data-theme="light"] .toolbar {
+  background: linear-gradient(to right, #E1E5EA 0%, #CCD2DA 100%);
+  border-right: 1px solid rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .tool-btn:hover {
+  background: rgba(43,108,201,0.12);
+  color: var(--text);
+}
+:root[data-theme="light"] .tool-btn.active {
+  background: linear-gradient(to bottom, rgba(43,108,201,0.22) 0%, rgba(43,108,201,0.12) 100%);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(43,108,201,0.34);
+}
+:root[data-theme="light"] .tool-sep { background: rgba(40,55,80,0.2); }
+
+/* Toolbar color wells */
+:root[data-theme="light"] .color-well {
+  border-color: #DFE3E8;
+  box-shadow: 0 0 0 1px rgba(40,55,80,0.42);
+}
+
+/* ── Panels (right sidebar) — silver with steel-blue title bars ── */
+:root[data-theme="light"] .panels {
+  background: linear-gradient(to left, #E1E5EA 0%, #D6DBE1 100%);
+  border-left: 1px solid rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .panel { border-bottom-color: rgba(40,55,80,0.2); }
+
+/* Panel header — classic Paint.NET blue-gray title bar */
+:root[data-theme="light"] .panel-header {
+  background: linear-gradient(to bottom, #7389AE 0%, #556B93 100%);
+  border-bottom: 1px solid rgba(40,55,80,0.42);
+}
+:root[data-theme="light"] .panel-title {
+  color: #FFFFFF;
+  text-shadow: 0 1px 0 rgba(26,38,60,0.55);
+  font-weight: 700;
+}
+:root[data-theme="light"] .panel-header .panel-btn {
+  color: rgba(255,255,255,0.88);
+}
+:root[data-theme="light"] .panel-header .panel-btn:hover {
+  background: rgba(255,255,255,0.2);
+  color: #FFFFFF;
+}
+:root[data-theme="light"] .panel-btn:hover {
+  background: rgba(43,108,201,0.12);
+  color: var(--text);
+}
+
+/* ── Form inputs — crisp white with subtle inset (Windows field look) ── */
+:root[data-theme="light"] .opt-input,
+:root[data-theme="light"] .opt-select,
+:root[data-theme="light"] .opt-readout,
+:root[data-theme="light"] .props-input,
+:root[data-theme="light"] .color-panel-num,
+:root[data-theme="light"] .cp-num,
+:root[data-theme="light"] .modal-input,
+:root[data-theme="light"] .iem-add-size-input,
+:root[data-theme="light"] .ico-ghost-input input {
+  background: #FFFFFF;
+  border-color: rgba(40,55,80,0.36);
+  box-shadow: inset 0 1px 1px rgba(40,55,80,0.08);
+}
+:root[data-theme="light"] .opt-input:focus,
+:root[data-theme="light"] .opt-select:focus,
+:root[data-theme="light"] .props-input:focus,
+:root[data-theme="light"] .color-panel-num:focus,
+:root[data-theme="light"] .cp-num:focus,
+:root[data-theme="light"] .modal-input:focus,
+:root[data-theme="light"] .iem-add-size-input:focus,
+:root[data-theme="light"] .ico-ghost-input input:focus {
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 1px rgba(40,55,80,0.06), 0 0 0 2px rgba(43,108,201,0.22);
+}
+
+/* Color hex row (Color panel) */
+:root[data-theme="light"] .color-hex-row {
+  background: #FFFFFF;
+  border-color: rgba(40,55,80,0.3);
+  box-shadow: inset 0 1px 1px rgba(40,55,80,0.08);
+}
+
+/* ── Classic Windows beveled buttons ── */
+:root[data-theme="light"] .opt-btn-clear,
+:root[data-theme="light"] .opt-action-btn,
+:root[data-theme="light"] .opt-icon-btn,
+:root[data-theme="light"] .modal-btn,
+:root[data-theme="light"] .props-flip-btn,
+:root[data-theme="light"] .ico-master-fmt {
+  background: linear-gradient(to bottom, #FAFBFD 0%, #D9DDE3 100%);
+  border-color: rgba(40,55,80,0.36);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+}
+:root[data-theme="light"] .opt-btn-clear:hover,
+:root[data-theme="light"] .opt-action-btn:hover,
+:root[data-theme="light"] .opt-icon-btn:hover,
+:root[data-theme="light"] .modal-btn:hover,
+:root[data-theme="light"] .props-flip-btn:hover:not(:disabled),
+:root[data-theme="light"] .ico-master-fmt:hover {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+  border-color: rgba(43,108,201,0.5);
+  color: var(--text);
+}
+:root[data-theme="light"] .opt-btn-clear:active {
+  background: var(--accent);
+  color: #FFFFFF;
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+}
+:root[data-theme="light"] .opt-icon-btn.active,
+:root[data-theme="light"] .opt-icon-group .opt-icon-btn.active {
+  background: linear-gradient(to bottom, rgba(43,108,201,0.22) 0%, rgba(43,108,201,0.12) 100%);
+  color: var(--accent);
+  border-color: rgba(43,108,201,0.45);
+}
+:root[data-theme="light"] .opt-icon-group {
+  border-color: rgba(40,55,80,0.36);
+}
+:root[data-theme="light"] .opt-icon-group .opt-icon-btn {
+  border-right-color: rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .opt-action-btn-armed {
+  border-color: rgba(43,108,201,0.5);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+:root[data-theme="light"] .opt-action-btn-armed:hover {
+  background: rgba(43,108,201,0.22);
+  color: var(--accent);
+  border-color: rgba(43,108,201,0.65);
+}
+:root[data-theme="light"] .props-flip-btn + .props-flip-btn {
+  border-left-color: rgba(40,55,80,0.28);
+}
+:root[data-theme="light"] .props-flip-btn:active:not(:disabled) {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* Primary modal button — bold Luna blue */
+:root[data-theme="light"] .modal-btn.primary {
+  background: linear-gradient(to bottom, #4480DE 0%, #2663BF 100%);
+  border-color: #1E549F;
+  color: #FFFFFF;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+}
+:root[data-theme="light"] .modal-btn.primary:hover {
+  background: linear-gradient(to bottom, #5591EE 0%, #2F6DCC 100%);
+}
+
+/* Ghost add button (ICO modal) */
+:root[data-theme="light"] .ico-ghost-add {
+  background: linear-gradient(to bottom, #4480DE 0%, #2663BF 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+}
+:root[data-theme="light"] .ico-ghost-add:hover {
+  background: linear-gradient(to bottom, #5591EE 0%, #2F6DCC 100%);
+}
+
+/* ── Segmented controls (select mode bar, ico checkboxes) ── */
+:root[data-theme="light"] .opt-seg-bar {
+  background: #C2CAD4;
+  border-color: rgba(40,55,80,0.36);
+  box-shadow: inset 0 1px 1px rgba(40,55,80,0.18);
+}
+:root[data-theme="light"] .opt-mode-btn:hover { background: rgba(40,55,80,0.1); }
+:root[data-theme="light"] .opt-mode-btn.active {
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(40,55,80,0.22), 0 0 0 1px rgba(40,55,80,0.12);
+}
+
+/* Anchor grid (Canvas Size) */
+:root[data-theme="light"] .anchor-btn {
+  background: linear-gradient(to bottom, #FAFBFD 0%, #D9DDE3 100%);
+  border-color: rgba(40,55,80,0.34);
+}
+:root[data-theme="light"] .anchor-btn:hover {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+  border-color: rgba(43,108,201,0.45);
+}
+
+/* Props align grid */
+:root[data-theme="light"] .props-align-grid {
+  background: #EDF0F4;
+  border-color: rgba(40,55,80,0.36);
+  box-shadow: inset 0 1px 2px rgba(40,55,80,0.14);
+}
+:root[data-theme="light"] .props-align-dot::after { background: var(--text-tertiary); }
+
+/* Props flip strip */
+:root[data-theme="light"] .props-flip-strip {
+  border-color: rgba(40,55,80,0.36);
+}
+
+/* Props lock */
+:root[data-theme="light"] .props-lock-btn:hover:not(:disabled) {
+  background: rgba(40,55,80,0.1);
+  color: var(--text-secondary);
+}
+
+/* Props transform divider */
+:root[data-theme="light"] .props-transform-group { border-bottom-color: rgba(40,55,80,0.18); }
+:root[data-theme="light"] .props-divider { background: rgba(40,55,80,0.18); }
+
+/* ── Sliders — cool silver track, Luna-blue focus ring ── */
+:root[data-theme="light"] .opt-range,
+:root[data-theme="light"] .color-panel-range,
+:root[data-theme="light"] .filter-slider,
+:root[data-theme="light"] .cp-range {
+  background: #C2CAD4;
+  box-shadow: inset 0 1px 2px rgba(40,55,80,0.3), inset 0 0 0 1px rgba(40,55,80,0.12);
+}
+:root[data-theme="light"] .opt-range::-webkit-slider-thumb,
+:root[data-theme="light"] .color-panel-range::-webkit-slider-thumb,
+:root[data-theme="light"] .filter-slider::-webkit-slider-thumb,
+:root[data-theme="light"] .cp-range::-webkit-slider-thumb,
+:root[data-theme="light"] .cp-hue-slider::-webkit-slider-thumb,
+:root[data-theme="light"] .cp-bri-slider::-webkit-slider-thumb {
+  background: linear-gradient(to bottom, #FDFEFE 0%, #E2E6EC 100%);
+  box-shadow: 0 1px 2px rgba(40,55,80,0.35), 0 0 0 1px rgba(40,55,80,0.36);
+}
+:root[data-theme="light"] .opt-range:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(43,108,201,0.26), 0 1px 2px rgba(40,55,80,0.35), 0 0 0 1px rgba(40,55,80,0.36);
+}
+
+/* Filter gradients — use pure black→white for brightness/contrast/lightness */
+:root[data-theme="light"] #filterContrast { background: linear-gradient(to right, #808080, #FFFFFF); }
+
+/* ── Canvas workspace & wrappers ── */
+:root[data-theme="light"] .canvas-wrapper {
+  box-shadow: 0 0 0 1px rgba(40,55,80,0.28), 0 4px 20px rgba(40,55,80,0.2);
+}
+:root[data-theme="light"] .ruler-corner {
+  background: linear-gradient(to bottom right, #E1E5EA 0%, #C5CBD4 100%);
+  border-right-color: rgba(40,55,80,0.32);
+  border-bottom-color: rgba(40,55,80,0.32);
+}
+:root[data-theme="light"] .ruler-h { border-bottom-color: rgba(40,55,80,0.28); }
+:root[data-theme="light"] .ruler-v { border-right-color: rgba(40,55,80,0.28); }
+
+/* ── Layer items ── */
+:root[data-theme="light"] .layer-item:hover { background: rgba(43,108,201,0.1); }
+:root[data-theme="light"] .layer-item.active {
+  background: linear-gradient(to bottom, rgba(43,108,201,0.22) 0%, rgba(43,108,201,0.1) 100%);
+  box-shadow: inset 0 0 0 1px rgba(43,108,201,0.3);
+}
+:root[data-theme="light"] .layer-thumb {
+  background: repeating-conic-gradient(#DDE2E8 0% 25%, #BFC6D0 0% 50%) 0 0 / 8px 8px;
+  box-shadow: inset 0 0 0 1px rgba(40,55,80,0.24);
+}
+:root[data-theme="light"] .layer-vis:hover { color: var(--text); background: rgba(40,55,80,0.1); }
+:root[data-theme="light"] .layer-actions { border-top-color: rgba(40,55,80,0.18); }
+
+/* Layer opacity slider */
+:root[data-theme="light"] .color-panel-range {
+  /* Shared selector above — this keeps history consistent */
+}
+
+/* ── History entries ── */
+:root[data-theme="light"] .history-entry.past:hover { background: rgba(40,55,80,0.08); }
+:root[data-theme="light"] .history-entry.current {
+  background: linear-gradient(to bottom, rgba(43,108,201,0.22) 0%, rgba(43,108,201,0.1) 100%);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(43,108,201,0.3);
+}
+:root[data-theme="light"] .history-entry.future:hover { background: rgba(40,55,80,0.06); }
+:root[data-theme="light"] .history-list::-webkit-scrollbar-thumb {
+  background: rgba(40,55,80,0.3);
+}
+:root[data-theme="light"] .history-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(40,55,80,0.5);
+}
+
+/* ── Global scrollbars ── */
+:root[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(40,55,80,0.3); }
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(40,55,80,0.48); }
+
+/* ── Transform handles — dark border for crisp contrast on light canvas ── */
+:root[data-theme="light"] .transform-handle {
+  background: #FFFFFF;
+  border-color: #1A2030;
+}
+
+/* ── Modals ── */
+:root[data-theme="light"] .modal-overlay { background: rgba(40,55,80,0.38); }
+:root[data-theme="light"] .modal {
+  box-shadow: 0 16px 40px rgba(40,55,80,0.32), 0 0 0 1px rgba(40,55,80,0.12);
+}
+:root[data-theme="light"] .filter-preview {
+  background: repeating-conic-gradient(#DDE2E8 0% 25%, #BFC6D0 0% 50%) 0 0 / 12px 12px;
+  border-color: rgba(40,55,80,0.22);
+}
+
+/* Export option radios */
+:root[data-theme="light"] .export-option:hover { background: rgba(43,108,201,0.08); }
+:root[data-theme="light"] .export-option.selected .export-radio {
+  box-shadow: inset 0 0 0 3.5px #FFFFFF, inset 0 0 0 8px var(--accent);
+}
+
+/* ICO size list */
+:root[data-theme="light"] .ico-list-sep { background: rgba(40,55,80,0.18); }
+:root[data-theme="light"] .ico-size-row:hover { background: rgba(43,108,201,0.08); }
+:root[data-theme="light"] .ico-format-badge.png {
+  background: rgba(31,137,62,0.16);
+  color: var(--success);
+}
+:root[data-theme="light"] .ico-format-badge.bmp {
+  background: rgba(43,108,201,0.16);
+  color: var(--accent);
+}
+:root[data-theme="light"] .ico-ghost-row:hover { background: rgba(43,108,201,0.08); }
+:root[data-theme="light"] .ico-remove:hover {
+  background: rgba(200,32,49,0.14);
+  color: var(--danger);
+}
+
+/* ── Gradient editor ── */
+:root[data-theme="light"] .gradient-bar-wrap {
+  background: repeating-conic-gradient(#DDE2E8 0% 25%, #BFC6D0 0% 50%) 0 0 / 8px 8px;
+  border-color: rgba(40,55,80,0.24);
+}
+:root[data-theme="light"] .gradient-stop-swatch {
+  border-color: rgba(40,55,80,0.42);
+}
+:root[data-theme="light"] .gradient-stop-chip {
+  background: #FFFFFF;
+  border-color: rgba(40,55,80,0.28);
+}
+:root[data-theme="light"] .grad-stop-delete {
+  background: #FFFFFF;
+  color: var(--text);
+  border-color: rgba(40,55,80,0.22);
+  box-shadow: 0 4px 12px rgba(40,55,80,0.3);
+}
+:root[data-theme="light"] .grad-stop-delete:hover {
+  background: var(--danger);
+  color: #FFFFFF;
+  border-color: var(--danger);
+}
+
+/* ── Brush cursor — dark ring for visibility on white canvas ── */
+:root[data-theme="light"] #brushCursor {
+  border: 1.5px solid rgba(20,28,44,0.85);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.7);
+}
+:root[data-theme="light"] #brushCursor.pencil-cursor {
+  border: none;
+  box-shadow: none;
+}
+
+/* ── Color Picker panel (inline floating) ── */
+:root[data-theme="light"] .cp-panel {
+  box-shadow: 0 16px 40px rgba(40,55,80,0.3), 0 0 0 1px rgba(40,55,80,0.1);
+}
+:root[data-theme="light"] .cp-titlebar {
+  background: linear-gradient(to bottom, #7389AE 0%, #556B93 100%);
+  border-bottom: 1px solid rgba(40,55,80,0.42);
+}
+:root[data-theme="light"] .cp-title {
+  color: #FFFFFF;
+  text-shadow: 0 1px 0 rgba(26,38,60,0.55);
+}
+:root[data-theme="light"] .cp-close {
+  background: rgba(255,255,255,0.22);
+  color: #FFFFFF;
+}
+:root[data-theme="light"] .cp-close:hover {
+  background: rgba(255,255,255,0.4);
+  color: #FFFFFF;
+}
+:root[data-theme="light"] .cp-sv-field {
+  box-shadow: inset 0 0 0 1px rgba(40,55,80,0.18);
+}
+:root[data-theme="light"] .cp-wheel {
+  box-shadow: inset 0 0 0 1px rgba(40,55,80,0.18);
+}
+:root[data-theme="light"] .cp-sv-reticle {
+  box-shadow: 0 1px 4px rgba(40,55,80,0.5), inset 0 0 0 1px rgba(0,0,0,0.18);
+}
+:root[data-theme="light"] .cp-view-toggle { background: #C2CAD4; }
+:root[data-theme="light"] .cp-vtab.active {
+  background: #FFFFFF;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .cp-hex-group,
+:root[data-theme="light"] .cp-eyedropper-btn {
+  background: #FFFFFF;
+  border-color: rgba(40,55,80,0.3);
+  box-shadow: inset 0 1px 1px rgba(40,55,80,0.08);
+}
+:root[data-theme="light"] .cp-eyedropper-btn:hover {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+  border-color: rgba(43,108,201,0.45);
+}
+:root[data-theme="light"] .cp-swatch { border-color: rgba(40,55,80,0.32); }
+:root[data-theme="light"] .cp-footer { border-top-color: rgba(40,55,80,0.18); }
+
+/* Color panel eyedropper */
+:root[data-theme="light"] .color-panel-eyedropper {
+  background: linear-gradient(to bottom, #FAFBFD 0%, #D9DDE3 100%);
+  border-color: rgba(40,55,80,0.34);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+}
+:root[data-theme="light"] .color-panel-eyedropper:hover {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+  border-color: rgba(43,108,201,0.45);
+  color: var(--text);
+}
+:root[data-theme="light"] .color-panel-eyedropper.active {
+  background: rgba(43,108,201,0.14);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Color preview swatch border */
+:root[data-theme="light"] .color-preview-swatch { border-color: rgba(40,55,80,0.34); }
+
+/* Color preset swatches — slight darker inset for visibility on silver */
+:root[data-theme="light"] .color-preset-swatch {
+  box-shadow: inset 0 0 0 1px rgba(40,55,80,0.32);
+}
+:root[data-theme="light"] .color-preset-swatch:hover {
+  box-shadow: inset 0 0 0 1px rgba(40,55,80,0.5), 0 0 0 1px var(--text-secondary);
+}
+
+/* ── Drop overlay (drag & drop to import) ── */
+:root[data-theme="light"] .drop-overlay {
+  background: rgba(40,55,80,0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+:root[data-theme="light"] .drop-overlay-inner {
+  background: rgba(43,108,201,0.16);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(43,108,201,0.16), var(--shadow-lg);
+  animation: drop-pulse-light 1.4s ease-in-out infinite;
+}
+:root[data-theme="light"] .drop-overlay-inner span {
+  color: #FFFFFF;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+@keyframes drop-pulse-light {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(43,108,201,0.18), 0 10px 32px rgba(40,55,80,0.3); }
+  50%      { box-shadow: 0 0 0 10px rgba(43,108,201,0.28), 0 10px 32px rgba(40,55,80,0.3); }
+}
+
+/* ── Settings modal ── */
+:root[data-theme="light"] .settings-overlay { background: rgba(40,55,80,0.4); }
+:root[data-theme="light"] .settings-modal {
+  box-shadow: 0 20px 48px rgba(40,55,80,0.32), 0 0 0 1px rgba(40,55,80,0.12);
+}
+:root[data-theme="light"] .settings-header,
+:root[data-theme="light"] .settings-footer {
+  background: linear-gradient(to bottom, #E8ECF0 0%, #D3D8DE 100%);
+  border-color: rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .settings-sidebar {
+  background: #E8EBEF;
+  border-right-color: rgba(40,55,80,0.2);
+}
+:root[data-theme="light"] .settings-content { background: #FFFFFF; }
+:root[data-theme="light"] .settings-cat:hover { background: rgba(43,108,201,0.1); }
+:root[data-theme="light"] .settings-cat.active {
+  background: linear-gradient(to bottom, rgba(43,108,201,0.22) 0%, rgba(43,108,201,0.1) 100%);
+}
+
+/* Theme choice cards */
+:root[data-theme="light"] .theme-choice {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #EEF1F5 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+}
+:root[data-theme="light"] .theme-choice:hover {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+  border-color: rgba(43,108,201,0.4);
+  box-shadow: 0 4px 12px rgba(40,55,80,0.2);
+}
+:root[data-theme="light"] .theme-choice.active {
+  box-shadow: 0 0 0 2px rgba(43,108,201,0.3);
+}
+
+/* Theme preview — LIGHT card shows new Paint.NET look */
+:root[data-theme="light"] .theme-choice-preview-light,
+.theme-choice-preview-light {
+  background: #D6DBE1;
+  color: #1A2030;
+}
+:root[data-theme="light"] .theme-choice-preview-light .tcp-menubar,
+.theme-choice-preview-light .tcp-menubar {
+  background: linear-gradient(to bottom, #323848 0%, #272C3B 100%);
+  color: #D4D9E1;
+  border-bottom: 1px solid rgba(0,0,0,0.3);
+}
+:root[data-theme="light"] .theme-choice-preview-light .tcp-menubar span,
+.theme-choice-preview-light .tcp-menubar span { background: #D4D9E1; opacity: 0.85; }
+:root[data-theme="light"] .theme-choice-preview-light .tcp-toolbar,
+.theme-choice-preview-light .tcp-toolbar {
+  background: linear-gradient(to right, #E1E5EA 0%, #CCD2DA 100%);
+  border-right: 1px solid rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .theme-choice-preview-light .tcp-canvas,
+.theme-choice-preview-light .tcp-canvas {
+  background: repeating-conic-gradient(#BAC2CC 0% 25%, #A6AFBC 0% 50%) 0 0 / 6px 6px;
+  box-shadow: 0 0 0 1px rgba(40,55,80,0.22), 0 1px 4px rgba(40,55,80,0.18);
+}
+:root[data-theme="light"] .theme-choice-preview-light .tcp-panel,
+.theme-choice-preview-light .tcp-panel {
+  background: linear-gradient(to left, #E1E5EA 0%, #D6DBE1 100%);
+  border-left: 1px solid rgba(40,55,80,0.22);
+}
+
+/* ── Icon Editor Mode (IEM) ── */
+:root[data-theme="light"] .iem-banner {
+  background: linear-gradient(to bottom, #4A5369 0%, #39425A 100%);
+  border-color: rgba(0,0,0,0.4);
+  color: #D4D9E1;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+:root[data-theme="light"] .icon-sizes-panel {
+  background: #D6DBE1;
+  border-left-color: rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .iem-panel-header {
+  background: linear-gradient(to bottom, #7389AE 0%, #556B93 100%);
+  border-bottom-color: rgba(40,55,80,0.42);
+}
+:root[data-theme="light"] .iem-panel-title {
+  color: #FFFFFF;
+  text-shadow: 0 1px 0 rgba(26,38,60,0.55);
+}
+:root[data-theme="light"] .iem-panel-count {
+  background: rgba(255,255,255,0.2);
+  border-color: rgba(255,255,255,0.34);
+  color: #FFFFFF;
+}
+:root[data-theme="light"] .iem-size-row {
+  background: #FFFFFF;
+  border-color: rgba(40,55,80,0.18);
+}
+:root[data-theme="light"] .iem-size-row:hover { background: rgba(43,108,201,0.08); }
+:root[data-theme="light"] .iem-size-row.selected {
+  background: rgba(43,108,201,0.14);
+  border-color: rgba(43,108,201,0.45);
+}
+:root[data-theme="light"] .iem-size-row.primary {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+:root[data-theme="light"] .iem-size-thumb-wrap {
+  background: repeating-conic-gradient(#DDE2E8 0% 25%, #BFC6D0 0% 50%) 0 0 / 10px 10px;
+  box-shadow: inset 0 0 0 1px rgba(40,55,80,0.3);
+}
+:root[data-theme="light"] .iem-size-toolbar {
+  background: linear-gradient(to bottom, #E1E5EA 0%, #CCD2DA 100%);
+  border-top-color: rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .iem-tb-btn:hover { background: rgba(43,108,201,0.12); color: var(--text); }
+:root[data-theme="light"] .iem-tb-btn-danger:hover { color: var(--danger); }
+:root[data-theme="light"] .iem-fmt-pill.png {
+  background: rgba(31,137,62,0.16);
+  color: var(--success);
+}
+:root[data-theme="light"] .iem-fmt-pill.bmp {
+  background: rgba(43,108,201,0.16);
+  color: var(--accent);
+}
+:root[data-theme="light"] .iem-hq-pill {
+  background: rgba(168,81,0,0.14);
+  color: var(--warning);
+  border-color: rgba(168,81,0,0.35);
+}
+:root[data-theme="light"] .iem-banner-dot {
+  background: #FFB84D;
+  box-shadow: 0 0 6px rgba(255,184,77,0.8);
+}
+:root[data-theme="light"] .iem-choice-card {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #EEF1F5 100%);
+  border-color: rgba(40,55,80,0.2);
+}
+:root[data-theme="light"] .iem-choice-card:hover {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+  border-color: rgba(40,55,80,0.32);
+  box-shadow: 0 6px 18px rgba(40,55,80,0.22);
+}
+:root[data-theme="light"] .iem-choice-card-primary:hover {
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px rgba(43,108,201,0.28);
+}
+:root[data-theme="light"] .iem-choice-card-icon {
+  background: #EEF1F5;
+  border-color: rgba(40,55,80,0.2);
+}
+:root[data-theme="light"] .iem-choice-card-primary .iem-choice-card-icon {
+  background: rgba(43,108,201,0.14);
+  color: var(--accent);
+  border-color: rgba(43,108,201,0.4);
+}
+:root[data-theme="light"] .iem-radio-card {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #F4F6F9 100%);
+  border-color: rgba(40,55,80,0.2);
+}
+:root[data-theme="light"] .iem-radio-card:hover { background: rgba(43,108,201,0.08); }
+:root[data-theme="light"] .iem-radio-card:has(input:checked) {
+  background: rgba(43,108,201,0.12);
+  border-color: var(--accent);
+}
+:root[data-theme="light"] .iem-add-size-error { color: var(--danger); }
+:root[data-theme="light"] .iem-context-menu { box-shadow: 0 12px 32px rgba(40,55,80,0.26); }
+:root[data-theme="light"] .iem-choice-info {
+  background: #FFFFFF;
+  border-color: rgba(40,55,80,0.24);
+}
+
+/* Export radio (light: keep inset showing white) */
+:root[data-theme="light"] .export-option.selected .export-radio {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3.5px #FFFFFF, inset 0 0 0 8px var(--accent);
 }
 
 /* Smooth color-mode crossfade — only active for ~220ms during toggle.
@@ -2670,9 +3374,8 @@ input[type="file"] { display: none; }
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
-:root[data-theme="light"] .settings-overlay {
-  background: rgba(15,23,42,0.28);
-}
+/* Paint.NET light-mode override for .settings-overlay is defined in the
+   light-mode chrome overrides section near the top of this file. */
 
 /* ── Window frame ── */
 .settings-modal {
