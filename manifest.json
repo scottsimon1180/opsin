@@ -1,0 +1,20 @@
+{
+  "name": "Opsin — Image Editor",
+  "short_name": "Opsin",
+  "description": "Professional browser-based raster image editor",
+  "start_url": "index.html",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay"],
+  "background_color": "#242428",
+  "theme_color": "#242428",
+  "icons": [
+    { "src": "assets/images/logo-16.png",   "sizes": "16x16",   "type": "image/png" },
+    { "src": "assets/images/logo-24.png",   "sizes": "24x24",   "type": "image/png" },
+    { "src": "assets/images/logo-32.png",   "sizes": "32x32",   "type": "image/png" },
+    { "src": "assets/images/logo-64.png",   "sizes": "64x64",   "type": "image/png" },
+    { "src": "assets/images/logo-96.png",   "sizes": "96x96",   "type": "image/png" },
+    { "src": "assets/images/logo-128.png",  "sizes": "128x128", "type": "image/png" },
+    { "src": "assets/images/logo-256.png",  "sizes": "256x256", "type": "image/png" },
+    { "src": "assets/images/logo-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

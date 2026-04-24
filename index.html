@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opsin — Image Studio</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="assets/images/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/images/logo-16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/images/logo-32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="assets/images/logo-96.png">
+<link rel="icon" type="image/png" sizes="1024x1024" href="assets/images/logo-1024.png">
+<link rel="apple-touch-icon" href="assets/images/logo-1024.png">
+<meta name="application-name" content="Opsin">
+<meta name="apple-mobile-web-app-title" content="Opsin">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  // Theme bootstrap — runs before CSS paints to prevent a flash of the wrong
+  // color scheme when the user has saved "Light" or the system prefers light.
+  (function(){
+    try {
+      var m = localStorage.getItem('opsin.settings.colorMode');
+      if (m !== 'light' && m !== 'dark' && m !== 'system') m = 'system';
+      var effective = m;
+      if (m === 'system') {
+        effective = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      }
+      if (effective === 'light') document.documentElement.setAttribute('data-theme','light');
+    } catch(e) {}
+  })();
+</script>
+</head>
+<body>
+
+<!-- ═══════════════════ MENU BAR ═══════════════════ -->
+<div class="menubar">
+  <div class="menu-item" data-menu="file">File
+    <div class="menu-dropdown" id="menu-file">
+      <button class="menu-action" onclick="newImage()"><span class="menu-label">New</span><span class="shortcut">Ctrl+N</span></button>
+      <button class="menu-action" onclick="openImage()"><span class="menu-label">Open</span><span class="shortcut">Ctrl+O</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" data-export-type="png" onclick="saveImage('png')"><span class="menu-label">Export PNG</span><span class="shortcut">Ctrl+S</span></button>
+      <button class="menu-action" data-export-type="jpg" onclick="saveImage('jpg')"><span class="menu-label">Export JPG</span><span class="shortcut">Ctrl+Shift+S</span></button>
+      <button class="menu-action" data-export-type="webp" onclick="saveImage('webp')"><span class="menu-label">Export WebP</span></button>
+      <button class="menu-action" data-export-type="tif" onclick="openExportModal('tif')"><span class="menu-label">Export TIF</span></button>
+      <button class="menu-action" data-export-type="bmp" onclick="openExportModal('bmp')"><span class="menu-label">Export BMP</span></button>
+      <button class="menu-action" data-export-type="ico" onclick="openExportIcoModal()"><span class="menu-label">Export ICO</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="openInfoPopup()"><span class="menu-label">Info</span><svg class="menu-icon"><use href="#icon-info"/></svg></button>
+      <button class="menu-action" onclick="location.reload()"><span class="menu-label">Refresh Browser</span><svg class="menu-icon"><use href="#icon-menu-refresh"/></svg></button>
+    </div>
+  </div>
+  <div class="menu-item" data-menu="edit">Edit
+    <div class="menu-dropdown" id="menu-edit">
+      <button class="menu-action" onclick="doUndo()">Undo <span class="shortcut">Ctrl+Z</span></button>
+      <button class="menu-action" onclick="doRedo()">Redo <span class="shortcut">Ctrl+Y</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="doCopy()">Copy <span class="shortcut">Ctrl+C</span></button>
+      <button class="menu-action" onclick="doCut()">Cut <span class="shortcut">Ctrl+X</span></button>
+      <button class="menu-action" onclick="doPaste()">Paste <span class="shortcut">Ctrl+V</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="selectAll()">Select All <span class="shortcut">Ctrl+A</span></button>
+      <button class="menu-action" onclick="invertSelection()">Invert Selection <span class="shortcut">Ctrl+Shift+I</span></button>
+      <button class="menu-action" onclick="clearSelection()">Deselect <span class="shortcut">Ctrl+D</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="deleteSelection()">Delete Selection <span class="shortcut">Del</span></button>
+      <button class="menu-action" onclick="cropToSelection()">Crop to Selection</button>
+    </div>
+  </div>
+  <div class="menu-item" data-menu="image">Image
+    <div class="menu-dropdown" id="menu-image">
+      <button class="menu-action" onclick="openResizeDialog()">Resize Image</button>
+      <button class="menu-action" onclick="openCanvasSizeDialog()">Canvas Size</button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="flipHorizontal()">Flip Horizontal</button>
+      <button class="menu-action" onclick="flipVertical()">Flip Vertical</button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="rotateCW()">Rotate 90° CW</button>
+      <button class="menu-action" onclick="rotateCCW()">Rotate 90° CCW</button>
+      <button class="menu-action" onclick="rotate180()">Rotate 180°</button>
+    </div>
+  </div>
+  <div class="menu-item" data-menu="filter">Adjustments
+    <div class="menu-dropdown" id="menu-filter">
+      <button class="menu-action" onclick="openFilter('brightness')">Brightness / Contrast</button>
+      <button class="menu-action" onclick="openFilter('hsl')">Hue / Saturation</button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="openFilter('blur')">Gaussian Blur</button>
+      <button class="menu-action" onclick="openFilter('sharpen')">Sharpen</button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="openFilter('invert')">Invert Colors</button>
+      <button class="menu-action" onclick="openFilter('grayscale')">Grayscale</button>
+    </div>
+  </div>
+  <div class="menu-item" data-menu="view">View
+    <div class="menu-dropdown" id="menu-view">
+      <button class="menu-action" id="toggleRulersBtn" onclick="toggleRulers()"><span class="menu-label">Rulers</span><span class="menu-check" id="rulerCheck">&#10003;</span></button>
+      <button class="menu-action" id="toggleGuidesBtn" onclick="toggleGuides()"><span class="menu-label">Guides</span><span class="menu-check" id="guideCheck">&#10003;</span></button>
+      <button class="menu-action" onclick="clearAllGuides()"><span class="menu-label">Clear Guides</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" id="toggleSnapBtn" onclick="SnapEngine.toggle()"><span class="menu-label">Snap</span><span class="menu-right"><span class="shortcut">Ctrl+Shift+;</span><span class="menu-check" id="snapCheck">&#10003;</span></span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-action" onclick="zoomIn()"><span class="menu-label">Zoom In</span><span class="shortcut">Ctrl+=</span></button>
+      <button class="menu-action" onclick="zoomOut()"><span class="menu-label">Zoom Out</span><span class="shortcut">Ctrl+-</span></button>
+      <button class="menu-action" onclick="zoomFit()"><span class="menu-label">Fit to Window</span><span class="shortcut">Ctrl+0</span></button>
+      <button class="menu-action" onclick="zoom100()"><span class="menu-label">100%</span><span class="shortcut">Ctrl+1</span></button>
+    </div>
+  </div>
+  <button class="menu-item-action" id="settingsMenuBtn" onclick="openSettings()" title="Settings">
+    <svg class="menu-item-icon"><use href="#icon-settings-gear"/></svg>
+    <span>Settings</span>
+  </button>
+  <div class="iem-banner" id="iemBanner" hidden>
+    <span class="iem-banner-dot"></span>
+    <span class="iem-banner-text">Icon Editor Mode</span>
+  </div>
+  <span id="statusVersion" onclick="openInfoPopup()"></span>
+</div>
+
+<!-- ═══════════════════ OPTIONS BAR ═══════════════════ -->
+<div class="options-bar" id="optionsBar">
+  <!-- Tool Indicator -->
+  <div class="tool-indicator" id="toolIndicator">
+    <div class="tool-indicator-single" id="toolIndicatorSingle">
+      <svg><use id="toolIndicatorIcon" href="#icon-move"/></svg>
+      <span class="tool-indicator-bar"></span>
+    </div>
+    <div class="tool-indicator-group hidden" id="toolIndicatorSelect">
+      <button class="tool-indicator-btn active" id="optSelectRect" onclick="setSelectShape('rect')" title="Rectangle Select">
+        <svg><use href="#icon-select-rect"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optSelectEllipse" onclick="setSelectShape('ellipse')" title="Ellipse Select">
+        <svg><use href="#icon-select-ellipse"/></svg>
+      </button>
+    </div>
+    <div class="tool-indicator-group hidden" id="toolIndicatorLasso">
+      <button class="tool-indicator-btn active" id="optLassoFree" onclick="setLassoMode('free')" title="Freeform Lasso">
+        <svg><use href="#icon-lasso-free"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optLassoPoly" onclick="setLassoMode('poly')" title="Polygonal Lasso">
+        <svg><use href="#icon-lasso-poly"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optLassoMag" onclick="setLassoMode('magnetic')" title="Magnetic Lasso">
+        <svg><use href="#icon-lasso-magnetic"/></svg>
+      </button>
+    </div>
+    <div class="tool-indicator-group hidden" id="toolIndicatorShape">
+      <button class="tool-indicator-btn active" id="optShapeRect" onclick="setShapeType('rect')" title="Rectangle">
+        <svg><use href="#icon-shape-rect"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optShapeEllipse" onclick="setShapeType('ellipse')" title="Ellipse">
+        <svg><use href="#icon-shape-ellipse"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optShapeLine" onclick="setShapeType('line')" title="Line">
+        <svg><use href="#icon-shape-line"/></svg>
+      </button>
+    </div>
+  </div>
+  <!-- Move tool controls -->
+  <div class="opt-group hidden" id="opt-move">
+    <label class="opt-checkbox-label" title="Click any visible pixel to automatically target its layer">
+      <input type="checkbox" id="moveAutoSelect">
+      <span>Auto-Select Layer</span>
+    </label>
+    <button class="opt-action-btn opt-deselect-btn" id="optMoveDeselect" onclick="deselectMove()" title="Deselect (Ctrl+D) — commit the active transform and clear overlays" disabled>Deselect</button>
+  </div>
+  <!-- Brush / Eraser controls -->
+  <div class="opt-group hidden" id="opt-draw-size">
+    <span class="opt-label">Size</span>
+    <input type="range" class="opt-range" id="drawSize" min="1" max="500" value="20">
+    <input type="number" class="opt-input" id="drawSizeNum" value="20" min="1" max="5000">
+  </div>
+  <div class="opt-group hidden" id="opt-draw-soft">
+    <span class="opt-label">Hardness</span>
+    <input type="range" class="opt-range" id="drawHardness" min="0" max="100" value="100">
+    <input type="number" class="opt-input opt-input-sm" id="drawHardnessNum" value="100" min="0" max="100">
+  </div>
+  <div class="opt-group hidden" id="opt-draw-opacity">
+    <span class="opt-label">Opacity</span>
+    <input type="range" class="opt-range" id="drawOpacity" min="0" max="100" value="100">
+    <input type="number" class="opt-input opt-input-sm" id="drawOpacityNum" value="100" min="0" max="100">
+  </div>
+  <div class="opt-group hidden" id="opt-draw-smooth">
+    <span class="opt-label">Smoothing</span>
+    <input type="range" class="opt-range" id="drawSmooth" min="0" max="100" value="0">
+    <input type="number" class="opt-input opt-input-sm" id="drawSmoothNum" value="0" min="0" max="100">
+  </div>
+  <!-- Pencil controls -->
+  <div class="opt-group hidden" id="opt-pencil-size">
+    <span class="opt-label">Size</span>
+    <input type="range" class="opt-range" id="pencilSize" min="1" max="500" value="1">
+    <input type="number" class="opt-input" id="pencilSizeNum" value="1" min="1" max="5000">
+  </div>
+  <div class="opt-group hidden" id="opt-pencil-opacity">
+    <span class="opt-label">Opacity</span>
+    <input type="range" class="opt-range" id="pencilOpacity" min="0" max="100" value="100">
+    <input type="number" class="opt-input opt-input-sm" id="pencilOpacityNum" value="100" min="0" max="100">
+  </div>
+  <!-- Shape/other tool opacity -->
+  <div class="opt-group hidden" id="opt-opacity">
+    <span class="opt-label">Opacity</span>
+    <input type="range" class="opt-range" id="toolOpacity" min="1" max="100" value="100">
+    <input type="number" class="opt-input opt-input-sm" id="toolOpacityNum" value="100" min="1" max="100">
+    <span class="opt-unit">%</span>
+  </div>
+  <div class="opt-group hidden" id="opt-fill-mode">
+    <span class="opt-label">Fill</span>
+    <select class="opt-select" id="shapeFillMode">
+      <option value="stroke">Stroke</option>
+      <option value="fill">Fill</option>
+      <option value="both">Both</option>
+    </select>
+  </div>
+  <div class="opt-group hidden" id="opt-stroke-width">
+    <span class="opt-label">Stroke</span>
+    <input type="number" class="opt-input opt-input-sm" id="shapeStrokeWidth" value="2" min="1" max="50">
+  </div>
+  <div class="opt-group hidden" id="opt-font">
+    <span class="opt-label">Font</span>
+    <select class="opt-select" id="textFont">
+      <option value="Arial">Arial</option>
+      <option value="Helvetica">Helvetica</option>
+      <option value="Georgia">Georgia</option>
+      <option value="Times New Roman">Times New Roman</option>
+      <option value="Courier New">Courier New</option>
+      <option value="Verdana">Verdana</option>
+      <option value="Impact">Impact</option>
+    </select>
+    <input type="number" class="opt-input opt-input-md" id="textSize" value="24" min="6" max="400">
+    <span class="opt-unit">px</span>
+  </div>
+  <div class="opt-group hidden" id="opt-gradient-opacity">
+    <span class="opt-label">Opacity</span>
+    <input type="range" class="opt-range" id="gradOpacity" min="0" max="100" value="100">
+    <input type="number" class="opt-input opt-input-sm" id="gradOpacityNum" value="100" min="0" max="100">
+  </div>
+  <div class="opt-group hidden" id="opt-fill-opacity">
+    <span class="opt-label">Opacity</span>
+    <input type="range" class="opt-range" id="fillOpacity" min="0" max="100" value="100">
+    <input type="number" class="opt-input opt-input-sm" id="fillOpacityNum" value="100" min="0" max="100">
+  </div>
+  <div class="opt-group hidden" id="opt-fill-tolerance">
+    <span class="opt-label">Tolerance</span>
+    <input type="range" class="opt-range" id="fillTolerance" min="0" max="255" value="128">
+    <input type="number" class="opt-input opt-input-md" id="fillToleranceNum" value="128" min="0" max="255">
+  </div>
+  <div class="opt-group hidden" id="opt-sel-mode">
+    <div class="opt-seg-bar">
+      <button class="opt-mode-btn active" id="optSelNew" onclick="setSelectionMode('new')" title="New Selection">New</button>
+      <button class="opt-mode-btn" id="optSelAdd" onclick="setSelectionMode('add')" title="Add to Selection">Add</button>
+      <button class="opt-mode-btn" id="optSelSub" onclick="setSelectionMode('subtract')" title="Subtract from Selection">Sub</button>
+    </div>
+    <button class="opt-action-btn opt-deselect-btn" id="optDeselect" onclick="clearSelection()" title="Deselect (Ctrl+D)">Deselect</button>
+  </div>
+  <div class="opt-group hidden" id="opt-wand-tolerance">
+    <span class="opt-label">Tolerance</span>
+    <input type="range" class="opt-range" id="wandTolerance" min="0" max="255" value="32">
+    <input type="number" class="opt-input opt-input-md" id="wandToleranceNum" value="32" min="0" max="255">
+  </div>
+  <div class="opt-group hidden" id="opt-wand-contiguous">
+    <label class="opt-checkbox-label">
+      <input type="checkbox" id="wandContiguous" checked>
+      <span>Contiguous</span>
+    </label>
+  </div>
+  <div class="opt-group hidden" id="opt-mag-width">
+    <span class="opt-label">Width</span>
+    <input type="range" class="opt-range" id="magWidth" min="1" max="40" value="10">
+    <input type="number" class="opt-input opt-input-sm" id="magWidthNum" value="10" min="1" max="40">
+    <span class="opt-unit">px</span>
+  </div>
+  <div class="opt-group hidden" id="opt-mag-contrast">
+    <span class="opt-label">Contrast</span>
+    <input type="range" class="opt-range" id="magContrast" min="1" max="100" value="50">
+    <input type="number" class="opt-input opt-input-sm" id="magContrastNum" value="50" min="1" max="100">
+  </div>
+  <div class="opt-group hidden" id="opt-mag-frequency">
+    <span class="opt-label">Frequency</span>
+    <input type="range" class="opt-range" id="magFrequency" min="0" max="100" value="57">
+    <input type="number" class="opt-input opt-input-sm" id="magFrequencyNum" value="57" min="0" max="100">
+  </div>
+  <div class="opt-group hidden" id="opt-ruler">
+    <span class="opt-pair"><span class="opt-label">Width</span><span class="opt-readout" id="rulerReadoutW">&mdash;</span></span>
+    <span class="opt-pair"><span class="opt-label">Height</span><span class="opt-readout" id="rulerReadoutH">&mdash;</span></span>
+    <span class="opt-pair"><span class="opt-label">Diagonal</span><span class="opt-readout" id="rulerReadoutD">&mdash;</span></span>
+    <span class="opt-pair"><span class="opt-label">Angle</span><span class="opt-readout" id="rulerReadoutA">&mdash;</span></span>
+    <button class="opt-btn-clear" id="rulerClearBtn" onclick="clearRuler()" title="Clear Ruler">Clear</button>
+  </div>
+  <div class="brand-badge" onclick="openInfoPopup()" title="About Opsin">
+    <svg class="brand-logo"><use href="#icon-logo-opsin"/></svg>
+    <span class="brand-name">Opsin</span>
+    <span class="brand-dot"></span>
+    <span class="brand-sub">Image Studio</span>
+  </div>
+</div>
+
+<!-- ═══════════════════ APP BODY ═══════════════════ -->
+<div class="app-body">
+
+  <!-- ═══ TOOLBAR ═══ -->
+  <div class="toolbar" id="toolbarEl">
+    <button class="tool-btn active" data-tool="move" title="Move (V)">
+      <svg><use href="#icon-move"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="movesel" title="Move Selection (Q)">
+      <svg><use href="#icon-move-selection"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="pan" title="Pan / Hand (H)">
+      <svg><use href="#icon-pan"/></svg>
+    </button>
+
+    <div class="tool-sep"></div>
+
+    <button class="tool-btn" data-tool="select" id="selectToolBtn" title="Select (M)">
+      <svg><use href="#icon-select-rect"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="lasso" id="lassoToolBtn" title="Lasso (L)">
+      <svg><use href="#icon-lasso-free"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="wand" title="Magic Wand (W)">
+      <svg><use href="#icon-magic-wand"/></svg>
+    </button>
+
+    <div class="tool-sep"></div>
+
+    <button class="tool-btn" data-tool="ruler" title="Ruler (R)">
+      <svg><use href="#icon-ruler-tool"/></svg>
+    </button>
+
+    <div class="tool-sep"></div>
+
+    <button class="tool-btn" data-tool="brush" title="Brush (B)">
+      <svg><use href="#icon-brush"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="pencil" title="Pencil (P)">
+      <svg><use href="#icon-pencil"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="eraser" title="Eraser (E)">
+      <svg><use href="#icon-eraser"/></svg>
+    </button>
+
+    <div class="tool-sep"></div>
+
+    <button class="tool-btn" data-tool="fill" title="Fill (G)">
+      <svg><use href="#icon-fill"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="gradient" title="Gradient (D)">
+      <svg><use href="#icon-gradient"/></svg>
+    </button>
+        <div class="tool-sep"></div>
+
+    <button class="tool-btn" id="importLayerBtn" title="Import Image as Layer" onclick="triggerImportLayer()">
+      <svg><use href="#icon-import-layer"/></svg>
+    </button>
+
+
+    <button class="tool-btn" data-tool="text" title="Text (T)">
+      <svg><use href="#icon-text"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="shape" id="shapeToolBtn" title="Shapes (U)">
+      <svg><use href="#icon-shape"/></svg>
+    </button>
+
+    <!-- Color wells -->
+    <div class="color-wells">
+      <div class="color-swap" onclick="swapColors()" title="Swap colors (X)">
+        <svg><use href="#icon-color-swap"/></svg>
+      </div>
+      <div class="color-well fg" id="fgWell" title="Foreground color"></div>
+      <div class="color-well bg" id="bgWell" title="Background color"></div>
+    </div>
+  </div>
+
+  <!-- ═══ WORKSPACE ═══ -->
+  <div class="workspace" id="workspace">
+    <div class="ruler-corner" id="rulerCorner"></div>
+    <canvas class="ruler ruler-h" id="rulerH"></canvas>
+    <canvas class="ruler ruler-v" id="rulerV"></canvas>
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <canvas id="compositeCanvas"></canvas>
+    </div>
+    <canvas id="overlayCanvas"></canvas>
+    <canvas class="guide-overlay" id="guideOverlay"></canvas>
+    <canvas class="ui-overlay" id="uiOverlay"></canvas>
+    <!-- Gradient stop right-click delete menu -->
+    <div class="grad-stop-ctx" id="gradStopCtx">
+      <button class="grad-stop-delete" onclick="executeGradStopDelete()" title="Delete Stop">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+        </svg>
+      </button>
+    </div>
+    <!-- Drag-and-drop import overlay — anchored to workspace -->
+    <div class="drop-overlay" id="dropOverlay">
+      <div class="drop-overlay-inner">
+        <svg><use href="#icon-import-layer"/></svg>
+        <span>Drop image to import as layer</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ICON SIZES PANEL (IEM only) ═══ -->
+  <aside class="icon-sizes-panel" id="iconSizesPanel" hidden></aside>
+
+  <!-- ═══ PANELS ═══ -->
+  <div class="panels">
+    <!-- Color Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Color</span>
+      </div>
+      <div class="panel-body">
+        <div class="color-panel-sliders">
+          <div class="color-panel-slider-row">
+            <span class="color-panel-sl">R</span>
+            <input type="range" class="color-panel-range color-panel-range-r" id="rSlider" min="0" max="255" value="255">
+            <input type="number" class="color-panel-num" id="rInput" value="255" min="0" max="255">
+          </div>
+          <div class="color-panel-slider-row">
+            <span class="color-panel-sl">G</span>
+            <input type="range" class="color-panel-range color-panel-range-g" id="gSlider" min="0" max="255" value="255">
+            <input type="number" class="color-panel-num" id="gInput" value="255" min="0" max="255">
+          </div>
+          <div class="color-panel-slider-row">
+            <span class="color-panel-sl">B</span>
+            <input type="range" class="color-panel-range color-panel-range-b" id="bSlider" min="0" max="255" value="255">
+            <input type="number" class="color-panel-num" id="bInput" value="255" min="0" max="255">
+          </div>
+        </div>
+        <div class="color-panel-top" style="margin-top:10px; margin-bottom:0;">
+          <div class="color-preview-swatch" id="colorSwatchPreview" style="background:#ffffff" onclick="toggleColorPicker()" title="Open Color Picker">
+          </div>
+          <div class="color-hex-presets-row">
+            <div class="color-hex-row">
+              <span class="color-field-label">#</span>
+              <input class="color-field-input" id="hexInput" value="FFFFFF" maxlength="6">
+            </div>
+            <div class="color-panel-eyedropper" id="panelEyedropperBtn" onclick="togglePanelEyedropper()" title="Eyedropper (I)">
+              <svg><use href="#icon-eyedropper"/></svg>
+            </div>
+            <div class="color-presets-grid" id="colorPresetsGrid">
+            <div class="color-preset-swatch" data-color="#ffffff" style="background:#ffffff"></div>
+            <div class="color-preset-swatch" data-color="#ff0000" style="background:#ff0000"></div>
+            <div class="color-preset-swatch" data-color="#00ff00" style="background:#00ff00"></div>
+            <div class="color-preset-swatch" data-color="#0000ff" style="background:#0000ff"></div>
+            <div class="color-preset-swatch" data-color="#000000" style="background:#000000"></div>
+            <div class="color-preset-swatch" data-color="#00ffff" style="background:#00ffff"></div>
+            <div class="color-preset-swatch" data-color="#ff00ff" style="background:#ff00ff"></div>
+            <div class="color-preset-swatch" data-color="#ffff00" style="background:#ffff00"></div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Properties Panel -->
+    <div class="panel" id="propertiesPanel">
+      <div class="panel-header">
+        <span class="panel-title">Properties</span>
+      </div>
+      <div class="panel-body">
+        <div class="props-grid">
+          <div class="props-lock-wrap">
+            <button class="props-lock-btn" id="propAspectLock" title="Lock Aspect Ratio" disabled>
+              <svg><use href="#icon-chain-unlinked"/></svg>
+            </button>
+          </div>
+          <div class="props-field">
+            <label class="props-label props-label-wide">Width</label>
+            <input type="number" class="props-input" id="propW" min="1" step="1" disabled>
+            <span class="props-unit">px</span>
+          </div>
+          <div class="props-field">
+            <label class="props-label props-label-icon-hover" id="propLabelX">
+              <span class="props-label-text">X</span>
+              <svg class="props-label-icon"><use href="#icon-arrow-horizontal"/></svg>
+            </label>
+            <input type="number" class="props-input" id="propX" step="1" disabled>
+            <span class="props-unit">px</span>
+          </div>
+          <div class="props-field">
+            <label class="props-label props-label-wide">Height</label>
+            <input type="number" class="props-input" id="propH" min="1" step="1" disabled>
+            <span class="props-unit">px</span>
+          </div>
+          <div class="props-field">
+            <label class="props-label props-label-icon-hover" id="propLabelY">
+              <span class="props-label-text">Y</span>
+              <svg class="props-label-icon"><use href="#icon-arrow-vertical"/></svg>
+            </label>
+            <input type="number" class="props-input" id="propY" step="1" disabled>
+            <span class="props-unit">px</span>
+          </div>
+        </div>
+        <div class="props-divider"></div>
+        <div class="props-bottom">
+          <div class="props-transform-group">
+            <span class="props-group-label">Transform</span>
+            <div class="props-transform-row">
+              <div class="props-flip-strip">
+                <button class="props-flip-btn" id="propFlipH" title="Flip Horizontal" disabled>
+                  <svg><use href="#icon-flip-horizontal"/></svg>
+                  <span>Flip H</span>
+                </button>
+                <button class="props-flip-btn" id="propFlipV" title="Flip Vertical" disabled>
+                  <svg><use href="#icon-flip-vertical"/></svg>
+                  <span>Flip V</span>
+                </button>
+              </div>
+              <div class="props-rotate-field">
+                <span class="props-rotate-icon">↻</span>
+                <input type="number" class="props-input props-rotate-input" id="propRotation" step="1" value="0" disabled>
+                <span class="props-unit">°</span>
+              </div>
+            </div>
+          </div>
+          <div class="props-align-widget">
+            <span class="props-group-label">Align to Canvas</span>
+            <div class="props-align-grid" id="propAlignGrid">
+              <button class="props-align-dot" data-align="tl" title="Top Left" disabled></button>
+              <button class="props-align-dot" data-align="tc" title="Top Center" disabled></button>
+              <button class="props-align-dot" data-align="tr" title="Top Right" disabled></button>
+              <button class="props-align-dot" data-align="cl" title="Center Left" disabled></button>
+              <button class="props-align-dot" data-align="cc" title="Center" disabled></button>
+              <button class="props-align-dot" data-align="cr" title="Center Right" disabled></button>
+              <button class="props-align-dot" data-align="bl" title="Bottom Left" disabled></button>
+              <button class="props-align-dot" data-align="bc" title="Bottom Center" disabled></button>
+              <button class="props-align-dot" data-align="br" title="Bottom Right" disabled></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layers Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Layers</span>
+      </div>
+      <div class="panel-body">
+        <div class="opt-group" id="layerOpacityGroup">
+          <span class="opt-label">Opacity</span>
+          <input type="range" class="opt-range" id="layerOpacity" min="0" max="100" value="100">
+          <span id="layerOpacityVal">100%</span>
+        </div>
+        <div class="layers-list" id="layersList"></div>
+        <div class="layer-actions">
+          <div class="layer-actions-group">
+            <button class="panel-btn" onclick="addLayer()" title="Add Layer">
+              <svg><use href="#icon-layer-add"/></svg>
+            </button>
+            <button class="panel-btn" onclick="triggerImportLayer()" title="Import Image as Layer">
+              <svg><use href="#icon-import-layer"/></svg>
+            </button>
+            <button class="panel-btn" onclick="deleteLayer()" title="Delete Layer">
+              <svg><use href="#icon-layer-delete"/></svg>
+            </button>
+          </div>
+          <div class="layer-actions-group">
+            <button class="panel-btn" onclick="mergeLayers()" title="Merge Layers">
+              <svg><use href="#icon-merge-layers"/></svg>
+            </button>
+            <button class="panel-btn" onclick="duplicateLayer()" title="Duplicate Layer">
+              <svg><use href="#icon-duplicate-layer"/></svg>
+            </button>
+            <button class="panel-btn" onclick="moveLayerUp()" title="Move Up">
+              <svg><use href="#icon-layer-move-up"/></svg>
+            </button>
+            <button class="panel-btn" onclick="moveLayerDown()" title="Move Down">
+              <svg><use href="#icon-layer-move-down"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Panel -->
+    <div class="panel" id="historyPanel">
+      <div class="panel-header">
+        <span class="panel-title">History</span>
+        <div class="panel-actions">
+          <button class="panel-btn" onclick="doUndo()" title="Undo (Ctrl+Z)">
+            <svg><use href="#icon-undo"/></svg>
+          </button>
+          <button class="panel-btn" onclick="doRedo()" title="Redo (Ctrl+Y)">
+            <svg><use href="#icon-redo"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="panel-body history-panel-body">
+        <div class="history-list" id="historyList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ STATUS BAR ═══════════════════ -->
+<div class="statusbar">
+  <span class="status-item" id="statusSize">1920 × 1080</span>
+  <span class="status-sep"></span>
+  <span class="status-item" id="statusPos">X: 0  Y: 0</span>
+  <span class="status-sep"></span>
+  <span class="status-item" id="statusZoom">100%</span>
+  <span class="status-sep"></span>
+  <span class="status-item" id="statusTool">Move</span>
+  <span class="status-item" id="statusVersionAlt" onclick="openInfoPopup()"></span>
+</div>
+
+<!-- ═══════════════════ NEW IMAGE MODAL ═══════════════════ -->
+<div class="modal-overlay" id="newImageModal">
+  <div class="modal">
+    <div class="modal-title">New Image</div>
+    <div class="modal-row">
+      <span class="modal-label">Width</span>
+      <input type="number" class="modal-input" id="newWidth" value="1920" min="1" max="8192">
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">Height</span>
+      <input type="number" class="modal-input" id="newHeight" value="1080" min="1" max="8192">
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">Background</span>
+      <select class="opt-select" id="newBg" style="flex:1;height:32px">
+        <option value="white">White</option>
+        <option value="black">Black</option>
+        <option value="transparent">Transparent</option>
+      </select>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="closeModal('newImageModal')">Cancel</button>
+      <button class="modal-btn primary" onclick="createNewImage()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ FILTER MODAL ═══════════════════ -->
+<div class="modal-overlay" id="filterModal">
+  <div class="modal" style="min-width:380px">
+    <div class="modal-title" id="filterTitle">Filter</div>
+    <div class="filter-preview"><canvas id="filterPreviewCanvas"></canvas></div>
+    <div id="filterControls"></div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="closeModal('filterModal')">Cancel</button>
+      <button class="modal-btn primary" onclick="applyFilter()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file input (open image) -->
+<input type="file" id="fileInput" accept="image/*,image/x-icon,image/vnd.microsoft.icon,.ico">
+
+<!-- Hidden file input — import as layer (multiple raster files) -->
+<input type="file" id="importLayerInput" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/bmp,image/avif" multiple>
+
+<!-- ═══════════════════ BRUSH CURSOR ═══════════════════ -->
+<div id="brushCursor"></div>
+
+<!-- ═══════════════════ RESIZE IMAGE MODAL ═══════════════════ -->
+<div class="modal-overlay" id="resizeImageModal">
+  <div class="modal">
+    <div class="modal-title">Resize Image</div>
+    <div class="modal-row">
+      <span class="modal-label">Width</span>
+      <input type="number" class="modal-input" id="resizeW" value="1920" min="1" max="16384">
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">Height</span>
+      <input type="number" class="modal-input" id="resizeH" value="1080" min="1" max="16384">
+    </div>
+    <div class="modal-row">
+      <label class="opt-checkbox-label" style="margin-left:80px">
+        <input type="checkbox" id="resizeConstrain" checked>
+        <span>Constrain proportions</span>
+      </label>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="closeModal('resizeImageModal')">Cancel</button>
+      <button class="modal-btn primary" onclick="applyResizeImage()">Resize</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CANVAS SIZE MODAL ═══════════════════ -->
+<div class="modal-overlay" id="canvasSizeModal">
+  <div class="modal">
+    <div class="modal-title">Canvas Size</div>
+    <div class="modal-row">
+      <span class="modal-label">Width</span>
+      <input type="number" class="modal-input" id="canvasSizeW" value="1920" min="1" max="16384">
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">Height</span>
+      <input type="number" class="modal-input" id="canvasSizeH" value="1080" min="1" max="16384">
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">Anchor</span>
+      <div class="anchor-grid" id="anchorGrid">
+        <button class="anchor-btn" data-anchor="tl"></button><button class="anchor-btn" data-anchor="tc"></button><button class="anchor-btn" data-anchor="tr"></button>
+        <button class="anchor-btn" data-anchor="ml"></button><button class="anchor-btn active" data-anchor="mc"></button><button class="anchor-btn" data-anchor="mr"></button>
+        <button class="anchor-btn" data-anchor="bl"></button><button class="anchor-btn" data-anchor="bc"></button><button class="anchor-btn" data-anchor="br"></button>
+      </div>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="closeModal('canvasSizeModal')">Cancel</button>
+      <button class="modal-btn primary" onclick="applyCanvasSize()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ EXPORT BIT-DEPTH MODAL ═══════════════════ -->
+<div class="modal-overlay" id="exportBitDepthModal">
+  <div class="modal export-modal">
+    <div class="modal-title" id="exportModalTitle">Export BMP</div>
+    <div class="export-options">
+      <label class="export-option selected">
+        <input type="radio" name="exportBitDepth" value="auto" checked>
+        <span class="export-radio"></span>
+        <span class="export-option-text">
+          <span class="export-option-label">Auto Detect</span>
+          <span class="export-option-desc">Scans for transparency. Uses 32-bit RGBA if alpha data is present, otherwise 24-bit RGB.</span>
+        </span>
+      </label>
+      <label class="export-option">
+        <input type="radio" name="exportBitDepth" value="32">
+        <span class="export-radio"></span>
+        <span class="export-option-text">
+          <span class="export-option-label">32-bit (RGBA)</span>
+          <span class="export-option-desc">Four channels (R, G, B, A). Preserves full alpha transparency data in the output file.</span>
+        </span>
+      </label>
+      <label class="export-option">
+        <input type="radio" name="exportBitDepth" value="24">
+        <span class="export-radio"></span>
+        <span class="export-option-text">
+          <span class="export-option-label">24-bit (RGB)</span>
+          <span class="export-option-desc">Three channels (R, G, B). Transparent regions are composited onto a white background.</span>
+        </span>
+      </label>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="closeModal('exportBitDepthModal')">Cancel</button>
+      <button class="modal-btn primary" onclick="executeExport()">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ EXPORT ICO MODAL ═══════════════════ -->
+<div class="modal-overlay" id="exportIcoModal">
+  <div class="modal ico-modal">
+    <div class="modal-title">Export ICO</div>
+    <div class="ico-size-list">
+      <div class="ico-select-all">
+        <label class="ico-select-all-trigger">
+          <input type="checkbox" id="icoSelectAll" onchange="toggleIcoSelectAll()">
+          <span class="ico-check"></span>
+          <span class="ico-all-label">Select All</span>
+        </label>
+        <button class="ico-master-fmt" id="icoMasterFmt" data-mode="auto" onclick="cycleIcoMasterFormat()">Default</button>
+      </div>
+      <div class="ico-list-sep"></div>
+      <label class="ico-size-row" data-ico-size="256" data-fmt="png">
+        <input type="checkbox" class="ico-size-cb" value="256" checked onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">256 x 256</span>
+        <span class="ico-format-badge png" onclick="event.preventDefault();toggleIcoRowFormat(this)">PNG</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="128" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="128" checked onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">128 x 128</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="96" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="96" onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">96 x 96</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="64" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="64" checked onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">64 x 64</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="48" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="48" checked onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">48 x 48</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="40" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="40" onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">40 x 40</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="32" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="32" checked onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">32 x 32</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="24" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="24" onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">24 x 24</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="20" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="20" onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">20 x 20</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <label class="ico-size-row" data-ico-size="16" data-fmt="bmp">
+        <input type="checkbox" class="ico-size-cb" value="16" checked onchange="updateIcoSelectAll()">
+        <span class="ico-check"></span>
+        <span class="ico-size-label">16 x 16</span>
+        <span class="ico-format-badge bmp" onclick="event.preventDefault();toggleIcoRowFormat(this)">BMP</span>
+      </label>
+      <div class="ico-ghost-row" id="icoGhostRow" onclick="activateIcoGhostRow()">
+        <span class="ico-ghost-icon">+</span>
+        <span class="ico-ghost-text">Custom size...</span>
+      </div>
+      <div class="ico-ghost-input" id="icoGhostInput" style="display:none">
+        <input type="number" id="icoCustomSizeInput" min="1" max="512" placeholder="e.g. 72">
+        <button class="ico-ghost-add" onclick="addIcoCustomSize()">Add</button>
+      </div>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="closeModal('exportIcoModal')">Cancel</button>
+      <button class="modal-btn primary" onclick="executeIcoExport()">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
+<div class="modal-overlay settings-overlay" id="settingsModal">
+  <div class="settings-modal">
+    <div class="settings-header">
+      <div class="settings-header-title">
+        <svg class="settings-header-icon"><use href="#icon-settings-gear"/></svg>
+        <span>Settings</span>
+      </div>
+      <button class="settings-close" onclick="cancelSettings()" title="Cancel">&times;</button>
+    </div>
+    <div class="settings-body">
+      <!-- Sidebar: category navigation -->
+      <nav class="settings-sidebar" id="settingsSidebar">
+        <button class="settings-cat active" data-cat="appearance">
+          <span class="settings-cat-dot"></span>
+          <span class="settings-cat-label">Appearance</span>
+        </button>
+      </nav>
+      <!-- Right pane: category content -->
+      <div class="settings-content" id="settingsContent">
+        <!-- Appearance category -->
+        <section class="settings-panel active" data-panel="appearance">
+          <header class="settings-panel-header">
+            <h2 class="settings-panel-title">Appearance</h2>
+            <p class="settings-panel-sub">Customize how Opsin looks on your device.</p>
+          </header>
+          <div class="settings-section">
+            <div class="settings-section-head">
+              <h3 class="settings-section-title">Color Mode</h3>
+              <p class="settings-section-sub">Choose a theme, or match your system automatically.</p>
+            </div>
+            <div class="theme-choice-grid" id="themeChoiceGrid">
+              <button class="theme-choice" data-mode="light" aria-pressed="false">
+                <div class="theme-choice-preview theme-choice-preview-light">
+                  <div class="tcp-menubar"><span></span><span></span><span></span></div>
+                  <div class="tcp-body">
+                    <div class="tcp-toolbar"><i></i><i></i><i></i></div>
+                    <div class="tcp-canvas"></div>
+                    <div class="tcp-panel"><b></b><b></b></div>
+                  </div>
+                </div>
+                <div class="theme-choice-meta">
+                  <span class="theme-choice-label">Light</span>
+                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                </div>
+              </button>
+              <button class="theme-choice" data-mode="dark" aria-pressed="false">
+                <div class="theme-choice-preview theme-choice-preview-dark">
+                  <div class="tcp-menubar"><span></span><span></span><span></span></div>
+                  <div class="tcp-body">
+                    <div class="tcp-toolbar"><i></i><i></i><i></i></div>
+                    <div class="tcp-canvas"></div>
+                    <div class="tcp-panel"><b></b><b></b></div>
+                  </div>
+                </div>
+                <div class="theme-choice-meta">
+                  <span class="theme-choice-label">Dark</span>
+                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                </div>
+              </button>
+              <button class="theme-choice" data-mode="system" aria-pressed="true">
+                <div class="theme-choice-preview theme-choice-preview-system">
+                  <div class="tcp-menubar"><span></span><span></span><span></span></div>
+                  <div class="tcp-body">
+                    <div class="tcp-toolbar"><i></i><i></i><i></i></div>
+                    <div class="tcp-canvas"></div>
+                    <div class="tcp-panel"><b></b><b></b></div>
+                  </div>
+                </div>
+                <div class="theme-choice-meta">
+                  <span class="theme-choice-label">System</span>
+                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                </div>
+              </button>
+            </div>
+            <p class="settings-hint" id="themeHint">Matches your device's color scheme automatically.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+    <!-- Footer: commit / cancel -->
+    <div class="settings-footer">
+      <button class="modal-btn" onclick="cancelSettings()">Cancel</button>
+      <button class="modal-btn primary" onclick="commitSettings()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ IEM — OPEN ICO CHOICE MODAL ═══════════════════ -->
+<div class="modal-overlay iem-modal-overlay" id="iemOpenChoiceModal" hidden>
+  <div class="modal iem-choice-modal">
+    <div class="modal-title">Open Icon File</div>
+    <div class="iem-choice-info" id="iemChoiceInfo"></div>
+    <div class="iem-choice-grid">
+      <button class="iem-choice-card" onclick="IEM.choosePngImport()">
+        <div class="iem-choice-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+        </div>
+        <div class="iem-choice-card-title">Import as PNG</div>
+        <div class="iem-choice-card-desc">Open the largest size as a single editable raster image. The other sizes are discarded.</div>
+      </button>
+      <button class="iem-choice-card iem-choice-card-primary" onclick="IEM.chooseIconMode()">
+        <div class="iem-choice-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </div>
+        <div class="iem-choice-card-title">Edit in Icon Mode</div>
+        <div class="iem-choice-card-desc">Edit every embedded size independently. Re-export as a multi-size .ico.</div>
+      </button>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="IEM.closeChoiceModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ IEM — ADD SIZE MODAL ═══════════════════ -->
+<div class="modal-overlay iem-modal-overlay" id="iemAddSizeModal" hidden>
+  <div class="modal iem-add-size-modal">
+    <div class="modal-title">Add Icon Size</div>
+    <div class="iem-add-size-row">
+      <span class="iem-add-size-label">Size</span>
+      <input type="number" class="iem-add-size-input" id="iemAddSizeInput" min="1" max="512" value="32" placeholder="e.g. 72">
+      <span class="iem-add-size-unit">px</span>
+    </div>
+    <div class="iem-add-size-error" id="iemAddSizeError"></div>
+    <div class="iem-add-size-source">
+      <span class="iem-add-size-section">Source</span>
+      <label class="iem-radio-card">
+        <input type="radio" name="iemAddSizeSrc" id="iemRadioMaster" value="master" checked>
+        <span class="iem-radio-dot"></span>
+        <span class="iem-radio-text">
+          <span class="iem-radio-title">Duplicate and resize master</span>
+          <span class="iem-radio-desc">Create a high-fidelity Lanczos resample of the original-largest source image.</span>
+        </span>
+      </label>
+      <label class="iem-radio-card">
+        <input type="radio" name="iemAddSizeSrc" id="iemRadioBlank" value="blank">
+        <span class="iem-radio-dot"></span>
+        <span class="iem-radio-text">
+          <span class="iem-radio-title">Blank canvas</span>
+          <span class="iem-radio-desc">Add a fully transparent canvas at the requested size.</span>
+        </span>
+      </label>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" onclick="IEM.closeAddSizeModal()">Cancel</button>
+      <button class="modal-btn primary" onclick="IEM.confirmAddSize()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ COLOR PICKER FLOATING PANEL ═══════════════════ -->
+<div class="cp-panel" id="colorPickerPanel">
+  <div class="cp-titlebar" id="cpTitlebar">
+    <span class="cp-title">Color Picker</span>
+    <button class="cp-close" id="cpCloseBtn" onclick="closeColorPicker()" title="Close">&times;</button>
+  </div>
+  <div class="cp-body">
+    <div class="cp-left">
+      <div class="cp-view-toggle">
+        <button class="cp-vtab active" data-view="spectrum" onclick="cpSwitchView('spectrum')">Spectrum</button>
+        <button class="cp-vtab" data-view="wheel" onclick="cpSwitchView('wheel')">Wheel</button>
+      </div>
+      <div class="cp-view-area">
+        <div class="cp-spectrum-view" id="cpSpectrumView">
+          <div class="cp-sv-field" id="cpSvField">
+            <div class="cp-sv-reticle" id="cpSvReticle"></div>
+          </div>
+          <input type="range" class="cp-hue-slider" id="cpHueSlider" min="0" max="360" value="0">
+        </div>
+        <div class="cp-wheel-view hidden" id="cpWheelView">
+          <div class="cp-wheel" id="cpWheel">
+            <div class="cp-wheel-darken" id="cpWheelDarken"></div>
+            <div class="cp-sv-reticle" id="cpWheelReticle"></div>
+          </div>
+          <input type="range" class="cp-bri-slider" id="cpBriSlider" min="0" max="100" value="100">
+        </div>
+      </div>
+    </div>
+    <div class="cp-right">
+      <div class="cp-view-toggle">
+        <button class="cp-vtab active" data-slider="rgb" onclick="cpSwitchSliders('rgb')">RGB</button>
+        <button class="cp-vtab" data-slider="hsb" onclick="cpSwitchSliders('hsb')">HSB</button>
+        <button class="cp-vtab" data-slider="hsl" onclick="cpSwitchSliders('hsl')">HSL</button>
+      </div>
+      <div class="cp-sliders" id="cpSlidersRgb">
+        <div class="cp-slider-row"><span class="cp-sl">R</span><input type="range" class="cp-range cp-range-r" id="cpR" min="0" max="255" value="255"><input type="number" class="cp-num" id="cpRN" value="255" min="0" max="255"></div>
+        <div class="cp-slider-row"><span class="cp-sl">G</span><input type="range" class="cp-range cp-range-g" id="cpG" min="0" max="255" value="255"><input type="number" class="cp-num" id="cpGN" value="255" min="0" max="255"></div>
+        <div class="cp-slider-row"><span class="cp-sl">B</span><input type="range" class="cp-range cp-range-b" id="cpB" min="0" max="255" value="255"><input type="number" class="cp-num" id="cpBN" value="255" min="0" max="255"></div>
+      </div>
+      <div class="cp-sliders hidden" id="cpSlidersHsb">
+        <div class="cp-slider-row"><span class="cp-sl">H</span><input type="range" class="cp-range cp-range-hue" id="cpHsbH" min="0" max="360" value="0"><input type="number" class="cp-num" id="cpHsbHN" value="0" min="0" max="360"></div>
+        <div class="cp-slider-row"><span class="cp-sl">S</span><input type="range" class="cp-range" id="cpHsbS" min="0" max="100" value="0"><input type="number" class="cp-num" id="cpHsbSN" value="0" min="0" max="100"></div>
+        <div class="cp-slider-row"><span class="cp-sl">B</span><input type="range" class="cp-range" id="cpHsbB" min="0" max="100" value="100"><input type="number" class="cp-num" id="cpHsbBN" value="100" min="0" max="100"></div>
+      </div>
+      <div class="cp-sliders hidden" id="cpSlidersHsl">
+        <div class="cp-slider-row"><span class="cp-sl">H</span><input type="range" class="cp-range cp-range-hue" id="cpHslH" min="0" max="360" value="0"><input type="number" class="cp-num" id="cpHslHN" value="0" min="0" max="360"></div>
+        <div class="cp-slider-row"><span class="cp-sl">S</span><input type="range" class="cp-range" id="cpHslS" min="0" max="100" value="100"><input type="number" class="cp-num" id="cpHslSN" value="100" min="0" max="100"></div>
+        <div class="cp-slider-row"><span class="cp-sl">L</span><input type="range" class="cp-range" id="cpHslL" min="0" max="100" value="50"><input type="number" class="cp-num" id="cpHslLN" value="50" min="0" max="100"></div>
+      </div>
+      <div class="cp-footer">
+        <div class="cp-swatch" id="cpSwatch"></div>
+        <div class="cp-hex-group">
+          <span class="cp-hex-hash">#</span>
+          <input type="text" class="cp-hex-input" id="cpHexInput" value="FFFFFF" maxlength="6" spellcheck="false" autocomplete="off">
+        </div>
+        <button class="cp-eyedropper-btn" id="cpEyedropperBtn" title="Eyedropper" onclick="togglePanelEyedropper()">
+          <svg><use href="#icon-eyedropper"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/version.js"></script>
+<script src="js/linked_icons.js"></script>
+<script src="js/history.js"></script>
+<script src="js/script.js"></script>
+<script src="js/toolbar.js"></script>
+<script src="js/iconEditMode.js"></script>
+<script>
+  if (typeof OPSIN_VERSION !== 'undefined') {
+    document.getElementById('statusVersion').textContent = OPSIN_VERSION;
+    document.getElementById('statusVersionAlt').textContent = OPSIN_VERSION;
+  }
+</script>
+</body>
+</html>

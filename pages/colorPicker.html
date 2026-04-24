@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opsin - Image Studio | Color Picker</title>
+<style>
+  :root {
+    --bg: #1a1a1e;
+    --bg-secondary: #242428;
+    --bg-hover: #35353d;
+    --surface: #2a2a30;
+    --surface-raised: #323238; 
+    --border: rgba(255,255,255,0.1);
+    --border-strong: rgba(255,255,255,0.14); 
+    --text: #f2f2f7;
+    --text-secondary: #8e8e93;
+    --text-tertiary: #636366;
+    --accent: #007aff;
+    --accent-hover: #0a84ff;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* Core App Feel - Disable Global Selection */
+  body, html {
+    margin: 0; padding: 0;
+    font-family: var(--font);
+    background: transparent;
+    overflow: hidden;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    touch-action: none;
+  }
+
+  /* Global active dragging state for the pointer hand */
+  body.is-dragging, body.is-dragging * {
+    cursor: pointer !important; 
+  }
+
+  /* Eyedropper Override States — cursor injected by JS */
+  body.is-eyedropper-active .cp-modal {
+    pointer-events: none !important;
+  }
+  body.is-eyedropper-active #cpEyedropperBtn {
+    pointer-events: auto !important;
+  }
+
+  input[type="text"], input[type="number"] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+    caret-color: transparent; 
+  }
+
+  /* App-like "Replace on Type" state */
+  .app-input-grey { color: var(--text-tertiary) !important; }
+  .app-input-grey::selection { background: transparent; color: var(--text-tertiary); }
+
+  button.standard, button.primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; 
+    border-radius: 10px; padding: 10px 18px; 
+    font-size: 13px; font-weight: 500; letter-spacing: -0.01em; 
+    cursor: default; transition: 0.15s ease-out; box-sizing: border-box;
+  }
+  button.standard { background: rgba(255, 255, 255, 0.08); color: var(--text); border: none; }
+  button.standard:hover { background: rgba(255, 255, 255, 0.12); }
+  button.primary { background: var(--accent); color: #fff; border: none; }
+  button.primary:hover { background: var(--accent-hover); }
+  button.standard:active, button.primary:active { transform: scale(0.97); opacity: 0.7; }
+
+  .cp-modal-overlay {
+    position: fixed; inset: 0; background: transparent;
+    z-index: 9999; display: none; align-items: center; justify-content: center;
+    pointer-events: none; /* Allows pointer pass-through */
+  }
+  .cp-modal {
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px;
+    width: 560px; pointer-events: auto; /* Ensures modal remains clickable */
+    box-shadow: 0 24px 48px rgba(0,0,0,0.4); display: flex; flex-direction: column;
+    overflow: hidden; animation: cpModalIn 0.2s ease-out;
+  }
+  @keyframes cpModalIn  { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1);    } }
+  @keyframes cpModalOut { from { opacity: 1; transform: scale(1);    } to { opacity: 0; transform: scale(0.95); } }
+  
+  .cp-modal-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; 
+    justify-content: space-between; align-items: center; background: var(--bg-secondary);
+    cursor: grab;
+  }
+  .cp-modal-header:active {
+    cursor: grabbing;
+  }
+  .cp-modal-title { font-size: 14px; font-weight: 600; color: var(--text); margin: 0; cursor: inherit; }
+  .cp-modal-close { cursor: default; color: var(--text-secondary); font-size: 18px; line-height: 1; padding: 0 4px; }
+  .cp-modal-close:hover { color: var(--text); }
+  
+  .cp-modal-body { display: flex; padding: 20px; gap: 24px; }
+  
+  .cp-left { display: flex; flex-direction: column; width: 224px; } 
+  .cp-canvas-row { display: flex; gap: 12px; margin-top: 12px; }
+
+  /* CSS Accelerated Backgrounds replacing Canvas */
+  .cp-track-wrap { 
+    position: relative; width: 12px; height: 200px; border-radius: 6px; 
+    cursor: default; flex-shrink: 0; 
+  }
+  .cp-track-bg { 
+    width: 100%; height: 100%; position: absolute; inset: 0; pointer-events: none; 
+    border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2); 
+  }
+  .cp-track-bg.mode-spectrum { background: linear-gradient(to bottom, #f00 0%, #ff0 16.66%, #0f0 33.33%, #0ff 50%, #00f 66.66%, #f0f 83.33%, #f00 100%); }
+  .cp-track-cursor {
+    position: absolute; left: 50%; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.08); 
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
+
+  .cp-main-canvas-wrap { 
+      position: relative; width: 200px; height: 200px; border-radius: 4px; 
+      overflow: hidden; cursor: default; flex-shrink: 0; transition: border-radius 0.2s;
+  }
+  .cp-main-bg { width: 100%; height: 100%; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; }
+  .cp-main-bg.mode-wheel {
+      background: radial-gradient(circle closest-side, #ffffff 0%, transparent 100%), conic-gradient(red 0deg, yellow 60deg, lime 120deg, cyan 180deg, blue 240deg, magenta 300deg, red 360deg);
+  }
+  .cp-main-darken { position: absolute; inset: 0; background: #000; pointer-events: none; border-radius: inherit; }
+  
+  .cp-cursor {
+    position: absolute; width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid #fff; box-shadow: 0 0 2px rgba(0,0,0,0.5), inset 0 0 2px rgba(0,0,0,0.5);
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
+
+  .cp-presets-grid {
+    display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; margin-top: 14px; width: 100%;
+  }
+  .cp-preset-swatch {
+    width: 100%; aspect-ratio: 1; border-radius: 3px; cursor: default;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2); transition: 0.1s;
+  }
+  .cp-preset-swatch:hover { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4), 0 0 0 1px var(--text-secondary); transform: scale(1.15); z-index: 2; position: relative; }
+
+  .cp-right { flex: 1; display: flex; flex-direction: column; }
+  
+  .cp-segment-bar { display: flex; background: var(--bg); border-radius: 6px; padding: 2px; border: 1px solid var(--border-strong); }
+  .cp-segment-btn {
+    flex: 1; text-align: center; padding: 4px 0; font-size: 11px; font-weight: 600; 
+    color: var(--text-secondary); cursor: default; border-radius: 4px; transition: 0.15s;
+  }
+  .cp-segment-btn.active { background: var(--surface-raised); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+  .cp-sliders-wrap { display: flex; flex-direction: column; gap: 14px; }
+  .cp-slider-row { display: flex; align-items: center; gap: 8px; }
+  .cp-slider-lbl { width: 14px; font-size: 11px; font-weight: 600; color: var(--text-secondary); cursor: default; }
+  
+  .cp-divider { border: none; border-top: 1px solid var(--border-strong); margin: 14px 0 10px 0; width: 100%; }
+  .cp-section-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; letter-spacing: 0.5px; cursor: default; }
+
+  /* GPU Accelerated CSS Variables for Sliders */
+  .cp-slider-inp { 
+    flex: 1; -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px; 
+    outline: none; margin: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2); cursor: default;
+    background: var(--slider-bg, #000); 
+  }
+  .cp-slider-inp::-webkit-slider-thumb { 
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; 
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.08); 
+    cursor: default;
+  }
+  
+  .cp-num-inp { 
+    width: 28px; background: var(--surface-raised); border: 1px solid var(--border-strong); 
+    border-radius: 4px; color: var(--text); font-size: 11px; text-align: center; padding: 4px 2px; 
+    font-family: monospace; outline: none; flex-shrink: 0; cursor: default;
+  }
+  .cp-num-inp:focus { cursor: text; border-color: var(--accent); }
+  .cp-num-inp::-webkit-outer-spin-button, .cp-num-inp::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* Footer Layout */
+  .cp-modal-footer { 
+    padding: 12px 16px; border-top: 1px solid var(--border); 
+    display: flex; justify-content: space-between; align-items: center; 
+    background: var(--bg-secondary); 
+  }
+  .cp-footer-left { display: flex; gap: 8px; align-items: center; }
+  .cp-swatch-single { width: 44px; height: 44px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--border-strong); background: #000; flex-shrink: 0; }
+  
+  .cp-hex-modal-wrap { 
+    width: 68px; height: 32px; display: flex; align-items: center; background: var(--surface-raised); 
+    border: 1px solid var(--border-strong); border-radius: 4px; padding: 4px 6px; gap: 2px; 
+    cursor: text; transition: 0.15s; box-sizing: border-box; 
+  }
+  .cp-hex-modal-wrap:focus-within { border-color: var(--accent); }
+  .cp-hex-hash { color: var(--text-tertiary); font-weight: 600; font-size: 12px; cursor: text; }
+  .cp-hex-modal-inp { 
+    background: transparent; border: none; color: var(--text); font-family: monospace; 
+    font-size: 12px; width: 100%; outline: none; text-transform: uppercase; padding: 0; 
+  }
+
+  body.is-ipad-os .cp-hex-modal-wrap { width: 72px; }
+  
+  .cp-eyedropper-btn {
+    width: 32px; height: 32px; background: var(--surface-raised); border: 1px solid var(--border-strong);
+    border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); cursor: default; transition: 0.15s; flex-shrink: 0; box-sizing: border-box;
+  }
+  .cp-eyedropper-btn:hover { background: var(--bg-hover); color: var(--text); border-color: var(--text-secondary); }
+  .cp-eyedropper-btn:active { transform: scale(0.95); }
+  .cp-eyedropper-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0, 122, 255, 0.1); }
+
+  .cp-footer-center { display: flex; justify-content: center; align-items: center; flex: 1; margin: 0 16px; gap: 12px; }
+  
+  .cp-add-btn {
+    width: 20px; height: 20px; background: var(--surface-raised); border: 1px solid var(--border-strong);
+    border-radius: 3px; display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); cursor: default; transition: 0.15s; flex-shrink: 0;
+  }
+  .cp-add-btn:hover { background: var(--bg-hover); color: var(--text); border-color: var(--text-secondary); }
+  .cp-add-btn:active { transform: scale(0.95); }
+
+  .cp-bank-grid { display: grid; grid-template-columns: repeat(7, 20px); grid-template-rows: repeat(2, 20px); gap: 4px; }
+  
+  .cp-bank-swatch { width: 100%; height: 100%; border-radius: 3px; transition: 0.1s; -webkit-touch-callout: none; }
+  .cp-bank-swatch.empty { background: rgba(0,0,0,0.25); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03); cursor: default; }
+  .cp-bank-swatch.filled { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2); cursor: default; }
+  .cp-bank-swatch.filled:hover { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4), 0 0 0 1px var(--text-secondary); transform: scale(1.15); z-index: 2; position: relative; }
+  .cp-footer-right { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+  /* Context Menu (Delete Popup) */
+  .cp-context-menu {
+    position: fixed; z-index: 10000; display: none; background: var(--surface-raised);
+    border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+    padding: 4px; opacity: 0; transform: translateY(6px) scale(0.95); 
+    transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .cp-context-menu.active { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  .cp-context-action { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); cursor: default; transition: 0.15s ease-out; }
+  .cp-context-action:hover { background: rgba(255, 59, 48, 0.15); color: #ff3b30; }
+  .cp-context-action:active { transform: scale(0.92); }
+</style>
+</head>
+<body>
+
+  <div class="cp-context-menu" id="cpContextMenu">
+      <div class="cp-context-action" onclick="executeDelete()" title="Delete Swatch">
+          <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 24 24">
+            <g id="Layer_2">
+              <g><path d="M9.24,19.29c-0.3,0-0.5-0.19-0.51-0.48L8.45,8.71c-0.01-0.29,0.19-0.48,0.5-0.48c0.28,0,0.49,0.18,0.5,0.47l0.3,10.11C9.76,19.09,9.55,19.29,9.24,19.29zM12,19.29c-0.3,0-0.52-0.2-0.52-0.48V8.71c0-0.29,0.22-0.48,0.52-0.48c0.3,0,0.52,0.19,0.52,0.48v10.1C12.52,19.09,12.3,19.29,12,19.29zM14.76,19.29c-0.31,0-0.5-0.2-0.5-0.48l0.29-10.11c0.01-0.29,0.22-0.48,0.5-0.48c0.31,0,0.5,0.19,0.5,0.48l-0.29,10.1C15.25,19.11,15.06,19.29,14.76,19.29zM8.1,6.01h1.23V4.08c0-0.56,0.39-0.92,0.99-0.92h3.35c0.6,0,0.99,0.36,0.99,0.92v1.93h1.23v-2c0-1.25-0.81-2.01-2.14-2.01h-3.49C8.92,2,8.1,2.76,8.1,4.01V6.01zM3.9,6.61h16.2c0.32,0,0.58-0.27,0.58-0.58c0-0.32-0.26-0.59-0.58-0.59H3.9c-0.31,0-0.58,0.27-0.58,0.59C3.32,6.36,3.59,6.61,3.9,6.61zM7.89,22h8.23c1.2,0,2.05-0.82,2.11-2.02L18.9,6.43H5.11l0.67,13.55C5.83,21.19,6.67,22,7.89,22z" fill="currentColor" stroke="none"/></g>
+            </g>
+          </svg>
+      </div>
+  </div>
+
+  <div class="cp-modal-overlay" id="cpModalOverlay">
+    <div class="cp-modal" id="cpModalContainer">
+      <div class="cp-modal-header">
+        <h4 class="cp-modal-title">Color Picker</h4>
+        <div class="cp-modal-close" onclick="closeCustomPicker()">×</div>
+      </div>
+      <div class="cp-modal-body">
+        
+        <div class="cp-left">
+          <div class="cp-segment-bar">
+            <div class="cp-segment-btn" id="btnModeSpectrum" onclick="setPickerMode('spectrum')">Spectrum</div>
+            <div class="cp-segment-btn active" id="btnModeWheel" onclick="setPickerMode('wheel')">Wheel</div>
+          </div>
+          
+          <div class="cp-canvas-row">
+            <div class="cp-track-wrap" id="cpTrackWrap">
+              <div class="cp-track-bg mode-wheel" id="cpTrackArea"></div>
+              <div class="cp-track-cursor" id="cpTrackCursor"></div>
+            </div>
+            
+            <div class="cp-main-canvas-wrap" id="cpMainWrap">
+              <div class="cp-main-bg mode-wheel" id="cpMainArea"></div>
+              <div class="cp-main-darken" id="cpMainDarken"></div>
+              <div class="cp-cursor" id="cpMainCursor"></div>
+            </div>
+          </div>
+
+          <div class="cp-presets-grid" id="cpPresetsGrid"></div>
+        </div>
+
+        <div class="cp-right">
+          <div class="cp-segment-bar">
+            <div class="cp-segment-btn active" id="btnTabHSB" onclick="setSliderTab('hsb')">HSB</div>
+            <div class="cp-segment-btn" id="btnTabHSL" onclick="setSliderTab('hsl')">HSL</div>
+          </div>
+          <div class="cp-sliders-wrap" id="cpTopSlidersContainer" style="margin-top: 12px;"></div>
+          <hr class="cp-divider">
+          <div class="cp-section-label">RGB</div>
+          <div class="cp-sliders-wrap" id="cpRgbSlidersContainer" style="margin-bottom: auto;"></div>
+        </div>
+
+      </div>
+      
+      <div class="cp-modal-footer">
+        <div class="cp-footer-left">
+          <div class="cp-swatch-single" id="cpSwatchNew"></div>
+          <div class="cp-hex-modal-wrap" onclick="document.getElementById('cpHexInput').focus()">
+            <span class="cp-hex-hash">#</span>
+            <input type="text" class="cp-hex-modal-inp" id="cpHexInput" maxlength="6" spellcheck="false">
+          </div>
+          <div class="cp-eyedropper-btn" id="cpEyedropperBtn" onclick="toggleEyedropper()" title="Eyedropper Tool">
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="Layer_2" x="0px" y="0px" viewBox="0 0 24 24" width="18" height="18" data-native-w="24" data-native-h="24" style="transition: none;"><g id="ink-wrapper"><path d="M14.31,7.57l2.11,2.11l-4.29,4.29c-1.47,1.47-3.1,2.78-4.85,3.9L4.09,19.9l2.03-3.18c1.12-1.75,2.43-3.38,3.9-4.85L14.31,7.57M14.31,6.26l-4.95,4.95c-1.52,1.52-2.87,3.2-4.02,5.01l-3.2,5.01v0.62h0.62l5.01-3.2c1.81-1.16,3.49-2.5,5.01-4.02l4.95-4.95L14.31,6.26L14.31,6.26zM21.94,4.16c-0.22-1.04-1.05-1.87-2.09-2.09c-0.93-0.19-1.79,0.09-2.41,0.64l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.37-0.37-0.9-0.57-1.48-0.48c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.37,0.37,0.9,0.57,1.48,0.48c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0C21.85,5.95,22.13,5.09,21.94,4.16zM19.27,2.94c0.13,0,0.26,0.01,0.39,0.04c0.68,0.14,1.23,0.69,1.37,1.37c0.12,0.58-0.03,1.16-0.42,1.6l-0.05,0.06l-0.02,0.02l-1.95,1.95l-0.66,0.66l0.66,0.66l0.37,0.37c0.18,0.18,0.26,0.43,0.22,0.68c-0.05,0.32-0.32,0.59-0.64,0.64C18.49,11,18.44,11,18.4,11c-0.21,0-0.4-0.08-0.55-0.23l-4.64-4.64C13.04,5.96,12.96,5.71,13,5.46c0.05-0.32,0.32-0.59,0.64-0.64c0.04-0.01,0.09-0.01,0.13-0.01c0.21,0,0.4,0.08,0.55,0.23l0.4,0.4l0.66,0.66l0.66-0.66l1.95-1.95l0.09-0.08C18.4,3.11,18.83,2.94,19.27,2.94M19.27,2.01c-0.7,0-1.34,0.27-1.82,0.7l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.31-0.31-0.74-0.5-1.21-0.5c-0.09,0-0.18,0.01-0.27,0.02c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.31,0.31,0.74,0.5,1.21,0.5c0.09,0,0.18-0.01,0.27-0.02c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0c0.55-0.62,0.83-1.48,0.64-2.41c-0.22-1.04-1.05-1.87-2.09-2.09C19.65,2.03,19.46,2.01,19.27,2.01L19.27,2.01zM2.65,21.92l0.11-0.07l-0.62-0.62l-0.07,0.11C1.83,21.72,2.27,22.16,2.65,21.92z" fill="currentColor" stroke="none"/></g></svg>
+          </div>
+        </div>
+        
+        <div class="cp-footer-center">
+            <div class="cp-add-btn" onclick="addCurrentColorToBank()" title="Save Color to Bank">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <div class="cp-bank-grid" id="cpBankGrid"></div>
+        </div>
+
+        <div class="cp-footer-right">
+          <button class="standard" onclick="closeCustomPicker()">Cancel</button>
+          <button class="primary" onclick="confirmCustomPicker()">OK</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+  const isIPadOS = (/iPad/i.test(navigator.userAgent)) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIPadOS) document.body.classList.add('is-ipad-os');
+
+  // Eyedropper cursor — JS injection (matches parent window)
+  (function() {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">' +
+      '<path d="M14.31,7.57l2.11,2.11l-4.29,4.29c-1.47,1.47-3.1,2.78-4.85,3.9L4.09,19.9l2.03-3.18' +
+      'c1.12-1.75,2.43-3.38,3.9-4.85L14.31,7.57M14.31,6.26l-4.95,4.95c-1.52,1.52-2.87,3.2-4.02,5.01' +
+      'l-3.2,5.01v0.62h0.62l5.01-3.2c1.81-1.16,3.49-2.5,5.01-4.02l4.95-4.95L14.31,6.26L14.31,6.26z' +
+      'M21.94,4.16c-0.22-1.04-1.05-1.87-2.09-2.09c-0.93-0.19-1.79,0.09-2.41,0.64l-0.01-0.01l-2.07,2.07' +
+      'l-0.4-0.4l0,0c-0.37-0.37-0.9-0.57-1.48-0.48c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48' +
+      'l0,0l4.64,4.64l0,0c0.37,0.37,0.9,0.57,1.48,0.48c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48' +
+      'l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0C21.85,5.95,22.13,5.09,21.94,4.16z' +
+      'M19.27,2.94c0.13,0,0.26,0.01,0.39,0.04c0.68,0.14,1.23,0.69,1.37,1.37c0.12,0.58-0.03,1.16-0.42,1.6' +
+      'l-0.05,0.06l-0.02,0.02l-1.95,1.95l-0.66,0.66l0.66,0.66l0.37,0.37c0.18,0.18,0.26,0.43,0.22,0.68' +
+      'c-0.05,0.32-0.32,0.59-0.64,0.64C18.49,11,18.44,11,18.4,11c-0.21,0-0.4-0.08-0.55-0.23l-4.64-4.64' +
+      'C13.04,5.96,12.96,5.71,13,5.46c0.05-0.32,0.32-0.59,0.64-0.64c0.04-0.01,0.09-0.01,0.13-0.01' +
+      'c0.21,0,0.4,0.08,0.55,0.23l0.4,0.4l0.66,0.66l0.66-0.66l1.95-1.95l0.09-0.08C18.4,3.11,18.83,2.94,19.27,2.94' +
+      'M19.27,2.01c-0.7,0-1.34,0.27-1.82,0.7l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.31-0.31-0.74-0.5-1.21-0.5' +
+      'c-0.09,0-0.18,0.01-0.27,0.02c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64' +
+      'l0,0c0.31,0.31,0.74,0.5,1.21,0.5c0.09,0,0.18-0.01,0.27-0.02c0.72-0.11,1.31-0.7,1.42-1.42' +
+      'c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0' +
+      'c0.55-0.62,0.83-1.48,0.64-2.41c-0.22-1.04-1.05-1.87-2.09-2.09C19.65,2.03,19.46,2.01,19.27,2.01L19.27,2.01z' +
+      'M2.65,21.92l0.11-0.07l-0.62-0.62l-0.07,0.11C1.83,21.72,2.27,22.16,2.65,21.92z"' +
+      ' fill="%23f2f2f7" stroke="black" stroke-width="0.5"/></svg>';
+    const url = "url('data:image/svg+xml;utf8," + svg + "') 2 22, none";
+    const s = document.createElement('style');
+    s.textContent = 'body.is-eyedropper-active, body.is-eyedropper-active * { cursor: ' + url + ' !important; }';
+    document.head.appendChild(s);
+  })();
+
+  const cpModal = document.getElementById('cpModalContainer');
+  const contextMenu = document.getElementById('cpContextMenu');
+
+  // Broadcasts precise modal geometry to parent window for dynamic click-through transparency
+  function broadcastState() {
+      const rects = [];
+      if (document.getElementById('cpModalOverlay').style.display !== 'none') {
+          const r = cpModal.getBoundingClientRect();
+          rects.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+      }
+      if (contextMenu.classList.contains('active')) {
+          const r = contextMenu.getBoundingClientRect();
+          rects.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+      }
+      const isDragging = document.body.classList.contains('is-dragging') || isDraggingModal;
+      window.parent.postMessage({ action: 'cpState', rects, isDragging }, '*');
+  }
+
+  // Bind mutation observer to catch slider drags altering the body class
+  const bodyObserver = new MutationObserver(broadcastState);
+  bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+  // Stream raw pointer moves so parent can calculate click-through zones
+  window.addEventListener('pointermove', e => {
+      window.parent.postMessage({ action: 'mouseMove', x: e.clientX, y: e.clientY }, '*');
+  });
+
+  let isEyedropperActive = false;
+  let _parentCursorActive = false;
+
+  function _updateCursorClass() {
+      document.body.classList.toggle('is-eyedropper-active', isEyedropperActive || _parentCursorActive);
+  }
+
+  function toggleEyedropper() {
+      isEyedropperActive = !isEyedropperActive;
+      const btn = document.getElementById('cpEyedropperBtn');
+      btn.classList.toggle('active', isEyedropperActive);
+      _updateCursorClass();
+      window.parent.postMessage({ action: 'eyedropperToggle', state: isEyedropperActive }, '*');
+  }
+
+  document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isEyedropperActive) toggleEyedropper();
+  });
+
+  window.addEventListener('message', (event) => {
+      if (!event.data) return;
+      if (event.data.action === 'open') {
+          openCustomPicker(event.data.hex);
+      } else if (event.data.action === 'eyedropperPicked' && isEyedropperActive) {
+          Object.assign(cpState, hexToHsb(event.data.hex));
+          renderPicker(true, false);
+          toggleEyedropper();
+      } else if (event.data.action === 'eyedropperToggle') {
+          isEyedropperActive = event.data.state;
+          document.getElementById('cpEyedropperBtn').classList.toggle('active', isEyedropperActive);
+          _updateCursorClass();
+      } else if (event.data.action === 'eyedropperCursor') {
+          _parentCursorActive = event.data.state;
+          _updateCursorClass();
+      }
+  });
+
+  function closeCustomPicker() {
+      if (isEyedropperActive) toggleEyedropper();
+      hideContextMenu();
+      cpModal.style.animation = 'cpModalOut 0.1s ease-in forwards';
+      setTimeout(() => {
+          document.getElementById('cpModalOverlay').style.display = 'none';
+          cpModal.style.animation = '';
+          window.parent.postMessage({ action: 'cancel' }, '*');
+          broadcastState();
+      }, 100);
+  }
+
+  function confirmCustomPicker() {
+      if (isEyedropperActive) toggleEyedropper();
+      hideContextMenu();
+      const hex = getHex();
+      cpModal.style.animation = 'cpModalOut 0.1s ease-in forwards';
+      setTimeout(() => {
+          document.getElementById('cpModalOverlay').style.display = 'none';
+          cpModal.style.animation = '';
+          window.parent.postMessage({ action: 'confirm', hex: hex }, '*');
+          broadcastState();
+      }, 100);
+  }
+
+  const cpHeader = document.querySelector('.cp-modal-header');
+  let isDraggingModal = false, dragStartX, dragStartY, modalStartLeft, modalStartTop;
+
+  cpHeader.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.cp-modal-close')) return;
+      isDraggingModal = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      
+      const rect = cpModal.getBoundingClientRect();
+      cpModal.style.position = 'absolute';
+      cpModal.style.left = rect.left + 'px';
+      cpModal.style.top = rect.top + 'px';
+      cpModal.style.margin = '0';
+      
+      modalStartLeft = rect.left;
+      modalStartTop = rect.top;
+      cpHeader.setPointerCapture(e.pointerId);
+      broadcastState();
+  });
+
+  cpHeader.addEventListener('pointermove', (e) => {
+      if (!isDraggingModal) return;
+      let newL = modalStartLeft + (e.clientX - dragStartX);
+      let newT = modalStartTop + (e.clientY - dragStartY);
+      
+      const maxL = window.innerWidth - cpModal.offsetWidth;
+      const maxT = window.innerHeight - cpModal.offsetHeight;
+      
+      newL = Math.max(0, Math.min(newL, maxL));
+      newT = Math.max(0, Math.min(newT, maxT));
+
+      cpModal.style.left = newL + 'px';
+      cpModal.style.top = newT + 'px';
+      broadcastState();
+  });
+
+  const stopModalDrag = (e) => {
+      if (isDraggingModal) {
+          isDraggingModal = false;
+          cpHeader.releasePointerCapture(e.pointerId);
+          broadcastState();
+      }
+  };
+  cpHeader.addEventListener('pointerup', stopModalDrag);
+  cpHeader.addEventListener('pointercancel', stopModalDrag);
+
+  let cpMode = 'wheel', cpTab = 'hsb', cpState = { h: 0, s: 100, b: 100 };
+  let deleteTargetIndex = null, renderRaf = null, lastSentHex = null;
+  let activeTopSliders = {}, activeRgbSliders = {};
+
+  const cpMainWrap = document.getElementById('cpMainWrap');
+  const cpMainArea = document.getElementById('cpMainArea');
+  const cpMainDarken = document.getElementById('cpMainDarken');
+  const cpTrackArea = document.getElementById('cpTrackArea');
+
+  let savedBank = [];
+  try {
+      const stored = localStorage.getItem('pixelForgeSavedColors');
+      if (stored) savedBank = JSON.parse(stored);
+  } catch (e) { console.warn("LocalStorage blocked."); }
+
+  const clamp8Bit = (val) => Math.max(0, Math.min(255, Math.round(val)));
+
+  function rgbToHsb(r, g, b, oldH = 0, oldS = 0) {
+      r /= 255; g /= 255; b /= 255;
+      let max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+      let h = 0, s = max === 0 ? 0 : d / max, v = max;
+      if (max !== min) {
+          switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break; }
+          h /= 6;
+      }
+      return { h: (max === min) ? oldH : h * 360, s: (max === 0) ? oldS : s * 100, b: v * 100 };
+  }
+
+  function hsbToRgb(h, s, v) {
+      let r, g, b, i, f, p, q, t;
+      h /= 360; s /= 100; v /= 100; 
+      i = Math.floor(h * 6); f = h * 6 - i;
+      p = v * (1 - s); q = v * (1 - f * s); t = v * (1 - (1 - f) * s);
+      switch (i % 6) { case 0: r = v, g = t, b = p; break; case 1: r = q, g = v, b = p; break; case 2: r = p, g = v, b = t; break; case 3: r = p, g = q, b = v; break; case 4: r = t, g = p, b = v; break; case 5: r = v, g = p, b = q; break; }
+      return { r: clamp8Bit(r * 255), g: clamp8Bit(g * 255), b: clamp8Bit(b * 255) };
+  }
+
+  function hexToHsb(hex) {
+      let r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+      return rgbToHsb(r, g, b);
+  }
+
+  function rgbToHex(r, g, b) {
+      return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1).toUpperCase();
+  }
+
+  function hsbToHsl(h, s, b) {
+      s /= 100; b /= 100;
+      let l = (2 - s) * b / 2;
+      let sl = l !== 0 ? (s * b) / (l < 0.5 ? l * 2 : 2 - l * 2) : 0;
+      return { h: h, s: isNaN(sl) ? 0 : sl * 100, l: l * 100 };
+  }
+
+  function hslToHsb(h, s, l, oldH = 0, oldS = 0) {
+      s /= 100; l /= 100;
+      let b = l + s * (l < 0.5 ? l : 1 - l);
+      let sb = b === 0 ? 0 : 2 * (1 - l / b);
+      return { h: (sb === 0) ? oldH : h, s: (b === 0) ? oldS : sb * 100, b: b * 100 };
+  }
+
+  function getHex() { 
+      const rgb = hsbToRgb(cpState.h, cpState.s, cpState.b); 
+      return rgbToHex(rgb.r, rgb.g, rgb.b); 
+  }
+
+  function showContextMenu(swatchElement, index) {
+      deleteTargetIndex = index;
+      const rect = swatchElement.getBoundingClientRect();
+      contextMenu.style.display = 'flex';
+      
+      requestAnimationFrame(() => {
+          const menuRect = contextMenu.getBoundingClientRect();
+          let posX = rect.left + (rect.width / 2) - (menuRect.width / 2);
+          let posY = rect.top - menuRect.height - 8;
+          if (posY < 10) posY = rect.bottom + 8;
+          contextMenu.style.left = posX + 'px';
+          contextMenu.style.top = posY + 'px';
+          contextMenu.classList.add('active');
+          broadcastState();
+      });
+  }
+
+  function hideContextMenu() {
+      if (!contextMenu.classList.contains('active')) return;
+      contextMenu.classList.remove('active');
+      setTimeout(() => { if(!contextMenu.classList.contains('active')) contextMenu.style.display = 'none'; }, 150); 
+      broadcastState();
+  }
+
+  document.addEventListener('pointerdown', (e) => {
+      if (contextMenu.classList.contains('active') && !contextMenu.contains(e.target)) hideContextMenu();
+  });
+
+  function executeDelete() {
+      if (deleteTargetIndex !== null) {
+          savedBank.splice(deleteTargetIndex, 1);
+          try { localStorage.setItem('pixelForgeSavedColors', JSON.stringify(savedBank)); } catch(e){}
+          hideContextMenu(); deleteTargetIndex = null; renderSavedBank();
+      }
+  }
+
+  function renderSavedBank() {
+      const grid = document.getElementById('cpBankGrid'); grid.innerHTML = '';
+      for (let i = 0; i < 14; i++) {
+          const swatch = document.createElement('div');
+          if (i < savedBank.length) {
+              const hex = savedBank[i];
+              swatch.className = 'cp-bank-swatch filled'; swatch.style.backgroundColor = hex;
+              
+              let pressTimer, isDragging = false, longPressed = false;
+              
+              swatch.onclick = () => { 
+                  if (longPressed) { longPressed = false; return; }
+                  Object.assign(cpState, hexToHsb(hex)); renderPicker(true, false); 
+              };
+              swatch.oncontextmenu = (e) => { e.preventDefault(); showContextMenu(swatch, i); };
+              
+              const startPress = (e) => {
+                  if (e.touches && e.touches.length > 1) return;
+                  isDragging = false;
+                  pressTimer = window.setTimeout(() => { longPressed = true; showContextMenu(swatch, i); }, 500);
+              };
+              const cancelPress = () => { if(pressTimer) clearTimeout(pressTimer); };
+              const markDrag = () => { isDragging = true; cancelPress(); };
+              
+              swatch.addEventListener('pointerdown', startPress, { passive: true });
+              swatch.addEventListener('pointerup', cancelPress);
+              swatch.addEventListener('pointermove', markDrag, { passive: true });
+              swatch.addEventListener('pointercancel', cancelPress);
+              
+          } else { swatch.className = 'cp-bank-swatch empty'; }
+          grid.appendChild(swatch);
+      }
+  }
+
+  function addCurrentColorToBank() {
+      const currentHex = getHex();
+      savedBank = savedBank.filter(hex => hex !== currentHex);
+      savedBank.unshift(currentHex);
+      if (savedBank.length > 14) savedBank.pop();
+      try { localStorage.setItem('pixelForgeSavedColors', JSON.stringify(savedBank)); } catch(e){}
+      renderSavedBank();
+  }
+
+  function initPresets() {
+      const grid = document.getElementById('cpPresetsGrid');
+      const colors = ['#ff0000', '#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff', '#0080ff', '#0000ff', '#8000ff', '#ff00ff', '#ff0080', '#000000', '#333333', '#474747', '#5c5c5c', '#707070', '#858585', '#999999', '#adadad', '#c2c2c2', '#d6d6d6', '#ebebeb', '#ffffff'];
+      colors.forEach(hex => {
+          const swatch = document.createElement('div');
+          swatch.className = 'cp-preset-swatch'; swatch.style.backgroundColor = hex;
+          swatch.onclick = () => { Object.assign(cpState, hexToHsb(hex)); renderPicker(true, false); };
+          grid.appendChild(swatch);
+      });
+  }
+
+  function openCustomPicker(initialHex) {
+      cpModal.style.position = '';
+      cpModal.style.left = '';
+      cpModal.style.top = '';
+      cpModal.style.margin = '';
+      
+      if (isEyedropperActive) toggleEyedropper();
+
+      cpState = hexToHsb(initialHex || '#000000');
+      setPickerMode('wheel'); setSliderTab('hsb');       
+      document.getElementById('cpModalOverlay').style.display = 'flex';
+      renderPicker(true, false);
+      requestAnimationFrame(broadcastState);
+  }
+
+  function setPickerMode(mode) {
+      cpMode = mode;
+      document.getElementById('btnModeSpectrum').classList.toggle('active', mode === 'spectrum');
+      document.getElementById('btnModeWheel').classList.toggle('active', mode === 'wheel');
+      
+      if (mode === 'wheel') {
+          cpMainWrap.style.borderRadius = '50%';
+          cpMainWrap.style.boxShadow = 'none';
+      } else {
+          cpMainWrap.style.borderRadius = '4px';
+          cpMainWrap.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,0.2)';
+      }
+      renderPicker(false, false);
+  }
+
+  function setSliderTab(tab) {
+      cpTab = tab;
+      document.getElementById('btnTabHSB').classList.toggle('active', tab === 'hsb');
+      document.getElementById('btnTabHSL').classList.toggle('active', tab === 'hsl');
+      renderPicker(true, false);
+  }
+
+  // --- Highly Optimized rAF Render Pipeline ---
+  function renderPicker(rebuildSliders = false, isScrubbing = false) {
+      if (renderRaf) cancelAnimationFrame(renderRaf);
+      renderRaf = requestAnimationFrame(() => performRender(rebuildSliders, isScrubbing));
+  }
+
+  function performRender(rebuildSliders, isScrubbing) {
+      updateVisuals(); updateCursors(); updateFooter(); 
+      if (rebuildSliders) buildSlidersDOM();
+      updateSlidersUI();
+      
+      const currentHex = getHex();
+      if (currentHex !== lastSentHex || isScrubbing) {
+          lastSentHex = currentHex;
+          window.parent.postMessage({ action: 'update', hex: currentHex, isScrubbing: isScrubbing }, '*');
+      }
+  }
+
+  // CSS Accelerated GPU Backgrounds 
+  function updateVisuals() {
+      if (cpMode === 'spectrum') {
+          cpMainArea.className = 'cp-main-bg mode-spectrum';
+          cpTrackArea.className = 'cp-track-bg mode-spectrum';
+          cpMainArea.style.background = `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${cpState.h}, 100%, 50%)`;
+          cpMainDarken.style.opacity = 0;
+          cpTrackArea.style.background = ''; // Reverts to CSS class gradients
+      } else {
+          cpMainArea.className = 'cp-main-bg mode-wheel';
+          cpTrackArea.className = 'cp-track-bg mode-wheel';
+          cpMainArea.style.background = ''; // Reverts to CSS conic gradient
+          cpMainDarken.style.opacity = 1 - (cpState.b / 100);
+          
+          const pureRgb = hsbToRgb(cpState.h, cpState.s, 100);
+          cpTrackArea.style.background = `linear-gradient(to bottom, rgb(${pureRgb.r},${pureRgb.g},${pureRgb.b}), #000)`;
+      }
+  }
+
+  function updateCursors() {
+      const c1 = document.getElementById('cpMainCursor'), c2 = document.getElementById('cpTrackCursor');
+      const w1 = 200, h1 = 200, h2 = 200; // Static DOM mapped widths
+      
+      if (cpMode === 'spectrum') {
+          c1.style.left = `${(cpState.s/100)*w1}px`; c1.style.top = `${h1 - (cpState.b/100)*h1}px`;
+          c2.style.top = `${(cpState.h/360)*h2}px`;
+      } else {
+          let a = (cpState.h - 90) * (Math.PI/180), r = (cpState.s/100) * (w1/2);
+          c1.style.left = `${(w1/2) + Math.cos(a)*r}px`; c1.style.top = `${(w1/2) + Math.sin(a)*r}px`;
+          c2.style.top = `${(1 - cpState.b/100)*h2}px`;
+      }
+  }
+
+  function updateFooter() {
+      const hex = getHex();
+      document.getElementById('cpSwatchNew').style.backgroundColor = hex;
+      if (document.activeElement !== document.getElementById('cpHexInput')) {
+          document.getElementById('cpHexInput').value = hex.replace('#', '');
+      }
+  }
+
+  function setupAppLikeInput(inp) {
+      let isFirstType = false;
+      inp.addEventListener('focus', function() { this.classList.add('app-input-grey'); isFirstType = true; setTimeout(() => this.select(), 0); });
+      inp.addEventListener('keydown', function(e) { if (isFirstType && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { this.value = ''; this.classList.remove('app-input-grey'); isFirstType = false; }});
+      inp.addEventListener('input', function() { this.classList.remove('app-input-grey'); isFirstType = false; });
+      inp.addEventListener('blur', function() { this.classList.remove('app-input-grey'); isFirstType = false; window.getSelection().removeAllRanges(); });
+  }
+
+  setupAppLikeInput(document.getElementById('cpHexInput'));
+  document.getElementById('cpHexInput').addEventListener('change', (e) => {
+      let val = e.target.value.replace('#', '');
+      if (/^[0-9A-Fa-f]{3}$/.test(val)) val = val.split('').map(c=>c+c).join('');
+      if (/^[0-9A-Fa-f]{6}$/.test(val)) { Object.assign(cpState, hexToHsb('#'+val)); renderPicker(true, false); }
+      else e.target.value = getHex().replace('#', '');
+  });
+
+  function buildSlidersDOM() {
+      const topContainer = document.getElementById('cpTopSlidersContainer'), rgbContainer = document.getElementById('cpRgbSlidersContainer');
+      topContainer.innerHTML = ''; rgbContainer.innerHTML = '';
+      activeTopSliders = {}; activeRgbSliders = {};
+      
+      const buildRow = (id, label, min, max, callback, containerDOM, targetObj) => {
+          const row = document.createElement('div'); row.className = 'cp-slider-row';
+          const lbl = document.createElement('div'); lbl.className = 'cp-slider-lbl'; lbl.textContent = label;
+          const rng = document.createElement('input'); rng.type = 'range'; rng.className = 'cp-slider-inp'; rng.min = min; rng.max = max; rng.step = 'any'; 
+          const num = document.createElement('input'); num.type = 'number'; num.className = 'cp-num-inp'; num.min = min; num.max = max;
+          setupAppLikeInput(num); targetObj[id] = { rng, num };
+
+          // Pointer interactions map the active dragging pointer global state
+          rng.addEventListener('pointerdown', () => document.body.classList.add('is-dragging'));
+          rng.addEventListener('pointerup', () => document.body.classList.remove('is-dragging'));
+          rng.addEventListener('pointercancel', () => document.body.classList.remove('is-dragging'));
+
+          const sync = (v, isNumInput, isScrubbing = false) => { 
+              let valFloat = Math.min(max, Math.max(min, isNaN(parseFloat(v)) ? 0 : parseFloat(v))); 
+              if (isNumInput) rng.value = valFloat; else num.value = Math.round(valFloat);
+              callback(valFloat); renderPicker(false, isScrubbing); 
+          };
+          
+          rng.addEventListener('input', (e) => sync(e.target.value, false, true));
+          rng.addEventListener('change', (e) => sync(e.target.value, false, false));
+          num.addEventListener('input', (e) => sync(e.target.value, true, true));
+          num.addEventListener('change', (e) => sync(e.target.value, true, false));
+
+          row.addEventListener('wheel', (e) => {
+              e.preventDefault();
+              let val = isNaN(parseFloat(num.value)) ? 0 : parseFloat(num.value);
+              val += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? Math.sign(e.deltaX) : -Math.sign(e.deltaY)) * (e.shiftKey ? 10 : 1);
+              sync(val, true, false);
+          }, { passive: false });
+
+          row.appendChild(lbl); row.appendChild(rng); row.appendChild(num); containerDOM.appendChild(row);
+      };
+
+      if (cpTab === 'hsb') {
+          buildRow('h', 'H', 0, 360, (v) => { cpState.h = v; }, topContainer, activeTopSliders);
+          buildRow('s', 'S', 0, 100, (v) => { cpState.s = v; }, topContainer, activeTopSliders);
+          buildRow('b', 'B', 0, 100, (v) => { cpState.b = v; }, topContainer, activeTopSliders);
+      } else if (cpTab === 'hsl') {
+          buildRow('h', 'H', 0, 360, (v) => { let c = hsbToHsl(cpState.h, cpState.s, cpState.b); Object.assign(cpState, hslToHsb(v, c.s, c.l, cpState.h, cpState.s)); }, topContainer, activeTopSliders);
+          buildRow('s', 'S', 0, 100, (v) => { let c = hsbToHsl(cpState.h, cpState.s, cpState.b); Object.assign(cpState, hslToHsb(c.h, v, c.l, cpState.h, cpState.s)); }, topContainer, activeTopSliders);
+          buildRow('l', 'L', 0, 100, (v) => { let c = hsbToHsl(cpState.h, cpState.s, cpState.b); Object.assign(cpState, hslToHsb(c.h, c.s, v, cpState.h, cpState.s)); }, topContainer, activeTopSliders);
+      }
+      buildRow('r', 'R', 0, 255, (v) => { let c = hsbToRgb(cpState.h, cpState.s, cpState.b); Object.assign(cpState, rgbToHsb(v, c.g, c.b, cpState.h, cpState.s)); }, rgbContainer, activeRgbSliders);
+      buildRow('g', 'G', 0, 255, (v) => { let c = hsbToRgb(cpState.h, cpState.s, cpState.b); Object.assign(cpState, rgbToHsb(c.r, v, c.b, cpState.h, cpState.s)); }, rgbContainer, activeRgbSliders);
+      buildRow('b', 'B', 0, 255, (v) => { let c = hsbToRgb(cpState.h, cpState.s, cpState.b); Object.assign(cpState, rgbToHsb(c.r, c.g, v, cpState.h, cpState.s)); }, rgbContainer, activeRgbSliders);
+  }
+
+  function updateSlidersUI() {
+      const setVal = (inp, val) => { if (document.activeElement !== inp) inp.value = val; };
+      if (cpTab === 'hsb' && activeTopSliders.h) {
+          setVal(activeTopSliders.h.rng, cpState.h); setVal(activeTopSliders.h.num, Math.round(cpState.h));
+          setVal(activeTopSliders.s.rng, cpState.s); setVal(activeTopSliders.s.num, Math.round(cpState.s));
+          setVal(activeTopSliders.b.rng, cpState.b); setVal(activeTopSliders.b.num, Math.round(cpState.b));
+          
+          activeTopSliders.h.rng.style.setProperty('--slider-bg', 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)');
+          activeTopSliders.s.rng.style.setProperty('--slider-bg', `linear-gradient(to right, ${rgbToHex(hsbToRgb(cpState.h,0,cpState.b).r, hsbToRgb(cpState.h,0,cpState.b).g, hsbToRgb(cpState.h,0,cpState.b).b)}, ${rgbToHex(hsbToRgb(cpState.h,100,cpState.b).r, hsbToRgb(cpState.h,100,cpState.b).g, hsbToRgb(cpState.h,100,cpState.b).b)})`);
+          activeTopSliders.b.rng.style.setProperty('--slider-bg', `linear-gradient(to right, #000, ${rgbToHex(hsbToRgb(cpState.h,cpState.s,100).r, hsbToRgb(cpState.h,cpState.s,100).g, hsbToRgb(cpState.h,cpState.s,100).b)})`);
+      } else if (cpTab === 'hsl' && activeTopSliders.h) {
+          let c = hsbToHsl(cpState.h, cpState.s, cpState.b);
+          setVal(activeTopSliders.h.rng, c.h); setVal(activeTopSliders.h.num, Math.round(c.h));
+          setVal(activeTopSliders.s.rng, c.s); setVal(activeTopSliders.s.num, Math.round(c.s));
+          setVal(activeTopSliders.l.rng, c.l); setVal(activeTopSliders.l.num, Math.round(c.l));
+          
+          let hInt = Math.round(c.h), sInt = Math.round(c.s), lInt = Math.round(c.l);
+          activeTopSliders.h.rng.style.setProperty('--slider-bg', 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)');
+          activeTopSliders.s.rng.style.setProperty('--slider-bg', `linear-gradient(to right, hsl(${hInt}, 0%, ${lInt}%), hsl(${hInt}, 100%, ${lInt}%))`);
+          activeTopSliders.l.rng.style.setProperty('--slider-bg', `linear-gradient(to right, #000, hsl(${hInt}, ${sInt}%, 50%), #fff)`);
+      }
+      if (activeRgbSliders.r) {
+          let c = hsbToRgb(cpState.h, cpState.s, cpState.b);
+          setVal(activeRgbSliders.r.rng, c.r); setVal(activeRgbSliders.r.num, Math.round(c.r));
+          setVal(activeRgbSliders.g.rng, c.g); setVal(activeRgbSliders.g.num, Math.round(c.g));
+          setVal(activeRgbSliders.b.rng, c.b); setVal(activeRgbSliders.b.num, Math.round(c.b));
+          
+          let rInt = Math.round(c.r), gInt = Math.round(c.g), bInt = Math.round(c.b);
+          activeRgbSliders.r.rng.style.setProperty('--slider-bg', `linear-gradient(to right, rgb(0,${gInt},${bInt}), rgb(255,${gInt},${bInt}))`);
+          activeRgbSliders.g.rng.style.setProperty('--slider-bg', `linear-gradient(to right, rgb(${rInt},0,${bInt}), rgb(${rInt},255,${bInt}))`);
+          activeRgbSliders.b.rng.style.setProperty('--slider-bg', `linear-gradient(to right, rgb(${rInt},${gInt},0), rgb(${rInt},${gInt},255))`);
+      }
+  }
+
+  // Optimized Touch/Mouse Unified PointerEvents
+  function bindPointerDrag(el, callback) {
+      let isDragging = false;
+      const handleEvent = (e) => {
+          const rect = el.getBoundingClientRect();
+          callback(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+      };
+      el.addEventListener('pointerdown', (e) => { document.body.classList.add('is-dragging'); el.setPointerCapture(e.pointerId); isDragging = true; handleEvent(e); });
+      el.addEventListener('pointermove', (e) => { if (isDragging) handleEvent(e); });
+      const stop = (e) => { document.body.classList.remove('is-dragging'); isDragging = false; el.releasePointerCapture(e.pointerId); };
+      el.addEventListener('pointerup', stop);
+      el.addEventListener('pointercancel', stop);
+  }
+
+  bindPointerDrag(document.getElementById('cpMainWrap'), (x, y, w, h) => {
+      x = Math.max(0, Math.min(w, x)); y = Math.max(0, Math.min(h, y));
+      if (cpMode === 'spectrum') {
+          cpState.s = (x / w) * 100; cpState.b = 100 - (y / h) * 100;
+      } else {
+          let cx = w/2, cy = h/2, cr = w/2;
+          let dx = x - cx, dy = y - cy, a = Math.atan2(dy, dx) * (180/Math.PI) + 90;
+          if (a < 0) a += 360;
+          cpState.h = a; cpState.s = Math.min(100, (Math.sqrt(dx*dx + dy*dy) / cr) * 100);
+      }
+      renderPicker(false, true);
+  });
+
+  bindPointerDrag(document.getElementById('cpTrackWrap'), (x, y, w, h) => {
+      let pct = (Math.max(0, Math.min(h, y)) / h) * 100;
+      if (cpMode === 'spectrum') cpState.h = (pct/100)*360; else cpState.b = 100 - pct;
+      renderPicker(false, true);
+  });
+  
+  document.getElementById('cpTrackWrap').addEventListener('wheel', (e) => {
+      e.preventDefault();
+      let delta = Math.sign(e.deltaY) || Math.sign(e.deltaX);
+      if (delta === 0) return;
+      let step = e.shiftKey ? 10 : 1;
+      
+      if (cpMode === 'spectrum') {
+          cpState.h = Math.max(0, Math.min(360, cpState.h + (delta * step * 3.6)));
+      } else {
+          cpState.b = Math.max(0, Math.min(100, cpState.b - (delta * step)));
+      }
+      renderPicker(false, false);
+  }, { passive: false });
+
+  initPresets();
+  renderSavedBank(); 
+</script>
+</body>
+</html>

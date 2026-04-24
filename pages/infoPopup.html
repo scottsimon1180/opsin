@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opsin - About</title>
+<style>
+  :root {
+    --bg: #1a1a1e;
+    --bg-secondary: #242428;
+    --bg-hover: #35353d;
+    --surface: #2a2a30;
+    --surface-raised: #323238;
+    --border: rgba(255,255,255,0.1);
+    --border-strong: rgba(255,255,255,0.14);
+    --text: #f2f2f7;
+    --text-secondary: #8e8e93;
+    --text-tertiary: #636366;
+    --accent: #007aff;
+    --accent-hover: #0a84ff;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  body, html {
+    margin: 0; padding: 0;
+    font-family: var(--font);
+    background: transparent;
+    overflow: hidden;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    touch-action: none;
+  }
+
+  button.standard, button.primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border-radius: 10px; padding: 10px 18px;
+    font-size: 13px; font-weight: 500; letter-spacing: -0.01em;
+    cursor: default; transition: 0.15s ease-out; box-sizing: border-box;
+    font-family: var(--font);
+  }
+  button.standard { background: rgba(255, 255, 255, 0.08); color: var(--text); border: none; }
+  button.standard:hover { background: rgba(255, 255, 255, 0.12); }
+  button.primary { background: var(--accent); color: #fff; border: none; }
+  button.primary:hover { background: var(--accent-hover); }
+  button.standard:active, button.primary:active { transform: scale(0.97); opacity: 0.7; }
+
+  .info-modal-overlay {
+    position: fixed; inset: 0; background: transparent;
+    z-index: 9999; display: none; align-items: center; justify-content: center;
+    pointer-events: all;
+  }
+
+  .info-modal {
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px;
+    width: 480px; pointer-events: auto;
+    box-shadow: 0 24px 48px rgba(0,0,0,0.4); display: flex; flex-direction: column;
+    overflow: hidden; animation: infoModalIn 0.2s ease-out;
+  }
+  @keyframes infoModalIn  { from { opacity: 0; transform: scale(0.95); } to   { opacity: 1; transform: scale(1);    } }
+  @keyframes infoModalOut { from { opacity: 1; transform: scale(1);    } to   { opacity: 0; transform: scale(0.95); } }
+
+  .info-modal-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex;
+    justify-content: space-between; align-items: center; background: var(--bg-secondary);
+    cursor: default;
+  }
+  .info-modal-title { font-size: 14px; font-weight: 600; color: var(--text); margin: 0; display: flex; align-items: center; gap: 7px; }
+  .info-modal-close { cursor: default; color: var(--text-secondary); font-size: 18px; line-height: 1; padding: 0 4px; }
+  .info-modal-close:hover { color: var(--text); }
+
+  .info-modal-body {
+    padding: 20px 20px 16px 20px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .app-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 4px 0 18px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .app-name-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .app-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  .app-logo svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .app-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+    letter-spacing: -0.4px;
+    line-height: 1;
+  }
+
+  .app-version {
+    display: inline-block;
+    color: var(--accent);
+    background: rgba(0, 122, 255, 0.1);
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    border: 1px solid rgba(0, 122, 255, 0.22);
+  }
+
+  .app-copyright {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-weight: 500;
+    margin-top: 0;
+  }
+
+  .info-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+  }
+
+  .section-text {
+    color: var(--text);
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text);
+  }
+
+  li {
+    margin-bottom: 5px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  li:last-child { margin-bottom: 0; }
+
+  .info-modal-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: var(--bg-secondary);
+  }
+</style>
+</head>
+<body>
+
+  <div class="info-modal-overlay" id="infoModalOverlay">
+    <div class="info-modal" id="infoModalContainer">
+      <div class="info-modal-header" id="infoModalHeader">
+        <h4 class="info-modal-title"><svg width="14" height="14"><use href="#icon-info"/></svg>Information</h4>
+        <div class="info-modal-close" onclick="closeInfoWindow()">×</div>
+      </div>
+
+      <div class="info-modal-body">
+
+        <div class="app-header">
+          <div class="app-logo">
+            <svg><use href="#icon-logo-opsin"/></svg>
+          </div>
+          <div class="app-header-text">
+            <div class="app-name-row">
+              <h1 class="app-name">Opsin &ndash; Image Studio</h1>
+              <span class="app-version" id="versionDisplay"></span>
+            </div>
+            <span class="app-copyright">&copy; 2026 Scott Simon. All rights reserved.</span>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <div class="section-title">What is Opsin?</div>
+          <p class="section-text">Opsin is a free, web-based raster image editing application developed by Scott Simon.</p>
+        </div>
+
+        <div class="info-section">
+          <div class="section-title">Mission Statement</div>
+          <p class="section-text">Opsin was established to provide a free, lightweight, accessible alternative to professional image editing software that often impose subscription fees and/or disruptive advertising.</p>
+        </div>
+
+        <div class="info-section">
+          <div class="section-title">Our Commitment to Uninterrupted Workflow</div>
+          <p class="section-text">Opsin is 100% free to use.</p>
+          <ul>
+            <li>You will <strong>NEVER</strong> be required to pay a subscription fee to use Opsin.</li>
+            <li>You will <strong>NEVER</strong> encounter advertisements or pop-ups while actively editing a project.</li>
+          </ul>
+          <p class="section-text">To maintain server infrastructure and cover hosting expenses, a single, brief advertisement will be displayed exclusively during the image export process.</p>
+        </div>
+
+      </div>
+
+      <div class="info-modal-footer">
+        <button class="primary" onclick="closeInfoWindow()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/version.js"></script>
+  <script src="../js/linked_icons.js"></script>
+  <script>
+    const infoModal = document.getElementById('infoModalContainer');
+    const infoOverlay = document.getElementById('infoModalOverlay');
+
+    // Show on load
+    window.addEventListener('load', () => {
+      if (typeof OPSIN_VERSION !== 'undefined') {
+        document.getElementById('versionDisplay').textContent = OPSIN_VERSION;
+      }
+      infoOverlay.style.display = 'flex';
+    });
+
+    function closeInfoWindow() {
+      infoModal.style.animation = 'infoModalOut 0.15s ease-in forwards';
+      setTimeout(() => {
+        infoOverlay.style.display = 'none';
+        infoModal.style.animation = '';
+        window.parent.postMessage({ action: 'closeInfo' }, '*');
+      }, 150);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeInfoWindow();
+    });
+
+    infoOverlay.addEventListener('pointerdown', (e) => {
+      if (e.target === infoOverlay) closeInfoWindow();
+    });
+  </script>
+</body>
+</html>
