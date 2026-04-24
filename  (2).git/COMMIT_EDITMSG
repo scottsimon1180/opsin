@@ -1,9 +1,0 @@
-Redesign properties panel bottom section and add project infrastructure
-
-Restructure the Transform and Align sections from a cramped side-by-side
-layout to a vertical stack, giving each full panel width. Transform row
-now shows readable "Flip H" / "Flip V" labels with rotation right-aligned.
-Align grid spans full width as a recessed canvas-frame metaphor. Adds
-history engine, version system, info popup, manifest, and updated CLAUDE.md.
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
