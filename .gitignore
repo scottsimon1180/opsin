@@ -1,2 +1,11 @@
-" (2).git/" 
-".claude/" 
+# Ignore a specific file
+CLAUDE.md
+.gitignore
+.claudignore
+
+# Ignore a specific folder and everything inside it
+.claude
+
+# Ignore all files of a certain type
+*.py
+*.bat
