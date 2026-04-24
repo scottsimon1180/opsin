@@ -1,0 +1,7 @@
+# Absolute exclusions
+.git/
+node_modules/
+.vscode/
+*.log
+# If you ever put a backup folder back in, this ignores it
+_backups/
