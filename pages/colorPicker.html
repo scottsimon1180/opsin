@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Opsin - Image Studio | Color Picker</title>
+<script>
+  // Synchronous theme boot — prevents flash of wrong theme.
+  // Reads ?theme=light|dark from the iframe URL set by the parent.
+  (function() {
+    try {
+      var t = new URL(location.href).searchParams.get('theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root {
     --bg: #1a1a1e;
@@ -240,6 +250,181 @@
   .cp-context-action { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); cursor: default; transition: 0.15s ease-out; }
   .cp-context-action:hover { background: rgba(255, 59, 48, 0.15); color: #ff3b30; }
   .cp-context-action:active { transform: scale(0.92); }
+
+  /* ══════════════════ LIGHT MODE — PAINT.NET AESTHETIC ══════════════════
+     Mirrors css/style.css light mode: cool silver surfaces, dark navy /
+     steel-blue title bar, Luna-blue primary, classic-Windows beveled
+     buttons, crisp white inputs. Applied when parent sets data-theme="light"
+     via query param or postMessage. */
+  :root[data-theme="light"] {
+    --bg:            #D6DBE1;
+    --bg-secondary:  #E1E5EA;
+    --bg-hover:      #C6CDD7;
+    --surface:       #EEF1F5;
+    --surface-raised:#FFFFFF;
+    --border:        rgba(40,55,80,0.18);
+    --border-strong: rgba(40,55,80,0.34);
+    --text:          #1A2030;
+    --text-secondary:#3F4A5F;
+    --text-tertiary: #68728A;
+    --accent:        #2B6CC9;
+    --accent-hover:  #3B7CD9;
+  }
+
+  /* Modal shell — softer light shadow */
+  :root[data-theme="light"] .cp-modal {
+    box-shadow: 0 16px 40px rgba(40,55,80,0.32), 0 0 0 1px rgba(40,55,80,0.12);
+  }
+
+  /* Steel-blue title bar (Paint.NET classic) */
+  :root[data-theme="light"] .cp-modal-header {
+    background: linear-gradient(to bottom, #7389AE 0%, #556B93 100%);
+    border-bottom: 1px solid rgba(40,55,80,0.42);
+  }
+  :root[data-theme="light"] .cp-modal-title {
+    color: #FFFFFF;
+    text-shadow: 0 1px 0 rgba(26,38,60,0.55);
+    font-weight: 700;
+  }
+  :root[data-theme="light"] .cp-modal-close { color: rgba(255,255,255,0.82); }
+  :root[data-theme="light"] .cp-modal-close:hover { color: #FFFFFF; }
+
+  /* Footer — subtle silver bevel */
+  :root[data-theme="light"] .cp-modal-footer {
+    background: linear-gradient(to bottom, #E9ECF1 0%, #DDE2E8 100%);
+    border-top-color: rgba(40,55,80,0.2);
+  }
+
+  /* Classic Windows beveled buttons */
+  :root[data-theme="light"] button.standard {
+    background: linear-gradient(to bottom, #FAFBFD 0%, #D9DDE3 100%);
+    color: var(--text);
+    border: 1px solid rgba(40,55,80,0.36);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+  }
+  :root[data-theme="light"] button.standard:hover {
+    background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+    border-color: rgba(43,108,201,0.5);
+  }
+  :root[data-theme="light"] button.primary {
+    background: linear-gradient(to bottom, #4480DE 0%, #2663BF 100%);
+    border: 1px solid #1E549F;
+    color: #FFFFFF;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  :root[data-theme="light"] button.primary:hover {
+    background: linear-gradient(to bottom, #5591EE 0%, #2F6DCC 100%);
+  }
+
+  /* Track + wheel wrappers — darker navy inset for definition on silver */
+  :root[data-theme="light"] .cp-track-bg {
+    box-shadow: inset 0 0 0 1px rgba(40,55,80,0.3);
+  }
+
+  /* Segment bar — silver groove, crisp white active tab */
+  :root[data-theme="light"] .cp-segment-bar {
+    background: #C2CAD4;
+    border-color: rgba(40,55,80,0.28);
+  }
+  :root[data-theme="light"] .cp-segment-btn { color: var(--text-secondary); }
+  :root[data-theme="light"] .cp-segment-btn.active {
+    background: #FFFFFF;
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(40,55,80,0.22);
+  }
+
+  /* Sliders — silver groove, beveled Windows thumb */
+  :root[data-theme="light"] .cp-slider-inp {
+    box-shadow: inset 0 1px 2px rgba(40,55,80,0.18), inset 0 0 0 1px rgba(40,55,80,0.2);
+  }
+  :root[data-theme="light"] .cp-slider-inp::-webkit-slider-thumb {
+    background: linear-gradient(to bottom, #FDFEFE 0%, #E2E6EC 100%);
+    box-shadow: 0 1px 2px rgba(40,55,80,0.35), 0 0 0 1px rgba(40,55,80,0.36);
+  }
+
+  /* Track cursor (hue/brightness marker) — beveled silver */
+  :root[data-theme="light"] .cp-track-cursor {
+    background: linear-gradient(to bottom, #FDFEFE 0%, #E2E6EC 100%);
+    box-shadow: 0 1px 3px rgba(40,55,80,0.45), 0 0 0 1px rgba(40,55,80,0.42);
+  }
+
+  /* Divider */
+  :root[data-theme="light"] .cp-divider { border-top-color: rgba(40,55,80,0.2); }
+
+  /* Crisp white fields (Windows look) */
+  :root[data-theme="light"] .cp-num-inp {
+    background: #FFFFFF;
+    border-color: rgba(40,55,80,0.36);
+    color: var(--text);
+    box-shadow: inset 0 1px 1px rgba(40,55,80,0.08);
+  }
+  :root[data-theme="light"] .cp-num-inp:focus {
+    border-color: var(--accent);
+    box-shadow: inset 0 1px 1px rgba(40,55,80,0.06), 0 0 0 2px rgba(43,108,201,0.22);
+  }
+  :root[data-theme="light"] .cp-hex-modal-wrap {
+    background: #FFFFFF;
+    border-color: rgba(40,55,80,0.3);
+    box-shadow: inset 0 1px 1px rgba(40,55,80,0.08);
+  }
+  :root[data-theme="light"] .cp-hex-modal-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: inset 0 1px 1px rgba(40,55,80,0.06), 0 0 0 2px rgba(43,108,201,0.22);
+  }
+
+  /* Eyedropper — beveled Windows button */
+  :root[data-theme="light"] .cp-eyedropper-btn {
+    background: linear-gradient(to bottom, #FAFBFD 0%, #D9DDE3 100%);
+    border-color: rgba(40,55,80,0.34);
+    color: var(--text-secondary);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+  }
+  :root[data-theme="light"] .cp-eyedropper-btn:hover {
+    background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+    border-color: rgba(43,108,201,0.5);
+    color: var(--text);
+  }
+  :root[data-theme="light"] .cp-eyedropper-btn.active {
+    background: rgba(43,108,201,0.14);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Add-swatch (+) button — compact beveled */
+  :root[data-theme="light"] .cp-add-btn {
+    background: linear-gradient(to bottom, #FAFBFD 0%, #D9DDE3 100%);
+    border-color: rgba(40,55,80,0.34);
+    color: var(--text-secondary);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+  }
+  :root[data-theme="light"] .cp-add-btn:hover {
+    background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+    border-color: rgba(43,108,201,0.5);
+    color: var(--text);
+  }
+
+  /* Preview swatch — darker ring for definition on white */
+  :root[data-theme="light"] .cp-swatch-single {
+    box-shadow: inset 0 0 0 1px rgba(40,55,80,0.36);
+  }
+
+  /* Empty bank slot — subtle "hole" on silver */
+  :root[data-theme="light"] .cp-bank-swatch.empty {
+    background: rgba(40,55,80,0.08);
+    box-shadow: inset 0 1px 2px rgba(40,55,80,0.2), inset 0 0 0 1px rgba(255,255,255,0.55);
+  }
+
+  /* Context (delete) menu — light card, Paint.NET-style danger red */
+  :root[data-theme="light"] .cp-context-menu {
+    background: #FFFFFF;
+    border-color: rgba(40,55,80,0.3);
+    box-shadow: 0 8px 20px rgba(40,55,80,0.32), 0 0 0 1px rgba(40,55,80,0.1);
+  }
+  :root[data-theme="light"] .cp-context-action { color: var(--text-secondary); }
+  :root[data-theme="light"] .cp-context-action:hover {
+    background: rgba(200,32,49,0.12);
+    color: #C82031;
+  }
 </style>
 </head>
 <body>
@@ -418,6 +603,9 @@
       } else if (event.data.action === 'eyedropperCursor') {
           _parentCursorActive = event.data.state;
           _updateCursorClass();
+      } else if (event.data.action === 'theme') {
+          if (event.data.effective === 'light') document.documentElement.setAttribute('data-theme', 'light');
+          else document.documentElement.removeAttribute('data-theme');
       }
   });
 

@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Opsin - About</title>
+<script>
+  // Synchronous theme boot — prevents flash of wrong theme.
+  // Reads ?theme=light|dark from the iframe URL set by the parent.
+  (function() {
+    try {
+      var t = new URL(location.href).searchParams.get('theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root {
     --bg: #1a1a1e;
@@ -188,6 +198,90 @@
     align-items: center;
     background: var(--bg-secondary);
   }
+
+  /* ══════════════════ LIGHT MODE — PAINT.NET AESTHETIC ══════════════════
+     Mirrors css/style.css light mode: cool silver surfaces, dark navy /
+     steel-blue title bar, Luna-blue primary, classic-Windows beveled
+     buttons. Applied when parent sets data-theme="light" via query param
+     or postMessage. */
+  :root[data-theme="light"] {
+    --bg:            #D6DBE1;
+    --bg-secondary:  #E1E5EA;
+    --bg-hover:      #C6CDD7;
+    --surface:       #EEF1F5;
+    --surface-raised:#FFFFFF;
+    --border:        rgba(40,55,80,0.18);
+    --border-strong: rgba(40,55,80,0.34);
+    --text:          #1A2030;
+    --text-secondary:#3F4A5F;
+    --text-tertiary: #68728A;
+    --accent:        #2B6CC9;
+    --accent-hover:  #3B7CD9;
+  }
+
+  /* Modal shell — softer light shadow */
+  :root[data-theme="light"] .info-modal {
+    box-shadow: 0 16px 40px rgba(40,55,80,0.32), 0 0 0 1px rgba(40,55,80,0.12);
+  }
+
+  /* Steel-blue title bar (Paint.NET classic) */
+  :root[data-theme="light"] .info-modal-header {
+    background: linear-gradient(to bottom, #7389AE 0%, #556B93 100%);
+    border-bottom: 1px solid rgba(40,55,80,0.42);
+  }
+  :root[data-theme="light"] .info-modal-title {
+    color: #FFFFFF;
+    text-shadow: 0 1px 0 rgba(26,38,60,0.55);
+    font-weight: 700;
+  }
+  :root[data-theme="light"] .info-modal-close { color: rgba(255,255,255,0.82); }
+  :root[data-theme="light"] .info-modal-close:hover { color: #FFFFFF; }
+
+  /* Footer — subtle silver bevel */
+  :root[data-theme="light"] .info-modal-footer {
+    background: linear-gradient(to bottom, #E9ECF1 0%, #DDE2E8 100%);
+    border-top-color: rgba(40,55,80,0.2);
+  }
+
+  /* Classic Windows beveled standard button */
+  :root[data-theme="light"] button.standard {
+    background: linear-gradient(to bottom, #FAFBFD 0%, #D9DDE3 100%);
+    color: var(--text);
+    border: 1px solid rgba(40,55,80,0.36);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+  }
+  :root[data-theme="light"] button.standard:hover {
+    background: linear-gradient(to bottom, #FFFFFF 0%, #E4E8EE 100%);
+    border-color: rgba(43,108,201,0.5);
+  }
+
+  /* Luna blue primary */
+  :root[data-theme="light"] button.primary {
+    background: linear-gradient(to bottom, #4480DE 0%, #2663BF 100%);
+    border: 1px solid #1E549F;
+    color: #FFFFFF;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  :root[data-theme="light"] button.primary:hover {
+    background: linear-gradient(to bottom, #5591EE 0%, #2F6DCC 100%);
+  }
+
+  /* App logo — light-mode ring */
+  :root[data-theme="light"] .app-logo {
+    box-shadow: 0 4px 14px rgba(40,55,80,0.2), 0 0 0 1px rgba(40,55,80,0.16);
+  }
+
+  /* App version badge — Luna blue tint on white */
+  :root[data-theme="light"] .app-version {
+    color: var(--accent);
+    background: rgba(43,108,201,0.14);
+    border: 1px solid rgba(43,108,201,0.32);
+  }
+
+  /* Header separator */
+  :root[data-theme="light"] .app-header {
+    border-bottom-color: rgba(40,55,80,0.18);
+  }
 </style>
 </head>
 <body>
@@ -271,6 +365,13 @@
 
     infoOverlay.addEventListener('pointerdown', (e) => {
       if (e.target === infoOverlay) closeInfoWindow();
+    });
+
+    // Listen for live theme changes from the parent window
+    window.addEventListener('message', (e) => {
+      if (!e.data || e.data.action !== 'theme') return;
+      if (e.data.effective === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      else document.documentElement.removeAttribute('data-theme');
     });
   </script>
 </body>

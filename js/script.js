@@ -4103,7 +4103,8 @@ function toggleColorPicker() {
   overlay.addEventListener('pointerdown', function(e) { if (e.target === overlay) closeColorPicker(); });
   const iframe = document.createElement('iframe');
   iframe.id = 'cpIframe';
-  iframe.src = 'pages/colorPicker.html';
+  const _cpTheme = (document.documentElement.getAttribute('data-theme') === 'light') ? 'light' : 'dark';
+  iframe.src = 'pages/colorPicker.html?theme=' + _cpTheme;
   iframe.onload = function() {
     iframe.contentWindow.postMessage({ action: 'open', hex: fgColor }, '*');
   };
@@ -4152,7 +4153,8 @@ function openInfoPopup() {
   overlay.addEventListener('pointerdown', function(e) { if (e.target === overlay) closeInfoPopup(); });
   const iframe = document.createElement('iframe');
   iframe.id = 'infoIframe';
-  iframe.src = 'pages/infoPopup.html';
+  const _infoTheme = (document.documentElement.getAttribute('data-theme') === 'light') ? 'light' : 'dark';
+  iframe.src = 'pages/infoPopup.html?theme=' + _infoTheme;
   overlay.appendChild(iframe);
   document.body.appendChild(overlay);
 }
@@ -5238,6 +5240,15 @@ const ThemeManager = {
     if (changed) {
       try { if (typeof rulerHCtx !== 'undefined' && rulerHCtx && typeof rulersVisible !== 'undefined' && rulersVisible) drawRulers(); } catch (e) {}
     }
+    this._broadcastToIframes();
+  },
+
+  _broadcastToIframes() {
+    const effective = this._effective;
+    const cp = document.getElementById('cpIframe');
+    if (cp && cp.contentWindow) { try { cp.contentWindow.postMessage({ action: 'theme', effective }, '*'); } catch (e) {} }
+    const info = document.getElementById('infoIframe');
+    if (info && info.contentWindow) { try { info.contentWindow.postMessage({ action: 'theme', effective }, '*'); } catch (e) {} }
   },
 
   _syncUI() {
