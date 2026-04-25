@@ -7,6 +7,21 @@
   "display_override": ["window-controls-overlay"],
   "background_color": "#242428",
   "theme_color": "#242428",
+  "file_handlers": [
+    {
+      "action": "index.html",
+      "accept": {
+        "image/png":                  [".png"],
+        "image/jpeg":                 [".jpg", ".jpeg"],
+        "image/gif":                  [".gif"],
+        "image/webp":                 [".webp"],
+        "image/bmp":                  [".bmp"],
+        "image/avif":                 [".avif"],
+        "image/x-icon":               [".ico"],
+        "image/vnd.microsoft.icon":   [".ico"]
+      }
+    }
+  ],
   "icons": [
     { "src": "assets/images/logo-16.png",   "sizes": "16x16",   "type": "image/png" },
     { "src": "assets/images/logo-24.png",   "sizes": "24x24",   "type": "image/png" },
