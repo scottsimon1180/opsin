@@ -11,6 +11,7 @@ const compositeCtx = compositeCanvas.getContext('2d');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const overlayCtx = overlayCanvas.getContext('2d');
 const brushCursorEl = document.getElementById('brushCursor');
+const statusPosEl = document.getElementById('statusPos');
 
 let canvasW = 1920, canvasH = 1080;
 let zoom = 1, panX = 0, panY = 0;
@@ -307,6 +308,31 @@ function init() {
   initMoveToolOptions();
   document.getElementById('selectToolBtn').innerHTML = RECT_SELECT_SVG;
   SnapEngine.syncMenuCheck();
+  // PWA File Handling API — must register after app is ready so consumer fires after init
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async (launchParams) => {
+      if (!launchParams.files || !launchParams.files.length) return;
+      const fileHandle = launchParams.files[0];
+      const file = await fileHandle.getFile();
+      if (window.IEM && window.IEM.isIcoFile && window.IEM.isIcoFile(file)) {
+        window.IEM.handleOpenIco(file); return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          initCanvas(img.width, img.height, 'transparent');
+          layers[0].ctx.drawImage(img, 0, 0);
+          layers[0].name = file.name.replace(/\.[^.]+$/, '');
+          compositeAll(); updateLayerPanel();
+          if (typeof History !== 'undefined' && History) History.reset();
+          pushUndo('Open Image');
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 }
 
 
@@ -329,7 +355,7 @@ function addLayer(name, _skipUndo) {
     id: layerIdCounter++,
     name: name || `Layer ${layerIdCounter - 1}`,
     canvas: c,
-    ctx: c.getContext('2d'),
+    ctx: c.getContext('2d', { willReadFrequently: true }),
     visible: true,
     opacity: 1
   };
@@ -364,7 +390,7 @@ function duplicateLayer() {
     const srcIdx = idx + offset;
     const src = layers[srcIdx];
     const c = createLayerCanvas();
-    const ctx = c.getContext('2d');
+    const ctx = c.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(src.canvas, 0, 0);
     const newLayer = {
       id: layerIdCounter++,
@@ -389,7 +415,7 @@ function mergeLayers() {
   const sel = [...selectedLayers].sort((a, b) => a - b);
   if (sel.length <= 1) return;
   const c = createLayerCanvas();
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   for (let i = sel.length - 1; i >= 0; i--) {
     const l = layers[sel[i]];
     ctx.globalAlpha = l.opacity;
@@ -454,8 +480,6 @@ function getCheckerPattern(ctx) {
 
 function compositeAll() {
   compositeCtx.clearRect(0, 0, canvasW, canvasH);
-  compositeCtx.fillStyle = getCheckerPattern(compositeCtx);
-  compositeCtx.fillRect(0, 0, canvasW, canvasH);
   for (let i = layers.length - 1; i >= 0; i--) {
     const l = layers[i];
     if (!l.visible) continue;
@@ -487,8 +511,6 @@ function compositeAllWithStrokeBuffer() {
   const opacity = getDrawOpacity();
 
   compositeCtx.clearRect(0, 0, canvasW, canvasH);
-  compositeCtx.fillStyle = getCheckerPattern(compositeCtx);
-  compositeCtx.fillRect(0, 0, canvasW, canvasH);
 
   for (let i = layers.length - 1; i >= 0; i--) {
     const l = layers[i];
@@ -1112,7 +1134,7 @@ workspace.addEventListener('wheel', (e) => {
    ═══════════════════════════════════════════════════════ */
 
 function screenToCanvas(clientX, clientY) {
-  const wsRect = workspace.getBoundingClientRect();
+  const wsRect = _getWsRect();
   const sx = clientX - wsRect.left;
   const sy = clientY - wsRect.top;
   return {
@@ -1900,7 +1922,7 @@ function ensureMask() {
   if (!selectionMask || selectionMask.width !== canvasW || selectionMask.height !== canvasH) {
     selectionMask = document.createElement('canvas');
     selectionMask.width = canvasW; selectionMask.height = canvasH;
-    selectionMaskCtx = selectionMask.getContext('2d');
+    selectionMaskCtx = selectionMask.getContext('2d', { willReadFrequently: true });
   }
 }
 
@@ -2045,6 +2067,10 @@ function pathToScreen(path) {
 /* --- Marching Ants --- */
 let marchingAntsOffset = 0;
 let marchingAntsRAF = null;
+// Set only while the ants timer is driving a drawOverlay redraw. Lets
+// drawOverlay skip the expensive updatePropertiesPanel() DOM work for a
+// frame type where no panel state actually changes.
+let _antsTickInProgress = false;
 
 function drawAntsOnPath(ctx, path) {
   if (!path) return;
@@ -2096,7 +2122,7 @@ function drawOverlay() {
   if (gradActive && currentTool === 'gradient') drawGradientUI();
   if (pxTransformActive && currentTool === 'move') drawPxTransformHandles();
   SnapEngine.drawIndicators(overlayCtx);
-  updatePropertiesPanel();
+  if (!_antsTickInProgress) updatePropertiesPanel();
 }
 
 function drawMoveSelHandles(b) {
@@ -2119,7 +2145,8 @@ function startMarchingAnts() {
     marchingAntsRAF = requestAnimationFrame(animate);
     if (time - lastTime < 50) return;
     if (!selectionPath && !gradActive && !isDrawingSelection && !pxTransformActive) return;
-    lastTime = time; marchingAntsOffset = (marchingAntsOffset + 1) % 300; drawOverlay();
+    lastTime = time; marchingAntsOffset = (marchingAntsOffset + 1) % 300;
+    _antsTickInProgress = true; drawOverlay(); _antsTickInProgress = false;
   }
   marchingAntsRAF = requestAnimationFrame(animate);
 }
@@ -3464,7 +3491,7 @@ function onMouseDown(e) {
 
 function onMouseMove(e) {
   const pos=screenToCanvas(e.clientX,e.clientY); const px=pos.x, py=pos.y;
-  document.getElementById('statusPos').textContent=`X: ${Math.round(px)}  Y: ${Math.round(py)}`;
+  statusPosEl.textContent=`X: ${Math.round(px)}  Y: ${Math.round(py)}`;
   const wsRect = _getWsRect();
   rulerMouseX = e.clientX - wsRect.left;
   rulerMouseY = e.clientY - wsRect.top;
@@ -4431,6 +4458,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
   };
   reader.readAsDataURL(file); this.value = '';
 });
+
 
 /* ═══════════════════════════════════════════════════════
    IMPORT IMAGE AS LAYER — Smart Object System
@@ -5833,7 +5861,7 @@ document.getElementById('resizeH').addEventListener('input', function() { if (do
 function applyResizeImage() {
   const newW = parseInt(document.getElementById('resizeW').value) || canvasW; const newH = parseInt(document.getElementById('resizeH').value) || canvasH;
   if (newW === canvasW && newH === canvasH) { closeModal('resizeImageModal'); return; }
-  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.drawImage(l.canvas, 0, 0, canvasW, canvasH, 0, 0, newW, newH); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d'); l.ctx.drawImage(temp, 0, 0); });
+  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.drawImage(l.canvas, 0, 0, canvasW, canvasH, 0, 0, newW, newH); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d', { willReadFrequently: true }); l.ctx.drawImage(temp, 0, 0); });
   canvasW = newW; canvasH = newH; compositeCanvas.width = newW; compositeCanvas.height = newH; overlayCanvas.width = newW; overlayCanvas.height = newH;
   canvasWrapper.style.width = newW + 'px'; canvasWrapper.style.height = newH + 'px'; checkerPattern = null;
   clearSelection(); zoomFit(); compositeAll(); updateLayerPanel(); updateStatus(); closeModal('resizeImageModal');
@@ -5857,7 +5885,7 @@ function applyCanvasSize() {
   if (canvasAnchor.includes('m') && !canvasAnchor.includes('l') && !canvasAnchor.includes('r')) ox = Math.round((newW - canvasW) / 2);
   if (canvasAnchor[0] === 'm') oy = Math.round((newH - canvasH) / 2);
   if (canvasAnchor[0] === 'b') oy = newH - canvasH;
-  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.drawImage(l.canvas, ox, oy); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d'); l.ctx.drawImage(temp, 0, 0); });
+  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.drawImage(l.canvas, ox, oy); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d', { willReadFrequently: true }); l.ctx.drawImage(temp, 0, 0); });
   canvasW = newW; canvasH = newH; compositeCanvas.width = newW; compositeCanvas.height = newH; overlayCanvas.width = newW; overlayCanvas.height = newH;
   canvasWrapper.style.width = newW + 'px'; canvasWrapper.style.height = newH + 'px'; checkerPattern = null;
   clearSelection(); zoomFit(); compositeAll(); updateLayerPanel(); updateStatus(); closeModal('canvasSizeModal');
@@ -5884,7 +5912,7 @@ function rotateImage(angle) {
   closeAllMenus();
   const isSwap = (angle === 90 || angle === 270 || angle === -90);
   const newW = isSwap ? canvasH : canvasW; const newH = isSwap ? canvasW : canvasH;
-  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.translate(newW/2, newH/2); tctx.rotate(angle * Math.PI / 180); tctx.drawImage(l.canvas, -canvasW/2, -canvasH/2); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d'); l.ctx.drawImage(temp, 0, 0); });
+  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.translate(newW/2, newH/2); tctx.rotate(angle * Math.PI / 180); tctx.drawImage(l.canvas, -canvasW/2, -canvasH/2); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d', { willReadFrequently: true }); l.ctx.drawImage(temp, 0, 0); });
   canvasW = newW; canvasH = newH; compositeCanvas.width = newW; compositeCanvas.height = newH; overlayCanvas.width = newW; overlayCanvas.height = newH;
   canvasWrapper.style.width = newW + 'px'; canvasWrapper.style.height = newH + 'px'; checkerPattern = null;
   clearSelection(); zoomFit(); compositeAll(); updateLayerPanel(); updateStatus();

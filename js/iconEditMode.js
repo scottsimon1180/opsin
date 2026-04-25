@@ -174,7 +174,7 @@
           const c = document.createElement('canvas');
           c.width  = img.naturalWidth;
           c.height = img.naturalHeight;
-          const ctx = c.getContext('2d');
+          const ctx = c.getContext('2d', { willReadFrequently: true });
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, c.width, c.height);
           URL.revokeObjectURL(url);
@@ -614,7 +614,7 @@
     masterCanvas = document.createElement('canvas');
     masterCanvas.width  = largest.w;
     masterCanvas.height = largest.h;
-    masterCanvas.getContext('2d').putImageData(largest.imageData, 0, 0);
+    masterCanvas.getContext('2d', { willReadFrequently: true }).putImageData(largest.imageData, 0, 0);
 
     // Build docs (descending size order)
     const entries = decoded.slice().sort((a, b) => b.w - a.w || b.h - a.h);
@@ -1030,7 +1030,7 @@
         id: 1,
         name: 'Background',
         canvas: c,
-        ctx: c.getContext('2d'),
+        ctx: c.getContext('2d', { willReadFrequently: true }),
         visible: true,
         opacity: 1
       }],
@@ -1134,7 +1134,7 @@
         const existing = docs[existingIdx];
         const flat = flattenDocToCanvas(existing);
         const c = document.createElement('canvas'); c.width = val; c.height = val;
-        c.getContext('2d').drawImage(flat, 0, 0);
+        c.getContext('2d', { willReadFrequently: true }).drawImage(flat, 0, 0);
         newImgData = c.getContext('2d').getImageData(0, 0, val, val);
       } else {
         // Fresh resample of master via Lanczos-3 (returns an ImageData directly)
@@ -1162,7 +1162,7 @@
     const src = document.createElement('canvas'); src.width = srcW; src.height = srcH;
     src.getContext('2d').putImageData(imgData, 0, 0);
     const dst = document.createElement('canvas'); dst.width = dstW; dst.height = dstH;
-    const ctx = dst.getContext('2d');
+    const ctx = dst.getContext('2d', { willReadFrequently: true });
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, 0, 0, srcW, srcH, 0, 0, dstW, dstH);
