@@ -41,12 +41,17 @@
       <button class="menu-action" onclick="newImage()"><span class="menu-label">New</span><span class="shortcut">Ctrl+N</span></button>
       <button class="menu-action" onclick="openImage()"><span class="menu-label">Open</span><span class="shortcut">Ctrl+O</span></button>
       <div class="menu-sep"></div>
-      <button class="menu-action" data-export-type="png" onclick="saveImage('png')"><span class="menu-label">Export PNG</span><span class="shortcut">Ctrl+S</span></button>
-      <button class="menu-action" data-export-type="jpg" onclick="saveImage('jpg')"><span class="menu-label">Export JPG</span><span class="shortcut">Ctrl+Shift+S</span></button>
-      <button class="menu-action" data-export-type="webp" onclick="saveImage('webp')"><span class="menu-label">Export WebP</span></button>
-      <button class="menu-action" data-export-type="tif" onclick="openExportModal('tif')"><span class="menu-label">Export TIF</span></button>
-      <button class="menu-action" data-export-type="bmp" onclick="openExportModal('bmp')"><span class="menu-label">Export BMP</span></button>
-      <button class="menu-action" data-export-type="ico" onclick="openExportIcoModal()"><span class="menu-label">Export ICO</span></button>
+      <button class="menu-action" data-export-type="quickpng" onclick="PngExport.quickExport()"><span class="menu-label">Quick Export as PNG</span></button>
+      <div class="menu-action menu-has-submenu"><span class="menu-label">Export as</span>
+        <div class="menu-submenu">
+          <button class="menu-action" data-export-type="png" onclick="PngExport.openDialog()"><span class="menu-label">PNG</span></button>
+          <button class="menu-action" data-export-type="jpg" onclick="saveImage('jpg')"><span class="menu-label">JPG</span></button>
+          <button class="menu-action" data-export-type="webp" onclick="saveImage('webp')"><span class="menu-label">WebP</span></button>
+          <button class="menu-action" data-export-type="tif" onclick="openExportModal('tif')"><span class="menu-label">TIF</span></button>
+          <button class="menu-action" data-export-type="bmp" onclick="openExportModal('bmp')"><span class="menu-label">BMP</span></button>
+          <button class="menu-action" data-export-type="ico" onclick="openExportIcoModal()"><span class="menu-label">ICO</span></button>
+        </div>
+      </div>
       <div class="menu-sep"></div>
       <button class="menu-action" onclick="openInfoPopup()"><span class="menu-label">Info</span><svg class="menu-icon"><use href="#icon-info"/></svg></button>
       <button class="menu-action" onclick="location.reload()"><span class="menu-label">Refresh Browser</span><svg class="menu-icon"><use href="#icon-menu-refresh"/></svg></button>
@@ -462,84 +467,102 @@
       </div>
       <div class="panel-body">
         <div class="props-grid">
+          <div class="props-field" data-axis="x">
+            <label class="props-label" for="propX" id="propLabelX">X</label>
+            <div class="props-input-wrap">
+              <input type="number" class="props-input" id="propX" step="1" disabled>
+              <span class="props-unit">px</span>
+            </div>
+          </div>
+          <div class="props-field props-field--wide" data-axis="w">
+            <label class="props-label props-label--wide" for="propW">Width</label>
+            <div class="props-input-wrap">
+              <input type="number" class="props-input" id="propW" min="1" step="1" disabled>
+              <span class="props-unit">px</span>
+            </div>
+          </div>
           <div class="props-lock-wrap">
-            <button class="props-lock-btn" id="propAspectLock" title="Lock Aspect Ratio" disabled>
+            <span class="props-lock-rail props-lock-rail--top" aria-hidden="true"></span>
+            <span class="props-lock-rail props-lock-rail--bot" aria-hidden="true"></span>
+            <button class="props-lock-btn" id="propAspectLock" title="Link Width &amp; Height" disabled>
               <svg><use href="#icon-chain-unlinked"/></svg>
             </button>
           </div>
-          <div class="props-field">
-            <label class="props-label props-label-wide">Width</label>
-            <input type="number" class="props-input" id="propW" min="1" step="1" disabled>
-            <span class="props-unit">px</span>
+          <div class="props-field" data-axis="y">
+            <label class="props-label" for="propY" id="propLabelY">Y</label>
+            <div class="props-input-wrap">
+              <input type="number" class="props-input" id="propY" step="1" disabled>
+              <span class="props-unit">px</span>
+            </div>
           </div>
-          <div class="props-field">
-            <label class="props-label props-label-icon-hover" id="propLabelX">
-              <span class="props-label-text">X</span>
-              <svg class="props-label-icon"><use href="#icon-arrow-horizontal"/></svg>
-            </label>
-            <input type="number" class="props-input" id="propX" step="1" disabled>
-            <span class="props-unit">px</span>
-          </div>
-          <div class="props-field">
-            <label class="props-label props-label-wide">Height</label>
-            <input type="number" class="props-input" id="propH" min="1" step="1" disabled>
-            <span class="props-unit">px</span>
-          </div>
-          <div class="props-field">
-            <label class="props-label props-label-icon-hover" id="propLabelY">
-              <span class="props-label-text">Y</span>
-              <svg class="props-label-icon"><use href="#icon-arrow-vertical"/></svg>
-            </label>
-            <input type="number" class="props-input" id="propY" step="1" disabled>
-            <span class="props-unit">px</span>
+          <div class="props-field props-field--wide" data-axis="h">
+            <label class="props-label props-label--wide" for="propH">Height</label>
+            <div class="props-input-wrap">
+              <input type="number" class="props-input" id="propH" min="1" step="1" disabled>
+              <span class="props-unit">px</span>
+            </div>
           </div>
         </div>
-        <div class="props-divider"></div>
-        <div class="props-bottom">
-          <div class="props-transform-group">
-            <span class="props-group-label">Transform</span>
-            <div class="props-transform-row">
-              <div class="props-flip-strip">
-                <button class="props-flip-btn" id="propFlipH" title="Flip Horizontal" disabled>
-                  <svg><use href="#icon-flip-horizontal"/></svg>
-                  <span>Flip H</span>
-                </button>
-                <button class="props-flip-btn" id="propFlipV" title="Flip Vertical" disabled>
-                  <svg><use href="#icon-flip-vertical"/></svg>
-                  <span>Flip V</span>
-                </button>
-              </div>
-              <div class="props-rotate-field">
-                <span class="props-rotate-icon">↻</span>
-                <input type="number" class="props-input props-rotate-input" id="propRotation" step="1" value="0" disabled>
-                <span class="props-unit">°</span>
-              </div>
+        <hr class="props-section-sep" aria-hidden="true">
+        <div class="props-transform-row">
+          <div class="props-rotate-control" title="Rotation">
+            <svg class="props-rotate-glyph" aria-hidden="true"><use href="#icon-rotate"/></svg>
+            <div class="props-input-wrap props-rotate-wrap">
+              <input type="number" class="props-input props-rotate-input" id="propRotation" step="1" value="0" disabled>
+              <span class="props-unit">°</span>
             </div>
           </div>
-          <div class="props-align-widget">
-            <span class="props-group-label">Align to Canvas</span>
-            <div class="props-align-grid" id="propAlignGrid">
-              <button class="props-align-dot" data-align="tl" title="Top Left" disabled></button>
-              <button class="props-align-dot" data-align="tc" title="Top Center" disabled></button>
-              <button class="props-align-dot" data-align="tr" title="Top Right" disabled></button>
-              <button class="props-align-dot" data-align="cl" title="Center Left" disabled></button>
-              <button class="props-align-dot" data-align="cc" title="Center" disabled></button>
-              <button class="props-align-dot" data-align="cr" title="Center Right" disabled></button>
-              <button class="props-align-dot" data-align="bl" title="Bottom Left" disabled></button>
-              <button class="props-align-dot" data-align="bc" title="Bottom Center" disabled></button>
-              <button class="props-align-dot" data-align="br" title="Bottom Right" disabled></button>
-            </div>
-          </div>
+          <span class="props-transform-divider" aria-hidden="true"></span>
+          <button class="props-flip-btn" id="propFlipH" title="Flip Horizontal" disabled>
+            <svg aria-hidden="true"><use href="#icon-flip-horizontal"/></svg>
+          </button>
+          <button class="props-flip-btn" id="propFlipV" title="Flip Vertical" disabled>
+            <svg aria-hidden="true"><use href="#icon-flip-vertical"/></svg>
+          </button>
+        </div>
+        <div class="props-align-row" id="propAlignBar" role="group" aria-label="Align to canvas">
+          <button class="props-align-btn" data-align="l" title="Align Left Edges" disabled>
+            <svg aria-hidden="true"><use href="#icon-align-left"/></svg>
+          </button>
+          <button class="props-align-btn" data-align="ch" title="Align Horizontal Centers" disabled>
+            <svg aria-hidden="true"><use href="#icon-align-center-h"/></svg>
+          </button>
+          <button class="props-align-btn" data-align="r" title="Align Right Edges" disabled>
+            <svg aria-hidden="true"><use href="#icon-align-right"/></svg>
+          </button>
+          <span class="props-align-sep" aria-hidden="true"></span>
+          <button class="props-align-btn" data-align="t" title="Align Top Edges" disabled>
+            <svg aria-hidden="true"><use href="#icon-align-top"/></svg>
+          </button>
+          <button class="props-align-btn" data-align="cv" title="Align Vertical Centers" disabled>
+            <svg aria-hidden="true"><use href="#icon-align-center-v"/></svg>
+          </button>
+          <button class="props-align-btn" data-align="b" title="Align Bottom Edges" disabled>
+            <svg aria-hidden="true"><use href="#icon-align-bottom"/></svg>
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Layers Panel -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Layers</span>
+    <!-- Layers / History (combined springboard panel) -->
+    <div class="panel panel--bottom" id="layersHistoryPanel" data-active-tab="layers">
+      <div class="panel-header panel-header--tabs">
+        <div class="panel-tabs" role="tablist" aria-label="Layers and History">
+          <button class="panel-tab active" type="button" role="tab" aria-selected="true" data-tab="layers" onclick="switchLayersHistoryTab('layers')">Layers</button>
+          <button class="panel-tab" type="button" role="tab" aria-selected="false" data-tab="history" onclick="switchLayersHistoryTab('history')">History</button>
+        </div>
+        <div class="panel-actions" data-actions-for="history" hidden>
+          <button class="panel-btn" onclick="doUndo()" title="Undo (Ctrl+Z)">
+            <svg><use href="#icon-undo"/></svg>
+          </button>
+          <button class="panel-btn" onclick="doRedo()" title="Redo (Ctrl+Y)">
+            <svg><use href="#icon-redo"/></svg>
+          </button>
+        </div>
       </div>
-      <div class="panel-body">
+
+      <!-- Layers tab pane -->
+      <div class="panel-body panel-body--tabbed" data-tab-pane="layers">
         <div class="opt-group" id="layerOpacityGroup">
           <span class="opt-label">Opacity</span>
           <input type="range" class="opt-range" id="layerOpacity" min="0" max="100" value="100">
@@ -574,22 +597,9 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- History Panel -->
-    <div class="panel" id="historyPanel">
-      <div class="panel-header">
-        <span class="panel-title">History</span>
-        <div class="panel-actions">
-          <button class="panel-btn" onclick="doUndo()" title="Undo (Ctrl+Z)">
-            <svg><use href="#icon-undo"/></svg>
-          </button>
-          <button class="panel-btn" onclick="doRedo()" title="Redo (Ctrl+Y)">
-            <svg><use href="#icon-redo"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="panel-body history-panel-body">
+      <!-- History tab pane -->
+      <div class="panel-body panel-body--tabbed history-panel-body" data-tab-pane="history" hidden>
         <div class="history-list" id="historyList"></div>
       </div>
     </div>
@@ -612,13 +622,22 @@
 <div class="modal-overlay" id="newImageModal">
   <div class="modal">
     <div class="modal-title">New Image</div>
-    <div class="modal-row">
-      <span class="modal-label">Width</span>
-      <input type="number" class="modal-input" id="newWidth" value="1920" min="1" max="8192">
-    </div>
-    <div class="modal-row">
-      <span class="modal-label">Height</span>
-      <input type="number" class="modal-input" id="newHeight" value="1080" min="1" max="8192">
+    <div class="dim-pair">
+      <div class="modal-row">
+        <span class="modal-label">Width</span>
+        <input type="number" class="modal-input" id="newWidth" value="1920" min="1" max="8192">
+      </div>
+      <div class="modal-row">
+        <span class="modal-label">Height</span>
+        <input type="number" class="modal-input" id="newHeight" value="1080" min="1" max="8192">
+      </div>
+      <div class="dim-lock-wrap">
+        <span class="dim-lock-rail dim-lock-rail--top" aria-hidden="true"></span>
+        <span class="dim-lock-rail dim-lock-rail--bot" aria-hidden="true"></span>
+        <button type="button" class="dim-lock-btn locked" id="newDimLock" title="Link Width &amp; Height">
+          <svg><use href="#icon-chain-linked"/></svg>
+        </button>
+      </div>
     </div>
     <div class="modal-row">
       <span class="modal-label">Background</span>
@@ -627,6 +646,31 @@
         <option value="black">Black</option>
         <option value="transparent">Transparent</option>
       </select>
+    </div>
+    <div class="preset-row">
+      <span class="preset-row-label">Presets</span>
+      <div class="preset-chips" id="newImagePresets">
+        <button type="button" class="preset-chip" data-w="1920" data-h="1080">
+          <span class="preset-chip-name">Full HD</span>
+          <span class="preset-chip-dim">1920 × 1080</span>
+        </button>
+        <button type="button" class="preset-chip" data-w="3840" data-h="2160">
+          <span class="preset-chip-name">4K UHD</span>
+          <span class="preset-chip-dim">3840 × 2160</span>
+        </button>
+        <button type="button" class="preset-chip" data-w="24" data-h="24">
+          <span class="preset-chip-name">Icon 24</span>
+          <span class="preset-chip-dim">24 × 24</span>
+        </button>
+        <button type="button" class="preset-chip" data-w="1024" data-h="1024">
+          <span class="preset-chip-name">Square 1K</span>
+          <span class="preset-chip-dim">1024 × 1024</span>
+        </button>
+        <button type="button" class="preset-chip" data-w="2048" data-h="2048">
+          <span class="preset-chip-name">Square 2K</span>
+          <span class="preset-chip-dim">2048 × 2048</span>
+        </button>
+      </div>
     </div>
     <div class="modal-buttons">
       <button class="modal-btn" onclick="closeModal('newImageModal')">Cancel</button>
@@ -705,6 +749,59 @@
     <div class="modal-buttons">
       <button class="modal-btn" onclick="closeModal('canvasSizeModal')">Cancel</button>
       <button class="modal-btn primary" onclick="applyCanvasSize()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ IMPORT SIZE MODAL ═══════════════════ -->
+<div class="modal-overlay" id="importSizeModal">
+  <div class="modal import-size-modal">
+    <div class="modal-title">Image Larger Than Canvas</div>
+    <div class="import-size-body">
+      <div class="import-size-desc">
+        <span id="importSizeDims">The incoming image is larger than the canvas.</span>
+        <span class="import-size-desc-q">What would you like to do?</span>
+      </div>
+      <button type="button" class="import-size-card is-default" id="importSizeExpand" data-choice="expand">
+        <div class="import-size-card-icon">
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <rect x="3" y="3" width="34" height="34" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2.5" opacity="0.55"/>
+            <rect x="11.5" y="11.5" width="17" height="17" rx="1.5" fill="currentColor" opacity="0.14" stroke="currentColor" stroke-width="1.4"/>
+            <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+              <path d="M8.5 8.5 L5 5"/><polyline points="5,9 5,5 9,5"/>
+              <path d="M31.5 8.5 L35 5"/><polyline points="31,5 35,5 35,9"/>
+              <path d="M8.5 31.5 L5 35"/><polyline points="9,35 5,35 5,31"/>
+              <path d="M31.5 31.5 L35 35"/><polyline points="35,31 35,35 31,35"/>
+            </g>
+          </svg>
+        </div>
+        <div class="import-size-card-text">
+          <div class="import-size-card-title">Expand Canvas</div>
+          <div class="import-size-card-desc">Grow the canvas to fit the entire image. Existing content stays anchored to the top-left.</div>
+        </div>
+        <div class="import-size-card-kbd">Enter</div>
+      </button>
+      <button type="button" class="import-size-card" id="importSizeKeep" data-choice="keep">
+        <div class="import-size-card-icon">
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <rect x="9.5" y="14.5" width="21" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.5"/>
+            <rect x="6.5" y="7.5" width="22" height="18" rx="1.5" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.4"/>
+            <g stroke="currentColor" stroke-width="1.2">
+              <rect x="5" y="6" width="3" height="3" rx="0.5" fill="var(--surface)"/>
+              <rect x="27" y="6" width="3" height="3" rx="0.5" fill="var(--surface)"/>
+              <rect x="5" y="24" width="3" height="3" rx="0.5" fill="var(--surface)"/>
+              <rect x="27" y="24" width="3" height="3" rx="0.5" fill="var(--surface)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="import-size-card-text">
+          <div class="import-size-card-title">Keep Canvas Size</div>
+          <div class="import-size-card-desc">Place the image on the canvas in Free Transform to scale and position before committing.</div>
+        </div>
+      </button>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" id="importSizeCancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -832,6 +929,104 @@
     <div class="modal-buttons">
       <button class="modal-btn" onclick="closeModal('exportIcoModal')">Cancel</button>
       <button class="modal-btn primary" onclick="executeIcoExport()">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PNG EXPORT DIALOG ═══════════════════ -->
+<div class="modal-overlay" id="pngExportModal">
+  <div class="modal png-export-modal">
+    <div class="modal-title">Export PNG</div>
+    <div class="png-export-body">
+      <div class="png-export-preview-pane">
+        <div class="png-export-zoom-bar">
+          <button class="png-export-zb-btn" id="pngExportZoomOut" title="Zoom out (−)">&minus;</button>
+          <button class="png-export-zb-btn" id="pngExportZoomIn"  title="Zoom in (+)">+</button>
+          <span class="png-export-zb-divider"></span>
+          <button class="png-export-zb-btn" id="pngExportZoomFit" title="Fit (0)">Fit</button>
+          <button class="png-export-zb-btn" id="pngExportZoom100" title="100% (1)">100%</button>
+          <button class="png-export-zb-btn" id="pngExportZoom200" title="200% (2)">200%</button>
+          <button class="png-export-zb-btn" id="pngExportZoom400" title="400% (3)">400%</button>
+          <span class="png-export-zb-spacer"></span>
+          <span class="png-export-zoom-readout" id="pngExportZoomReadout">100%</span>
+          <span class="png-export-size-readout" id="pngExportSizeReadout">— · — × —</span>
+        </div>
+        <div class="png-export-preview-stage" id="pngExportPreviewStage">
+          <div class="png-export-checker"></div>
+          <canvas id="pngExportPreviewCanvas"></canvas>
+          <div class="png-export-working-badge" id="pngExportWorkingBadge">
+            <span class="png-export-spinner"></span>
+            <span>Working…</span>
+          </div>
+        </div>
+      </div>
+      <div class="png-export-options-pane">
+        <div class="png-export-section">
+          <div class="png-export-section-title">Format</div>
+          <label class="png-export-radio-row">
+            <input type="radio" name="pngExportMode" id="pngExportRadio24" value="png24" checked>
+            <span class="png-export-radio-dot"></span>
+            <span class="png-export-radio-text">
+              <span class="png-export-radio-label">PNG-24</span>
+              <span class="png-export-radio-desc">Lossless. Full color with transparency.</span>
+            </span>
+          </label>
+          <label class="png-export-radio-row">
+            <input type="radio" name="pngExportMode" id="pngExportRadio8" value="png8">
+            <span class="png-export-radio-dot"></span>
+            <span class="png-export-radio-text">
+              <span class="png-export-radio-label">PNG-8</span>
+              <span class="png-export-radio-desc">Indexed palette, up to 256 colors. Smaller files.</span>
+            </span>
+          </label>
+        </div>
+        <div class="png-export-section png-export-png8-section disabled" id="pngExportPng8Section">
+          <div class="png-export-row">
+            <label class="png-export-row-label" for="pngExportColorSelect">Colors</label>
+            <select class="png-export-select" id="pngExportColorSelect">
+              <option value="2">2</option>
+              <option value="4">4</option>
+              <option value="8">8</option>
+              <option value="16">16</option>
+              <option value="32">32</option>
+              <option value="64">64</option>
+              <option value="128">128</option>
+              <option value="256" selected>256</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <input type="number" class="png-export-input png-export-input-num" id="pngExportColorInput" min="1" max="256" value="256" style="display:none">
+          </div>
+          <div class="png-export-row">
+            <label class="png-export-row-label" for="pngExportDither">Dither</label>
+            <input type="range" class="png-export-slider" id="pngExportDither" min="0" max="100" value="100">
+            <span class="png-export-row-readout" id="pngExportDitherReadout">100%</span>
+          </div>
+          <div class="png-export-row">
+            <label class="png-export-row-label" for="pngExportTransparency">Transparency</label>
+            <label class="png-export-toggle">
+              <input type="checkbox" id="pngExportTransparency" checked>
+              <span class="png-export-toggle-track"><span class="png-export-toggle-dot"></span></span>
+            </label>
+          </div>
+          <div class="png-export-row">
+            <label class="png-export-row-label">Matte</label>
+            <button class="png-export-matte-well" id="pngExportMatteWell" title="Click to change matte color"></button>
+          </div>
+        </div>
+        <div class="png-export-section png-export-color-table-wrap disabled" id="pngExportColorTableWrap">
+          <div class="png-export-section-title-row">
+            <div class="png-export-section-title">Color Table</div>
+            <span class="png-export-section-aside" id="pngExportActualCount">0 colors</span>
+            <button class="png-export-mini-btn" id="pngExportResetPalette" title="Reset palette and clear locks">Reset</button>
+          </div>
+          <div class="png-export-color-table" id="pngExportColorTable"></div>
+          <div class="png-export-table-hint">Click a swatch to change its color (auto-locks). Right-click for more options.</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn" id="pngExportCancelBtn">Cancel</button>
+      <button class="modal-btn primary" id="pngExportOkBtn">Export</button>
     </div>
   </div>
 </div>
@@ -1064,6 +1259,7 @@
 <script src="js/history.js"></script>
 <script src="js/script.js"></script>
 <script src="js/toolbar.js"></script>
+<script src="js/pngExport.js"></script>
 <script src="js/iconEditMode.js"></script>
 <script>
   if (typeof OPSIN_VERSION !== 'undefined') {

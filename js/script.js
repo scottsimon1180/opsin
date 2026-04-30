@@ -4133,7 +4133,9 @@ function toggleColorPicker() {
   const _cpTheme = (document.documentElement.getAttribute('data-theme') === 'light') ? 'light' : 'dark';
   iframe.src = 'pages/colorPicker.html?theme=' + _cpTheme;
   iframe.onload = function() {
-    iframe.contentWindow.postMessage({ action: 'open', hex: fgColor }, '*');
+    const seed = window._pngPickerSeedHex || fgColor;
+    window._pngPickerSeedHex = null;
+    iframe.contentWindow.postMessage({ action: 'open', hex: seed }, '*');
   };
   overlay.appendChild(iframe);
   document.body.appendChild(overlay);
@@ -4144,6 +4146,14 @@ function closeColorPicker() {
   if (overlay) overlay.remove();
   gradColorPickerMode = false;
   gradColorTarget = null;
+  if (window.pngPaletteEditMode) {
+    window.pngPaletteEditMode = false;
+    window.pngPaletteEditIndex = -1;
+    window._pngPickerSeedHex = null;
+    if (window.PngExport && window.PngExport.onColorPickerCancelled) {
+      window.PngExport.onColorPickerCancelled();
+    }
+  }
 }
 
 // Listen for messages from colorPicker.html iframe
@@ -4151,6 +4161,14 @@ window.addEventListener('message', function(e) {
   if (!e.data || !e.data.action) return;
   if (e.data.action === 'confirm') {
     const hex = e.data.hex;
+    if (window.pngPaletteEditMode && window.PngExport && window.PngExport.onColorPicked) {
+      window.PngExport.onColorPicked(hex);
+      window.pngPaletteEditMode = false;
+      window.pngPaletteEditIndex = -1;
+      const overlay = document.getElementById('cpIframeOverlay');
+      if (overlay) overlay.remove();
+      return;
+    }
     const rgb = hexToRgb(hex.replace('#',''));
     if (rgb) { const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b); if(hsv.s>0&&hsv.v>0) cpH=hsv.h; cpS=hsv.s; cpV=hsv.v; }
     if (gradColorPickerMode && gradActive && gradColorTarget !== null) {
@@ -4388,12 +4406,76 @@ function applyFilter() {
 function newImage() {
   closeAllMenus();
   document.getElementById('newImageModal').classList.add('show');
+  syncNewImagePresetActive();
   // Probe the system clipboard for image dimensions to pre-fill the dialog,
   // matching professional editors where clipboard content defines new document
   // size. Uses the async Clipboard API — requires secure context (HTTPS).
   // Fails silently on file:// or permission denial; defaults remain as-is.
   probeClipboardDimensions();
 }
+
+function syncNewImagePresetActive() {
+  const w = parseInt(document.getElementById('newWidth').value, 10);
+  const h = parseInt(document.getElementById('newHeight').value, 10);
+  document.querySelectorAll('#newImagePresets .preset-chip').forEach(chip => {
+    const cw = parseInt(chip.dataset.w, 10);
+    const ch = parseInt(chip.dataset.h, 10);
+    chip.classList.toggle('active', cw === w && ch === h);
+  });
+}
+
+let newImageDimLocked = true;
+let newImageDimRatio = 1920 / 1080;
+
+(function initNewImagePresets() {
+  const wire = () => {
+    const presets = document.getElementById('newImagePresets');
+    const wIn = document.getElementById('newWidth');
+    const hIn = document.getElementById('newHeight');
+    const lockBtn = document.getElementById('newDimLock');
+    if (!presets || !wIn || !hIn || !lockBtn) return;
+
+    presets.addEventListener('click', e => {
+      const chip = e.target.closest('.preset-chip');
+      if (!chip) return;
+      wIn.value = chip.dataset.w;
+      hIn.value = chip.dataset.h;
+      newImageDimRatio = parseInt(chip.dataset.w, 10) / parseInt(chip.dataset.h, 10);
+      syncNewImagePresetActive();
+    });
+
+    let suppressLink = false;
+    const linkFrom = (src, dst) => {
+      if (suppressLink || !newImageDimLocked) return;
+      const v = parseInt(src.value, 10);
+      if (!v || v < 1) return;
+      suppressLink = true;
+      const ratio = src === wIn ? newImageDimRatio : 1 / newImageDimRatio;
+      dst.value = Math.max(1, Math.round(v / ratio));
+      suppressLink = false;
+      syncNewImagePresetActive();
+    };
+    wIn.addEventListener('input', () => { linkFrom(wIn, hIn); syncNewImagePresetActive(); });
+    hIn.addEventListener('input', () => { linkFrom(hIn, wIn); syncNewImagePresetActive(); });
+
+    lockBtn.addEventListener('click', () => {
+      newImageDimLocked = !newImageDimLocked;
+      lockBtn.classList.toggle('locked', newImageDimLocked);
+      const useEl = lockBtn.querySelector('svg use');
+      useEl.setAttribute('href', newImageDimLocked ? '#icon-chain-linked' : '#icon-chain-unlinked');
+      if (newImageDimLocked) {
+        const w = parseInt(wIn.value, 10) || 1;
+        const h = parseInt(hIn.value, 10) || 1;
+        newImageDimRatio = w / h;
+      }
+    });
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 /**
  * probeClipboardDimensions — Reads the system clipboard via the async Clipboard
@@ -4417,6 +4499,7 @@ async function probeClipboardDimensions() {
         img.onload = () => {
           document.getElementById('newWidth').value = img.naturalWidth || img.width;
           document.getElementById('newHeight').value = img.naturalHeight || img.height;
+          syncNewImagePresetActive();
           URL.revokeObjectURL(img.src);
         };
         img.src = URL.createObjectURL(blob);
@@ -5199,7 +5282,7 @@ document.querySelectorAll('.menu-item').forEach(item => {
   item.addEventListener('mouseenter', function() { if (openMenuId) { closeAllMenus(); const menuId = 'menu-' + this.dataset.menu; document.getElementById(menuId).classList.add('show'); this.classList.add('open'); openMenuId = menuId; } });
   item.addEventListener('mouseleave', function(e) { if (openMenuId && (!e.relatedTarget || !e.relatedTarget.closest('.menu-item'))) closeAllMenus(); });
 });
-document.querySelectorAll('.menu-action').forEach(btn => { btn.addEventListener('click', () => closeAllMenus()); });
+document.querySelectorAll('.menu-action:not(.menu-has-submenu)').forEach(btn => { btn.addEventListener('click', () => closeAllMenus()); });
 
 function closeAllMenus() { document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('show')); document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('open')); openMenuId = null; if (window.IEM && window.IEM.applyFileMenuState) window.IEM.applyFileMenuState(); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -5412,7 +5495,6 @@ document.addEventListener('keydown', (e) => {
   else if (ctrl && k === 'v') { /* allow native paste event to fire — handled by paste event listener */ }
   else if (ctrl && k === 'n') { e.preventDefault(); newImage(); }
   else if (ctrl && k === 'o') { e.preventDefault(); openImage(); }
-  else if (ctrl && k === 's') { e.preventDefault(); if (window.IEM && window.IEM.active) return; saveImage(e.shiftKey ? 'jpg' : 'png'); }
   else if (ctrl && k === 'a') { e.preventDefault(); selectAll(); }
   else if (ctrl && !e.shiftKey && k === 'i') { e.preventDefault(); applyFilterDirect('invert'); }
   else if (ctrl && e.shiftKey && k === 'i') { e.preventDefault(); invertSelection(); }
@@ -5949,7 +6031,7 @@ function updatePropertiesPanel() {
     const rotIn = document.getElementById('propRotation');
     const flipH = document.getElementById('propFlipH');
     const flipV = document.getElementById('propFlipV');
-    const alignDots = document.querySelectorAll('.props-align-dot');
+    const alignDots = document.querySelectorAll('.props-align-btn');
     if (selectedGuide.axis === 'v') {
       if (focused !== xIn) xIn.value = Math.round(selectedGuide.pos);
       xIn.disabled = false;
@@ -6000,7 +6082,7 @@ function updatePropertiesPanel() {
   const rotIn = document.getElementById('propRotation');
   const flipH = document.getElementById('propFlipH');
   const flipV = document.getElementById('propFlipV');
-  const alignDots = document.querySelectorAll('.props-align-dot');
+  const alignDots = document.querySelectorAll('.props-align-btn');
   const allPropsInputs = [wIn, hIn, xIn, yIn, rotIn];
   const userIsEditingAny = allPropsInputs.includes(focused);
 
@@ -6169,10 +6251,10 @@ function initPropertiesPanel() {
     else if (currentTool === 'movesel' && selection) propsFlipSelection('v');
   });
 
-  // Alignment grid
-  document.querySelectorAll('.props-align-dot').forEach(dot => {
-    dot.addEventListener('click', () => {
-      const align = dot.dataset.align;
+  // Alignment bar — Photoshop-style 6-axis alignment
+  document.querySelectorAll('.props-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const align = btn.dataset.align;
       if (currentTool === 'move' && pxTransformActive) propsAlignPixelTransform(align);
       else if (currentTool === 'move' && floatingActive) propsAlignFloating(align);
       else if (currentTool === 'movesel' && selection) propsAlignSelection(align);
@@ -6218,13 +6300,17 @@ function propsFlipPixelTransform(axis) {
 function propsAlignPixelTransform(align) {
   if (!pxTransformActive || !pxTransformData) return;
   const cb = pxTransformData.curBounds;
-  const v = align[0], h = align[1];
-  if (h === 'l') cb.x = 0;
-  else if (h === 'c') cb.x = Math.round((canvasW - cb.w) / 2);
-  else if (h === 'r') cb.x = canvasW - cb.w;
-  if (v === 't') cb.y = 0;
-  else if (v === 'c') cb.y = Math.round((canvasH - cb.h) / 2);
-  else if (v === 'b') cb.y = canvasH - cb.h;
+  // Photoshop-style: each button moves on a single axis only; the
+  // perpendicular axis stays at the object's current position.
+  switch (align) {
+    case 'l':  cb.x = 0; break;
+    case 'ch': cb.x = Math.round((canvasW - cb.w) / 2); break;
+    case 'r':  cb.x = canvasW - cb.w; break;
+    case 't':  cb.y = 0; break;
+    case 'cv': cb.y = Math.round((canvasH - cb.h) / 2); break;
+    case 'b':  cb.y = canvasH - cb.h; break;
+    default: return;
+  }
   compositeAll(); drawOverlay();
   updatePropertiesPanel();
   // No history push — alignment is part of the live session and folds into
@@ -6236,13 +6322,15 @@ function propsAlignPixelTransform(align) {
 function propsAlignFloating(align) {
   if (!floatingActive || !floatingCanvas) return;
   const fw = floatingCanvas.width, fh = floatingCanvas.height;
-  const v = align[0], h = align[1];
-  if (h === 'l') floatingOffset.x = 0;
-  else if (h === 'c') floatingOffset.x = Math.round((canvasW - fw) / 2);
-  else if (h === 'r') floatingOffset.x = canvasW - fw;
-  if (v === 't') floatingOffset.y = 0;
-  else if (v === 'c') floatingOffset.y = Math.round((canvasH - fh) / 2);
-  else if (v === 'b') floatingOffset.y = canvasH - fh;
+  switch (align) {
+    case 'l':  floatingOffset.x = 0; break;
+    case 'ch': floatingOffset.x = Math.round((canvasW - fw) / 2); break;
+    case 'r':  floatingOffset.x = canvasW - fw; break;
+    case 't':  floatingOffset.y = 0; break;
+    case 'cv': floatingOffset.y = Math.round((canvasH - fh) / 2); break;
+    case 'b':  floatingOffset.y = canvasH - fh; break;
+    default: return;
+  }
   compositeAll(); drawOverlay();
   pushUndo('Align');
 }
@@ -6321,13 +6409,16 @@ function propsAlignSelection(align) {
   const sb = getSelectionBounds();
   if (!sb) return;
   let dx = 0, dy = 0;
-  const v = align[0], h = align[1];
-  if (h === 'l') dx = -sb.x;
-  else if (h === 'c') dx = Math.round((canvasW - sb.w) / 2) - sb.x;
-  else if (h === 'r') dx = (canvasW - sb.w) - sb.x;
-  if (v === 't') dy = -sb.y;
-  else if (v === 'c') dy = Math.round((canvasH - sb.h) / 2) - sb.y;
-  else if (v === 'b') dy = (canvasH - sb.h) - sb.y;
+  switch (align) {
+    case 'l':  dx = -sb.x; break;
+    case 'ch': dx = Math.round((canvasW - sb.w) / 2) - sb.x; break;
+    case 'r':  dx = (canvasW - sb.w) - sb.x; break;
+    case 't':  dy = -sb.y; break;
+    case 'cv': dy = Math.round((canvasH - sb.h) / 2) - sb.y; break;
+    case 'b':  dy = (canvasH - sb.h) - sb.y; break;
+    default: return;
+  }
+  if (dx === 0 && dy === 0) return;
   applySelectionMove(sb, dx, dy);
   buildSelectionPath(); drawOverlay();
   pushUndo('Align Selection');
@@ -7285,3 +7376,21 @@ window.addEventListener('resize', () => { _wsRectCache = null; if (isFitMode) { 
   // Defer initial check one frame so the layout has settled
   evaluate();
 })();
+
+/* ═══ LAYERS / HISTORY TAB SWITCHER (springboard panel) ══════════════════ */
+function switchLayersHistoryTab(tab) {
+  const root = document.getElementById('layersHistoryPanel');
+  if (!root) return;
+  root.dataset.activeTab = tab;
+  root.querySelectorAll('.panel-tab').forEach(btn => {
+    const on = btn.dataset.tab === tab;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  root.querySelectorAll('[data-tab-pane]').forEach(pane => {
+    pane.hidden = pane.dataset.tabPane !== tab;
+  });
+  root.querySelectorAll('[data-actions-for]').forEach(grp => {
+    grp.hidden = grp.dataset.actionsFor !== tab;
+  });
+}

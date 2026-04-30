@@ -5,6 +5,60 @@ const rawIconsData = `
 
 /*
 =======================================
+align-bottom
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><rect x="2.5" y="19.5" width="19" height="2" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="6" width="4" height="12.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="9.5" width="4" height="9" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+
+
+/*
+=======================================
+align-center-h
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><rect x="11" y="2.5" width="2" height="19" rx="0.5" fill="currentColor" stroke="none"/><rect x="3.5" y="6" width="17" height="4" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="14" width="12" height="4" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+
+
+/*
+=======================================
+align-center-v
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><rect x="2.5" y="11" width="19" height="2" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="3.5" width="4" height="17" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="6" width="4" height="12" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+
+
+/*
+=======================================
+align-left
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><rect x="2.5" y="2.5" width="2" height="19" rx="0.5" fill="currentColor" stroke="none"/><rect x="5.5" y="6" width="13" height="4" rx="0.5" fill="currentColor" stroke="none"/><rect x="5.5" y="14" width="9" height="4" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+
+
+/*
+=======================================
+align-right
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><rect x="19.5" y="2.5" width="2" height="19" rx="0.5" fill="currentColor" stroke="none"/><rect x="5.5" y="6" width="13" height="4" rx="0.5" fill="currentColor" stroke="none"/><rect x="9.5" y="14" width="9" height="4" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+
+
+/*
+=======================================
+align-top
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><rect x="2.5" y="2.5" width="19" height="2" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="5.5" width="4" height="13" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="5.5" width="4" height="9" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+
+
+/*
+=======================================
 arrow-horizontal
 =======================================
 */
@@ -265,6 +319,15 @@ redo
 
 /*
 =======================================
+rotate
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="width: 346px; height: 346px; transition: none;"><g id="ink-wrapper" transform="translate(0.01, 2.285) scale(1, 1)"><g id="Layer 1"><path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5" id="Shape 3" fill-rule="evenodd" d="m21.2 15.61h-18.42l18.42-11.79"/></g></g></svg>
+
+
+/*
+=======================================
 ruler-tool
 =======================================
 */
@@ -359,7 +422,7 @@ chain-linked
 =======================================
 */
 
-<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 24 24" width="24" height="24" data-native-w="24" data-native-h="24" style="width: 336px; height: 336px; transition: none;"><g id="ink-wrapper" transform="translate(-0.024, -0.0441) scale(1.002, 1.002)"><g id="Layer_4"><path d="M6.67,11c0,0-0.02-1.05-0.02-3.61c0-2.95,2.4-5.35,5.35-5.35s5.35,2.4,5.35,5.35L17.29,11l-1.5-0.03l0.06-3.59c0-2.11-1.73-3.84-3.85-3.84c-2.12,0-3.85,1.73-3.85,3.85c0,2.52,0.02,3.56,0.02,3.57L6.67,11z" fill="currentColor" stroke="none"/></g><g id="Layer_7"><g><g><path d="M17,10.06H7c-1.1,0-2,0.9-2,2V20c0,1.1,0.9,2,2,2h10c1.1,0,2-0.9,2-2v-7.94C19,10.95,18.1,10.06,17,10.06zM12.75,17.07v1.91c0,0.41-0.34,0.75-0.75,0.75s-0.75-0.34-0.75-0.75v-1.91c-0.45-0.26-0.75-0.74-0.75-1.29c0-0.83,0.67-1.5,1.5-1.5s1.5,0.67,1.5,1.5C13.5,16.33,13.2,16.81,12.75,17.07z" fill="currentColor" stroke="none"/></g></g></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><path d="M10 13a5 5 0 0 0 7.540.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M14 11a5 5 0 0 0-7.54-0.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>
 
 
 
@@ -369,7 +432,7 @@ chain-unlinked
 =======================================
 */
 
-<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 24 24" width="24" height="24" data-native-w="24" data-native-h="24" style="width: 336px; height: 336px; transition: none;"><g id="ink-wrapper" transform="translate(-0.0238, -0.0434) scale(1.002, 1.002)"><g id="Layer_5"><path d="M6.69,13.55c0,0-0.04-1.69-0.04-5.18c-0.18-3.25,1.44-5.58,4.32-6.21c2.88-0.62,5.74,1.21,6.37,4.1l-1.47,0.32c-0.45-2.08-2.51-3.4-4.58-2.95C9.15,4.08,8.01,5.8,8.15,8.32c0,3.51,0.04,5.19,0.04,5.19L6.69,13.55z" fill="currentColor" stroke="none"/></g><g id="Layer_7"><g><g><path d="M17,10.06H7c-1.1,0-2,0.9-2,2V20c0,1.1,0.9,2,2,2h10c1.1,0,2-0.9,2-2v-7.94C19,10.95,18.1,10.06,17,10.06zM12.75,17.07v1.91c0,0.41-0.34,0.75-0.75,0.75s-0.75-0.34-0.75-0.75v-1.91c-0.45-0.26-0.75-0.74-0.75-1.29c0-0.83,0.67-1.5,1.5-1.5s1.5,0.67,1.5,1.5C13.5,16.33,13.2,16.81,12.75,17.07z" fill="currentColor" stroke="none"/></g></g></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 23.98" fill="none" width="24" height="23.98" style="width: 362.302px; height: 362px; transition: none;"><g id="ink-wrapper" transform="translate(0.1906, 0.1807) scale(0.9841, 0.9841)"><path d="M10 13a5 5 0 0 0 7.540.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M14 11a5 5 0 0 0-7.54-0.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="4" y1="4" x2="20" y2="20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></g></svg>
 
 
 /*

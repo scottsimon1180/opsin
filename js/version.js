@@ -1,1 +1,1 @@
-const OPSIN_VERSION = "v0.1.0 Alpha";
+const OPSIN_VERSION = "Alpha";

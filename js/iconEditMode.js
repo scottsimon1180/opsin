@@ -1256,6 +1256,10 @@
         btn.setAttribute('onclick', 'IEM.exportCurrentAsPng()');
         btn.removeAttribute('disabled');
         btn.classList.remove('iem-disabled');
+      } else if (t === 'quickpng') {
+        btn.setAttribute('onclick', 'IEM.exportCurrentAsPng()');
+        btn.removeAttribute('disabled');
+        btn.classList.remove('iem-disabled');
       } else if (t === 'ico') {
         btn.setAttribute('onclick', 'IEM.exportProject()');
         btn.removeAttribute('disabled');
