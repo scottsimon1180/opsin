@@ -54,9 +54,6 @@
   let opStack  = [];
   let opCursor = -1;
 
-  const FORMAT_PNG = 'png';
-  const FORMAT_BMP = 'bmp';
-
   // Context-menu element (lazy)
   let ctxMenuEl = null;
 
@@ -1251,12 +1248,8 @@
         label: labelEl ? labelEl.textContent : '',
         onclick: btn.getAttribute('onclick')
       });
-      if (t === 'png') {
-        if (labelEl) labelEl.textContent = 'Export Current Size as PNG';
-        btn.setAttribute('onclick', 'IEM.exportCurrentAsPng()');
-        btn.removeAttribute('disabled');
-        btn.classList.remove('iem-disabled');
-      } else if (t === 'quickpng') {
+      if (t === 'png' || t === 'quickpng') {
+        if (t === 'png' && labelEl) labelEl.textContent = 'Export Current Size as PNG';
         btn.setAttribute('onclick', 'IEM.exportCurrentAsPng()');
         btn.removeAttribute('disabled');
         btn.classList.remove('iem-disabled');

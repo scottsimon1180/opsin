@@ -1,145 +1,5 @@
 "use strict";
 
-/* ═══════════════════════════════════════════════════════
-   CORE STATE
-   ═══════════════════════════════════════════════════════ */
-
-const workspace = document.getElementById('workspace');
-const canvasWrapper = document.getElementById('canvasWrapper');
-const compositeCanvas = document.getElementById('compositeCanvas');
-const compositeCtx = compositeCanvas.getContext('2d');
-const overlayCanvas = document.getElementById('overlayCanvas');
-const overlayCtx = overlayCanvas.getContext('2d');
-const brushCursorEl = document.getElementById('brushCursor');
-const statusPosEl = document.getElementById('statusPos');
-
-let canvasW = 1920, canvasH = 1080;
-let zoom = 1, panX = 0, panY = 0;
-let isFitMode = false;
-let isPanning = false, panStart = {x:0,y:0}, panOffset = {x:0,y:0};
-
-// Rulers
-let rulersVisible = true;
-let rulerMouseX = -1, rulerMouseY = -1;
-
-// Guides
-let guides = [];
-let guidesVisible = true;
-let guideIdCounter = 0;
-let selectedGuide = null;
-let draggingGuide = null;
-
-let currentTool = 'move';
-let panelEyedropperActive = false;
-let _iframeEyedropperActive = false;
-let fgColor = '#ff0000', bgColor = '#ffffff';
-
-// Layers
-let layers = [];
-let activeLayerIndex = 0;
-let selectedLayers = new Set([0]);
-let layerIdCounter = 1;
-
-// Selection — mask-based system
-let selection = null;
-let selectionPath = null;
-let selectionMask = null;
-let selectionMaskCtx = null;
-let selectionFillRule = 'nonzero';
-let selectShape = 'rect';
-let lassoMode = 'free';
-let shapeType = 'rect';
-let selectionMode = 'new';
-let polyPoints = [];
-let transformSelActive = false;
-let transformHandleDrag = null;
-let transformOrigBounds = null;
-// True once the current movesel transform drag has produced any actual
-// motion. Set in mousemove's transformHandleDrag branch, reset in mousedown.
-// Gates the 'Move Selection' undo so zero-distance clicks don't push entries.
-let _transformDragMoved = false;
-
-// Drawing state
-let isDrawing = false;
-let drawStart = {x:0,y:0};
-let lastDraw = {x:0,y:0};
-
-// Gradient state — editable multi-stop
-let gradActive = false;
-let gradP1 = null, gradP2 = null;
-let gradStops = []; // [{t:0, color:'#fff', mid:0.5}, ...] sorted by t
-let gradDragging = null; // null | 'creating' | 'p1' | 'p2' | {type:'stop'|'mid', index:number}
-let gradBaseSnapshot = null;
-let gradDragStartPos = null; // {x,y} for drag-off deletion detection
-let gradStopAboutToDelete = false; // visual flag when dragging off line
-
-// Lasso
-let lassoPoints = [];
-
-// Magnetic Lasso
-let magAnchors = [];
-let magSegments = [];
-let magLivePath = null;
-let magEdgeMap = null;
-let magEdgeGx = null;
-let magEdgeGy = null;
-let magEdgeRegion = null;
-let magActive = false;
-let magFreehandMode = false;
-let magFreehandPoints = [];
-let magLastPathTime = 0;
-// Reusable Dijkstra buffers (allocated once per session)
-let _magDist = null;
-let _magPrev = null;
-let _magVisited = null;
-let _magHeapCosts = null;
-let _magHeapNodes = null;
-let _magBufCapacity = 0;
-
-// Move tool state
-let isMovingPixels = false;
-let moveOffset = {x:0, y:0};
-
-// Persistent floating selection (Photoshop-style)
-let floatingCanvas = null;
-let floatingCtx = null;
-let floatingOffset = {x:0, y:0};
-let floatingActive = false;
-let floatingSelectionData = null;
-let _floatingDragBaseOffset = null;
-let _floatingDragStart = null;
-
-// Pixel Transform (Free Transform)
-let pxTransformActive = false;
-let pxTransformData = null;
-let pxTransformHandle = null;
-let pxTransformStartMouse = null;
-let pxTransformOrigBounds = null;
-// Rotation-drag transient state (Phase 6). Valid only while pxTransformHandle === 'rotate'.
-let _rotateStartAngle = 0;  // angle from box center to mouse at drag start (radians)
-let _rotateCenter = null;   // { x, y } canvas-space pivot (box center at drag start)
-// Arrow-key nudge coalescing (Phase 7). A single "Nudge" undo captures the
-// accumulated delta from any burst of arrow presses within NUDGE_IDLE_MS.
-const NUDGE_IDLE_MS = 500;
-let _nudgeTimer = null;
-let _nudgePending = false;
-// Phase 9 — record whether a Pixel Transform was in-session at pushUndo time
-// so reactivateAfterHistoryRestore() can re-enter ONLY for those entries.
-// Without this flag we'd also re-enter for selections the user never
-// transformed, violating Phase 1's "no auto-create" rule.
-let _pxTransformWasActiveForPush = false;
-let _lastRestoredPxTransformWasActive = false;
-// Curved-arrow rotation cursor. Built once at module load. Hotspot: center (16,16).
-const _ROTATE_CURSOR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16 A10 10 0 1 1 16 26" stroke="#000" stroke-width="4"/><path d="M2 13 L6 16 L9 12" stroke="#000" stroke-width="4"/><path d="M20 26 L16 26 L18 22" stroke="#000" stroke-width="4"/><path d="M6 16 A10 10 0 1 1 16 26" stroke="#fff" stroke-width="2"/><path d="M2 13 L6 16 L9 12" stroke="#fff" stroke-width="2"/><path d="M20 26 L16 26 L18 22" stroke="#fff" stroke-width="2"/></g></svg>';
-const ROTATE_CURSOR = "url('data:image/svg+xml;utf8," + encodeURIComponent(_ROTATE_CURSOR_SVG) + "') 16 16, grab";
-
-// Cached workspace bounding rect — invalidated on resize, lazy on first access
-let _wsRectCache = null;
-function _getWsRect() {
-  if (!_wsRectCache) _wsRectCache = workspace.getBoundingClientRect();
-  return _wsRectCache;
-}
-
 // rAF-throttled render helpers — caps redraws at 60 fps regardless of mouse poll rate
 let _rulerRafPending = false;
 function scheduleRulerDraw() {
@@ -161,506 +21,6 @@ function scheduleCompositeAndOverlay() {
   _dragRafPending = true;
   requestAnimationFrame(() => { _dragRafPending = false; compositeAll(); drawOverlay(); });
 }
-
-// Move tool — persistent options & transient drag state
-let moveAutoSelectLayer = false;
-try { moveAutoSelectLayer = localStorage.getItem('opsin.move.autoSelectLayer') === 'true'; } catch(e) {}
-// True when the current move drag was initiated by a click on an empty region
-// and should be treated as a one-shot gesture that commits on mouseup.
-let _moveTransformJustInitiated = false;
-// Set at mousedown to mark that this click created the active transform —
-// used by Phase 8 (Alt-drag duplicate).
-let _moveDragAltDuplicate = false;
-
-// Scratch 2D context for point-in-path hit tests (reused, never drawn to).
-let _hitTestCtx = null;
-function getHitTestCtx() {
-  if (!_hitTestCtx) {
-    const c = document.createElement('canvas');
-    c.width = 1; c.height = 1;
-    _hitTestCtx = c.getContext('2d');
-  }
-  return _hitTestCtx;
-}
-
-// Clipboard. clipboardCanvas is a tightly-trimmed image (null = empty);
-// clipboardOrigin is its top-left in source-doc space so that an internal
-// paste lands back where it came from. clipboardSignature is a fast content
-// hash used by the system-clipboard `paste` event to detect a round-trip
-// (Opsin Copy -> OS clipboard -> Opsin Paste) and preserve origin in that
-// case rather than re-centering as if it were an external image.
-let clipboardCanvas = null;
-let clipboardOrigin = {x:0, y:0};
-let clipboardSignature = 0;
-
-// Brush stroke buffer (non-stacking opacity)
-let strokeBuffer = null;
-let strokeBufferCtx = null;
-
-// Ruler tool (viewport-only measurement; does not touch undo)
-let rulerState = { active: false, x1: 0, y1: 0, x2: 0, y2: 0 };
-let rulerDrag = null; // { mode: 'draw'|'move'|'handle', which?: 1|2, grabOffset?: {dx,dy} }
-
-// Current filter
-let currentFilterType = null;
-let filterOriginalData = null;
-let filterPreviewSrc = null;
-
-/* ═══════════════════════════════════════════════════════
-   INIT
-   ═══════════════════════════════════════════════════════ */
-
-// Default brush radius scales with the image so stroke appears roughly the
-// same physical size at fit-to-screen zoom. Calibrated: 1920×1080→50, 3840×2160→100.
-function computeDefaultBrushSize(w, h) {
-  const d = Math.hypot(w, h) / 44.1;
-  return Math.max(1, Math.min(500, Math.round(d)));
-}
-
-function initCanvas(w, h, bg) {
-  if (window.IEM && window.IEM.active) window.IEM.exitIfActive();
-  canvasW = w; canvasH = h;
-  if (typeof drawSettings !== 'undefined') {
-    const defSize = computeDefaultBrushSize(w, h);
-    drawSettings.brush.size = defSize;
-    drawSettings.eraser.size = defSize;
-    if (currentTool === 'brush' || currentTool === 'eraser') loadDrawSettings(currentTool);
-  }
-  compositeCanvas.width = w;
-  compositeCanvas.height = h;
-  overlayCanvas.width = w;
-  overlayCanvas.height = h;
-  canvasWrapper.style.width = w + 'px';
-  canvasWrapper.style.height = h + 'px';
-
-  layers = [];
-  activeLayerIndex = 0;
-  selectedLayers = new Set([0]);
-  layerIdCounter = 1;
-  if (typeof History !== 'undefined' && History) History.reset();
-  selection = null;
-  selectionPath = null;
-  checkerPattern = null;
-  selectionMask = null;
-  selectionMaskCtx = null;
-  floatingActive = false;
-  floatingCanvas = null;
-  floatingCtx = null;
-  floatingOffset = {x:0, y:0};
-  floatingSelectionData = null;
-  strokeBuffer = null;
-  strokeBufferCtx = null;
-  gradActive = false;
-  gradP1 = null;
-  gradP2 = null;
-  gradStops = [];
-  gradDragging = null;
-  gradBaseSnapshot = null;
-  gradDragStartPos = null;
-  gradStopAboutToDelete = false;
-  gradColorPickerMode = false;
-  gradColorTarget = null;
-  isDrawing = false;
-  isMovingPixels = false;
-  isPanning = false;
-  transformSelActive = false;
-  transformHandleDrag = null;
-  isDrawingSelection = false;
-  drawingPreviewPath = null;
-  polyPoints = [];
-  lassoPoints = [];
-  pxTransformActive = false;
-  pxTransformData = null;
-  pxTransformHandle = null;
-  pxTransformStartMouse = null;
-  pxTransformOrigBounds = null;
-  guides = [];
-  guideIdCounter = 0;
-  selectedGuide = null;
-  draggingGuide = null;
-  rulerState = { active: false, x1: 0, y1: 0, x2: 0, y2: 0 };
-  rulerDrag = null;
-
-  addLayer('Background', true);
-  if (bg === 'white') {
-    const ctx = layers[0].ctx;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, w, h);
-  } else if (bg === 'black') {
-    const ctx = layers[0].ctx;
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, w, h);
-  }
-
-  zoomFit();
-  compositeAll();
-  updateLayerPanel();
-  pushUndo('New Image');
-  updateStatus();
-}
-
-function init() {
-  initHistoryEngine();
-  initCanvas(1920, 1080, 'white');
-  selectTool('move');
-  updateColorUI();
-  initPropertiesPanel();
-  initMoveToolOptions();
-  document.getElementById('selectToolBtn').innerHTML = RECT_SELECT_SVG;
-  SnapEngine.syncMenuCheck();
-  // PWA File Handling API — must register after app is ready so consumer fires after init
-  if ('launchQueue' in window) {
-    window.launchQueue.setConsumer(async (launchParams) => {
-      if (!launchParams.files || !launchParams.files.length) return;
-      const fileHandle = launchParams.files[0];
-      const file = await fileHandle.getFile();
-      if (window.IEM && window.IEM.isIcoFile && window.IEM.isIcoFile(file)) {
-        window.IEM.handleOpenIco(file); return;
-      }
-      const reader = new FileReader();
-      reader.onload = function(ev) {
-        const img = new Image();
-        img.onload = function() {
-          initCanvas(img.width, img.height, 'transparent');
-          layers[0].ctx.drawImage(img, 0, 0);
-          layers[0].name = file.name.replace(/\.[^.]+$/, '');
-          compositeAll(); updateLayerPanel();
-          if (typeof History !== 'undefined' && History) History.reset();
-          pushUndo('Open Image');
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-}
-
-
-/* ═══════════════════════════════════════════════════════
-   LAYER SYSTEM
-   ═══════════════════════════════════════════════════════ */
-
-function createLayerCanvas() {
-  const c = document.createElement('canvas');
-  c.width = canvasW;
-  c.height = canvasH;
-  c.addEventListener('contextlost', (e) => { e.preventDefault(); });
-  c.addEventListener('contextrestored', () => { compositeAll(); });
-  return c;
-}
-
-function addLayer(name, _skipUndo) {
-  const c = createLayerCanvas();
-  const layer = {
-    id: layerIdCounter++,
-    name: name || `Layer ${layerIdCounter - 1}`,
-    canvas: c,
-    ctx: c.getContext('2d', { willReadFrequently: true }),
-    visible: true,
-    opacity: 1
-  };
-  layers.splice(activeLayerIndex, 0, layer);
-  activeLayerIndex = layers.indexOf(layer);
-  selectedLayers = new Set([activeLayerIndex]);
-  compositeAll();
-  updateLayerPanel();
-  if (!_skipUndo) pushUndo('Add Layer');
-}
-
-function deleteLayer() {
-  const sel = [...selectedLayers].sort((a, b) => b - a);
-  if (sel.length === 0) return;
-  if (layers.length - sel.length < 1) return;
-  for (const idx of sel) {
-    layers.splice(idx, 1);
-  }
-  if (activeLayerIndex >= layers.length) activeLayerIndex = layers.length - 1;
-  selectedLayers = new Set([activeLayerIndex]);
-  compositeAll();
-  updateLayerPanel();
-  pushUndo('Delete Layer');
-}
-
-function duplicateLayer() {
-  const sel = [...selectedLayers].sort((a, b) => a - b);
-  if (sel.length === 0) return;
-  const newIndices = [];
-  let offset = 0;
-  for (const idx of sel) {
-    const srcIdx = idx + offset;
-    const src = layers[srcIdx];
-    const c = createLayerCanvas();
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(src.canvas, 0, 0);
-    const newLayer = {
-      id: layerIdCounter++,
-      name: `${src.name} (Copy)`,
-      canvas: c,
-      ctx,
-      visible: src.visible,
-      opacity: src.opacity
-    };
-    layers.splice(srcIdx, 0, newLayer);
-    newIndices.push(srcIdx);
-    offset++;
-  }
-  activeLayerIndex = newIndices[0];
-  selectedLayers = new Set(newIndices);
-  compositeAll();
-  updateLayerPanel();
-  pushUndo('Duplicate Layer');
-}
-
-function mergeLayers() {
-  const sel = [...selectedLayers].sort((a, b) => a - b);
-  if (sel.length <= 1) return;
-  const c = createLayerCanvas();
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  for (let i = sel.length - 1; i >= 0; i--) {
-    const l = layers[sel[i]];
-    ctx.globalAlpha = l.opacity;
-    ctx.drawImage(l.canvas, 0, 0);
-  }
-  ctx.globalAlpha = 1;
-  const bottomName = layers[sel[sel.length - 1]].name;
-  const mergedLayer = {
-    id: layerIdCounter++,
-    name: bottomName,
-    canvas: c,
-    ctx,
-    visible: true,
-    opacity: 1
-  };
-  for (let i = sel.length - 1; i >= 0; i--) {
-    layers.splice(sel[i], 1);
-  }
-  const insertPos = sel[sel.length - 1] - (sel.length - 1);
-  layers.splice(insertPos, 0, mergedLayer);
-  activeLayerIndex = insertPos;
-  selectedLayers = new Set([insertPos]);
-  compositeAll();
-  updateLayerPanel();
-  pushUndo('Merge Layers');
-}
-
-function moveLayerUp() {
-  if (activeLayerIndex <= 0) return;
-  [layers[activeLayerIndex], layers[activeLayerIndex-1]] = [layers[activeLayerIndex-1], layers[activeLayerIndex]];
-  activeLayerIndex--;
-  selectedLayers = new Set([activeLayerIndex]);
-  compositeAll();
-  updateLayerPanel();
-  pushUndo('Reorder');
-}
-
-function moveLayerDown() {
-  if (activeLayerIndex >= layers.length - 1) return;
-  [layers[activeLayerIndex], layers[activeLayerIndex+1]] = [layers[activeLayerIndex+1], layers[activeLayerIndex]];
-  activeLayerIndex++;
-  selectedLayers = new Set([activeLayerIndex]);
-  compositeAll();
-  updateLayerPanel();
-  pushUndo('Reorder');
-}
-
-function getActiveLayer() { return layers[activeLayerIndex]; }
-
-let checkerPattern = null;
-function getCheckerPattern(ctx) {
-  if (checkerPattern) return checkerPattern;
-  const pc = document.createElement('canvas');
-  pc.width = 20; pc.height = 20;
-  const pctx = pc.getContext('2d');
-  pctx.fillStyle = '#cdcdcd'; pctx.fillRect(0, 0, 20, 20);
-  pctx.fillStyle = '#ffffff'; pctx.fillRect(0, 0, 10, 10);
-  pctx.fillStyle = '#ffffff'; pctx.fillRect(10, 10, 10, 10);
-  checkerPattern = ctx.createPattern(pc, 'repeat');
-  return checkerPattern;
-}
-
-function compositeAll() {
-  compositeCtx.clearRect(0, 0, canvasW, canvasH);
-  for (let i = layers.length - 1; i >= 0; i--) {
-    const l = layers[i];
-    if (!l.visible) continue;
-    compositeCtx.globalAlpha = l.opacity;
-    compositeCtx.drawImage(l.canvas, 0, 0);
-    if (i === activeLayerIndex && floatingActive && floatingCanvas) {
-      compositeCtx.drawImage(floatingCanvas, floatingOffset.x, floatingOffset.y);
-    }
-    if (i === activeLayerIndex && pxTransformActive && pxTransformData) {
-      const _s = pxTransformData.srcCanvas, _b = pxTransformData.curBounds;
-      const _rot = (pxTransformData.totalRotation || 0) + (pxTransformData.liveRotation || 0);
-      if (_rot) {
-        const _cx = _b.x + _b.w / 2, _cy = _b.y + _b.h / 2;
-        compositeCtx.save();
-        compositeCtx.translate(_cx, _cy);
-        compositeCtx.rotate(_rot);
-        compositeCtx.drawImage(_s, 0, 0, _s.width, _s.height, -_b.w / 2, -_b.h / 2, _b.w, _b.h);
-        compositeCtx.restore();
-      } else {
-        compositeCtx.drawImage(_s, 0, 0, _s.width, _s.height, _b.x, _b.y, _b.w, _b.h);
-      }
-    }
-  }
-  compositeCtx.globalAlpha = 1;
-}
-
-function compositeAllWithStrokeBuffer() {
-  if (!strokeBuffer) { compositeAll(); return; }
-  const opacity = getDrawOpacity();
-
-  compositeCtx.clearRect(0, 0, canvasW, canvasH);
-
-  for (let i = layers.length - 1; i >= 0; i--) {
-    const l = layers[i];
-    if (!l.visible) continue;
-    compositeCtx.globalAlpha = l.opacity;
-
-    if (i === activeLayerIndex) {
-      if (!compositeAllWithStrokeBuffer._tmp) {
-        compositeAllWithStrokeBuffer._tmp = document.createElement('canvas');
-      }
-      const tmp = compositeAllWithStrokeBuffer._tmp;
-      if (tmp.width !== canvasW || tmp.height !== canvasH) {
-        tmp.width = canvasW; tmp.height = canvasH;
-      }
-      const tctx = tmp.getContext('2d');
-      tctx.clearRect(0, 0, canvasW, canvasH);
-      tctx.drawImage(l.canvas, 0, 0);
-      tctx.save();
-      if (selectionPath) tctx.clip(selectionPath, selectionFillRule);
-      if (currentTool === 'eraser') {
-        tctx.globalCompositeOperation = 'destination-out';
-      }
-      tctx.globalAlpha = opacity;
-      tctx.drawImage(strokeBuffer, 0, 0);
-      tctx.globalAlpha = 1;
-      tctx.globalCompositeOperation = 'source-over';
-      tctx.restore();
-      compositeCtx.drawImage(tmp, 0, 0);
-
-      if (floatingActive && floatingCanvas) {
-        compositeCtx.drawImage(floatingCanvas, floatingOffset.x, floatingOffset.y);
-      }
-      if (pxTransformActive && pxTransformData) {
-        const _s = pxTransformData.srcCanvas, _b = pxTransformData.curBounds;
-        const _rot = (pxTransformData.totalRotation || 0) + (pxTransformData.liveRotation || 0);
-        if (_rot) {
-          const _cx = _b.x + _b.w / 2, _cy = _b.y + _b.h / 2;
-          compositeCtx.save();
-          compositeCtx.translate(_cx, _cy);
-          compositeCtx.rotate(_rot);
-          compositeCtx.drawImage(_s, 0, 0, _s.width, _s.height, -_b.w / 2, -_b.h / 2, _b.w, _b.h);
-          compositeCtx.restore();
-        } else {
-          compositeCtx.drawImage(_s, 0, 0, _s.width, _s.height, _b.x, _b.y, _b.w, _b.h);
-        }
-      }
-    } else {
-      compositeCtx.drawImage(l.canvas, 0, 0);
-    }
-  }
-  compositeCtx.globalAlpha = 1;
-}
-
-function updateLayerPanel() {
-  const list = document.getElementById('layersList');
-  list.innerHTML = '';
-  for (let i = 0; i < layers.length; i++) {
-    const l = layers[i];
-    const item = document.createElement('div');
-    item.className = 'layer-item' + (selectedLayers.has(i) ? ' active' : '');
-    item.onclick = (e) => {
-      if (pxTransformActive) commitPixelTransform();
-      if (floatingActive && i !== activeLayerIndex) commitFloating();
-      if (e.ctrlKey || e.metaKey) {
-        if (selectedLayers.has(i)) {
-          if (selectedLayers.size > 1) {
-            selectedLayers.delete(i);
-            if (activeLayerIndex === i) activeLayerIndex = [...selectedLayers][0];
-          }
-        } else {
-          selectedLayers.add(i);
-          activeLayerIndex = i;
-        }
-      } else {
-        activeLayerIndex = i;
-        selectedLayers = new Set([i]);
-      }
-      updateLayerPanel();
-      updateLayerOpacitySlider();
-    };
-    item.ondblclick = () => {
-      const newName = prompt('Layer name:', l.name);
-      if (newName) { l.name = newName; updateLayerPanel(); }
-    };
-
-    const thumb = document.createElement('div');
-    thumb.className = 'layer-thumb';
-    const tc = document.createElement('canvas');
-    const maxThumb = 40;
-    let tw, th;
-    if (canvasW >= canvasH) {
-      tw = maxThumb;
-      th = Math.max(1, Math.round(maxThumb * (canvasH / canvasW)));
-    } else {
-      th = maxThumb;
-      tw = Math.max(1, Math.round(maxThumb * (canvasW / canvasH)));
-    }
-    tc.width = tw; tc.height = th;
-    const tctx = tc.getContext('2d');
-    tctx.drawImage(l.canvas, 0, 0, canvasW, canvasH, 0, 0, tw, th);
-    thumb.appendChild(tc);
-
-    const info = document.createElement('div');
-    info.className = 'layer-info';
-    info.innerHTML = `<div class="layer-name">${l.name}</div><div class="layer-opacity-text">${Math.round(l.opacity*100)}%</div>`;
-
-    const vis = document.createElement('button');
-    vis.className = 'layer-vis' + (l.visible ? '' : ' hidden-layer');
-    vis.innerHTML = l.visible
-      ? '<svg><use href="#icon-layer-visibility-on"/></svg>'
-      : '<svg><use href="#icon-layer-visibility-off"/></svg>';
-    vis.onclick = (e) => { e.stopPropagation(); l.visible = !l.visible; compositeAll(); updateLayerPanel(); };
-
-    item.appendChild(thumb);
-    item.appendChild(info);
-    item.appendChild(vis);
-    list.appendChild(item);
-  }
-  updateLayerOpacitySlider();
-}
-
-function updateLayerOpacitySlider() {
-  const slider = document.getElementById('layerOpacity');
-  const val = document.getElementById('layerOpacityVal');
-  const l = getActiveLayer();
-  if (l) {
-    slider.value = Math.round(l.opacity * 100);
-    val.textContent = Math.round(l.opacity * 100) + '%';
-  }
-}
-
-document.getElementById('layerOpacity').addEventListener('input', function() {
-  const l = getActiveLayer();
-  if (!l) return;
-  l.opacity = this.value / 100;
-  document.getElementById('layerOpacityVal').textContent = this.value + '%';
-  const activeItem = document.querySelector('.layer-item.active .layer-opacity-text');
-  if (activeItem) activeItem.textContent = this.value + '%';
-  compositeAll();
-});
-(function() {
-  const slider = document.getElementById('layerOpacity');
-  const row = slider.closest('.opt-group');
-  if (!row) return;
-  row.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    slider.value = Math.max(0, Math.min(100, (parseInt(slider.value) || 0) + wheelDelta(e)));
-    slider.dispatchEvent(new Event('input'));
-  }, { passive: false });
-})();
 
 /* ═══════════════════════════════════════════════════════════════════════
    UNDO / REDO — Host adapter for the History engine (history.js)
@@ -1020,43 +380,6 @@ function updateHistoryPanel() {
   }
 }
 
-/**
- * Bind the History engine to this host application. Must be called once
- * during application init, before any History.record() calls.
- */
-function initHistoryEngine() {
-  if (typeof History === 'undefined' || !History) return;
-  History.init({
-    maxBytes: 512 * 1024 * 1024,  // 512 MB budget
-    onUpdate: updateHistoryPanel,
-    host: {
-      getLayers:            () => layers,
-      getActiveLayerIndex:  () => activeLayerIndex,
-      getCanvasW:           () => canvasW,
-      getCanvasH:           () => canvasH,
-      setLayers:            setHostLayers,
-      setCanvasSize:        setHostCanvasSize,
-      createLayerCanvas:    createBlankLayerCanvas,
-      captureSelection:     captureHostSelection,
-      restoreSelection:     restoreHostSelection,
-      captureGradient:      captureHostGradient,
-      restoreGradient:      restoreHostGradient,
-      afterRestore:         afterHostRestore
-    }
-  });
-}
-
-// Legacy alias so any lingering historyManager.* references keep working.
-const historyManager = {
-  reset:    () => History.reset(),
-  undo:     () => doUndo(),
-  redo:     () => doRedo(),
-  jumpTo:   (i) => History.jumpTo(i),
-  getTimeline: () => History.getTimeline(),
-  getCursor:   () => History.getCursor(),
-  canUndo:     () => History.canUndo(),
-  canRedo:     () => History.canRedo()
-};
 
 /* ═══════════════════════════════════════════════════════
    ZOOM & PAN
@@ -1092,7 +415,6 @@ function zoomOut() { zoomTo(zoom / 1.25); }
 function zoom100() { isFitMode = false; zoomTo(1); centerCanvas(); }
 
 // Returns the available workspace area, accounting for visible rulers.
-// RULER_SIZE is defined later in the file but is always initialized before any call to this function.
 function getAvailableWorkspaceRect() {
   const wsRect = workspace.getBoundingClientRect();
   const rulerOffset = rulersVisible ? RULER_SIZE : 0;
@@ -1119,30 +441,6 @@ function centerCanvas(avail) {
   panY = avail.rulerOffset + (avail.height - canvasH * zoom) / 2;
   updateTransform();
 }
-
-workspace.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const wsRect = workspace.getBoundingClientRect();
-  const cx = e.clientX - wsRect.left;
-  const cy = e.clientY - wsRect.top;
-  const factor = e.deltaY < 0 ? 1.1 : 1/1.1;
-  zoomTo(zoom * factor, cx, cy);
-}, { passive: false });
-
-/* ═══════════════════════════════════════════════════════
-   MOUSE → CANVAS COORDINATES
-   ═══════════════════════════════════════════════════════ */
-
-function screenToCanvas(clientX, clientY) {
-  const wsRect = _getWsRect();
-  const sx = clientX - wsRect.left;
-  const sy = clientY - wsRect.top;
-  return {
-    x: (sx - panX) / zoom,
-    y: (sy - panY) / zoom
-  };
-}
-
 
 /* ═══════════════════════════════════════════════════════
    DRAWING TOOLS — Professional Engine
@@ -1732,48 +1030,6 @@ function gradStopPos(i) {
   return {x: gradP1.x + (gradP2.x - gradP1.x) * s.t, y: gradP1.y + (gradP2.y - gradP1.y) * s.t};
 }
 
-function drawGradientUI() {
-  if (!gradP1 || !gradP2 || gradStops.length < 2) return;
-  const ctx = overlayCtx;
-  const sp1 = c2s(gradP1.x, gradP1.y);
-  const sp2 = c2s(gradP2.x, gradP2.y);
-  const lw = 1.5; const r = 7; const dr = 5;
-  ctx.save();
-  // draw line
-  ctx.beginPath(); ctx.moveTo(sp1.x, sp1.y); ctx.lineTo(sp2.x, sp2.y);
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = lw * 3; ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = lw; ctx.stroke();
-  // draw midpoint diamonds
-  for (let i = 0; i < gradStops.length - 1; i++) {
-    const s0 = gradStops[i], s1 = gradStops[i + 1];
-    const midT = s0.t + (s1.t - s0.t) * (s0.mid || 0.5);
-    const mp = c2s(gradP1.x + (gradP2.x - gradP1.x) * midT, gradP1.y + (gradP2.y - gradP1.y) * midT);
-    const isHov = gradHoverElement && gradHoverElement.type === 'mid' && gradHoverElement.index === i;
-    const dp = isHov ? dr * 1.3 : dr;
-    ctx.beginPath(); ctx.moveTo(mp.x, mp.y - dp); ctx.lineTo(mp.x + dp, mp.y); ctx.lineTo(mp.x, mp.y + dp); ctx.lineTo(mp.x - dp, mp.y); ctx.closePath();
-    if (isHov) { ctx.shadowColor = 'rgba(255,255,255,0.6)'; ctx.shadowBlur = 6; }
-    ctx.fillStyle = '#ffffff'; ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = lw; ctx.stroke();
-  }
-  // draw stop handles
-  for (let i = 0; i < gradStops.length; i++) {
-    const s = gradStops[i];
-    const sp = c2s(gradP1.x + (gradP2.x - gradP1.x) * s.t, gradP1.y + (gradP2.y - gradP1.y) * s.t);
-    const isHov = gradHoverElement && gradHoverElement.type === 'stop' && gradHoverElement.index === i;
-    const isDeleting = gradStopAboutToDelete && gradDragging && gradDragging.type === 'stop' && gradDragging.index === i;
-    const rs = isHov ? r * 1.15 : r;
-    ctx.globalAlpha = isDeleting ? 0.35 : 1;
-    ctx.beginPath(); ctx.arc(sp.x, sp.y, rs, 0, Math.PI * 2);
-    ctx.fillStyle = s.color; ctx.fill();
-    const isEndpoint = (i === 0 || i === gradStops.length - 1);
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = isEndpoint ? lw * 2.5 : lw * 1.5; ctx.stroke();
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = lw; ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
-}
-
 // Right-click context menu for gradient stop deletion
 function showGradStopCtx(stopIndex, screenX, screenY) {
   const menu = document.getElementById('gradStopCtx');
@@ -1812,12 +1068,6 @@ function executeGradStopDelete() {
 /* ═══════════════════════════════════════════════════════
    SELECTION SYSTEM
    ═══════════════════════════════════════════════════════ */
-
-const RECT_SELECT_SVG    = '<svg><use href="#icon-select-rect"/></svg>';
-const ELLIPSE_SELECT_SVG = '<svg><use href="#icon-select-ellipse"/></svg>';
-const LASSO_SVG          = '<svg><use href="#icon-lasso-free"/></svg>';
-const POLY_LASSO_SVG     = '<svg><use href="#icon-lasso-poly"/></svg>';
-const MAG_LASSO_SVG      = '<svg><use href="#icon-lasso-magnetic"/></svg>';
 
 let isDrawingSelection = false;
 let drawingPreviewPath = null;
@@ -2038,32 +1288,6 @@ function cropToSelection() {
 }
 
 
-/* --- Screen-Space Overlay Helpers --- */
-function prepareOverlay() {
-  const ws = workspace.getBoundingClientRect();
-  const w = Math.round(ws.width);
-  const h = Math.round(ws.height);
-  const dpr = window.devicePixelRatio || 1;
-  if (overlayCanvas.width !== w * dpr || overlayCanvas.height !== h * dpr) {
-    overlayCanvas.width = w * dpr;
-    overlayCanvas.height = h * dpr;
-    overlayCanvas.style.width = w + 'px';
-    overlayCanvas.style.height = h + 'px';
-  }
-  overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  overlayCtx.clearRect(0, 0, w, h);
-}
-
-function c2s(cx, cy) {
-  return { x: cx * zoom + panX, y: cy * zoom + panY };
-}
-
-function pathToScreen(path) {
-  const sp = new Path2D();
-  sp.addPath(path, new DOMMatrix([zoom, 0, 0, zoom, panX, panY]));
-  return sp;
-}
-
 /* --- Marching Ants --- */
 let marchingAntsOffset = 0;
 let marchingAntsRAF = null;
@@ -2071,72 +1295,6 @@ let marchingAntsRAF = null;
 // drawOverlay skip the expensive updatePropertiesPanel() DOM work for a
 // frame type where no panel state actually changes.
 let _antsTickInProgress = false;
-
-function drawAntsOnPath(ctx, path) {
-  if (!path) return;
-  const sp = pathToScreen(path);
-  ctx.save(); ctx.lineWidth = 1;
-  ctx.strokeStyle = '#000000'; ctx.setLineDash([]); ctx.stroke(sp);
-  ctx.strokeStyle = '#ffffff'; ctx.setLineDash([5, 5]);
-  ctx.lineDashOffset = -marchingAntsOffset * 0.8; ctx.stroke(sp);
-  ctx.setLineDash([]); ctx.restore();
-}
-
-function drawOverlay() {
-  prepareOverlay();
-  if (isDrawingSelection) {
-    // Magnetic lasso has its own overlay rendering
-    if (currentTool==='lasso' && lassoMode==='magnetic' && magActive) {
-      drawMagneticOverlay();
-      return;
-    }
-    if (drawingPreviewPath) drawAntsOnPath(overlayCtx, drawingPreviewPath);
-    if (selectionMode !== 'new' && selectionPath) drawAntsOnPath(overlayCtx, selectionPath);
-    SnapEngine.drawIndicators(overlayCtx);
-    return;
-  }
-  if (selectionPath) {
-    if (pxTransformActive && pxTransformData) {
-      const d = pxTransformData; const cb = d.curBounds;
-      const _anyRot = (d.totalRotation || 0) + (d.liveRotation || 0);
-      if (_anyRot) {
-        // Any rotation (accumulated or in-progress) makes axis-aligned ants
-        // fight the rotated box. drawPxTransformHandles already renders the
-        // rotated outline — let it speak for itself.
-      } else if (d.isIrregular && d.origSelPath) {
-        const sb = d.srcBounds; const sx = cb.w / sb.w, sy = cb.h / sb.h;
-        const m = new DOMMatrix([sx, 0, 0, sy, cb.x - sb.x * sx, cb.y - sb.y * sy]);
-        const scaledPath = new Path2D(); scaledPath.addPath(d.origSelPath, m);
-        drawAntsOnPath(overlayCtx, scaledPath);
-      } else { const tPath = new Path2D(); tPath.rect(cb.x, cb.y, cb.w, cb.h); drawAntsOnPath(overlayCtx, tPath); }
-    } else if (floatingActive) {
-      const fPath = new Path2D();
-      fPath.addPath(selectionPath, new DOMMatrix([1, 0, 0, 1, floatingOffset.x, floatingOffset.y]));
-      drawAntsOnPath(overlayCtx, fPath);
-    } else { drawAntsOnPath(overlayCtx, selectionPath); }
-  } else if (pxTransformActive && pxTransformData &&
-             !((pxTransformData.totalRotation || 0) + (pxTransformData.liveRotation || 0))) {
-    const cb = pxTransformData.curBounds; const tPath = new Path2D(); tPath.rect(cb.x, cb.y, cb.w, cb.h); drawAntsOnPath(overlayCtx, tPath);
-  }
-  if (transformSelActive && selection) { const b = getSelectionBounds(); if (b && b.w > 0 && b.h > 0) drawMoveSelHandles(b); }
-  if (gradActive && currentTool === 'gradient') drawGradientUI();
-  if (pxTransformActive && currentTool === 'move') drawPxTransformHandles();
-  SnapEngine.drawIndicators(overlayCtx);
-  if (!_antsTickInProgress) updatePropertiesPanel();
-}
-
-function drawMoveSelHandles(b) {
-  const p1 = c2s(b.x, b.y); const p2 = c2s(b.x + b.w, b.y + b.h);
-  const sx = p1.x, sy = p1.y, sw = p2.x - p1.x, sh = p2.y - p1.y;
-  const hr = 4.5; const ctx = overlayCtx;
-  ctx.save();
-  if (selectionPath) { const sp = pathToScreen(selectionPath); ctx.globalAlpha = 0.10; ctx.fillStyle = '#6aaeff'; ctx.fill(sp, selectionFillRule); ctx.globalAlpha = 1; }
-  if (selection && selection.type !== 'rect') { ctx.strokeStyle = 'rgba(100, 170, 255, 0.45)'; ctx.lineWidth = 1; ctx.setLineDash([]); ctx.strokeRect(sx, sy, sw, sh); }
-  const handles = [[sx,sy],[sx+sw/2,sy],[sx+sw,sy],[sx,sy+sh/2],[sx+sw,sy+sh/2],[sx,sy+sh],[sx+sw/2,sy+sh],[sx+sw,sy+sh]];
-  ctx.lineWidth = 1.2;
-  for (const [hx, hy] of handles) { ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#333333'; ctx.stroke(); }
-  ctx.restore();
-}
 
 function startMarchingAnts() {
   if (marchingAntsRAF) return;
@@ -2180,385 +1338,6 @@ function applyTransformDelta(handle, dx, dy) {
     if(b.w>0 && b.h>0) { const sx=w/b.w, sy=h/b.h, ox=x-b.x*sx, oy=y-b.y*sy; selection.contours = selection.contours.map(poly => poly.map(p=>({x:p.x*sx+ox, y:p.y*sy+oy}))); }
   } else { selection.x=x; selection.y=y; selection.w=w; selection.h=h; }
   buildSelectionPath(); drawOverlay();
-}
-
-/* ═══════════════════════════════════════════════════════
-   PIXEL TRANSFORM (Free Transform)
-   ═══════════════════════════════════════════════════════ */
-
-function getLayerContentBounds(layer) {
-  const data = layer.ctx.getImageData(0, 0, canvasW, canvasH).data;
-  let minX = canvasW, minY = canvasH, maxX = -1, maxY = -1;
-  for (let y = 0; y < canvasH; y++) { for (let x = 0; x < canvasW; x++) { if (data[(y * canvasW + x) * 4 + 3] > 0) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; } } }
-  if (maxX < minX) return null;
-  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
-}
-
-function initPixelTransform(_skipUndo) {
-  if (pxTransformActive) return;
-  const layer = getActiveLayer(); if (!layer || !layer.visible) return;
-  if (floatingActive) commitFloating();
-  let bounds; let irregular = false;
-  if (selectionPath && selection) {
-    bounds = getSelectionBounds(); if (!bounds || bounds.w < 1 || bounds.h < 1) return;
-    bounds = { x: Math.round(bounds.x), y: Math.round(bounds.y), w: Math.round(bounds.w), h: Math.round(bounds.h) };
-    irregular = (selection.type !== 'rect');
-  } else { bounds = getLayerContentBounds(layer); if (!bounds) return; }
-  const srcCanvas = document.createElement('canvas'); srcCanvas.width = bounds.w; srcCanvas.height = bounds.h;
-  const srcCtx = srcCanvas.getContext('2d');
-  let origPath = null;
-  if (selectionPath && irregular) { origPath = new Path2D(); origPath.addPath(selectionPath); }
-  if (selectionPath) {
-    const tmp = document.createElement('canvas'); tmp.width = canvasW; tmp.height = canvasH;
-    const tctx = tmp.getContext('2d'); tctx.save(); tctx.clip(selectionPath, selectionFillRule); tctx.drawImage(layer.canvas, 0, 0); tctx.restore();
-    srcCtx.drawImage(tmp, bounds.x, bounds.y, bounds.w, bounds.h, 0, 0, bounds.w, bounds.h);
-    layer.ctx.save(); layer.ctx.clip(selectionPath, selectionFillRule); layer.ctx.clearRect(0, 0, canvasW, canvasH); layer.ctx.restore();
-  } else {
-    srcCtx.drawImage(layer.canvas, bounds.x, bounds.y, bounds.w, bounds.h, 0, 0, bounds.w, bounds.h);
-    layer.ctx.clearRect(bounds.x, bounds.y, bounds.w, bounds.h);
-  }
-  // totalRotation accumulates across rotation drags (and panel rotate clicks)
-  // so the transform behaves like a non-destructive smart object. liveRotation
-  // is the transient delta during an active rotation drag. Visible rotation =
-  // totalRotation + liveRotation. Both are baked into srcCanvas only at commit.
-  pxTransformData = { srcCanvas, srcBounds: { ...bounds }, curBounds: { ...bounds }, isIrregular: irregular, origSelPath: origPath, liveRotation: 0, totalRotation: 0 };
-  pxTransformActive = true; compositeAll(); drawOverlay();
-  updateMoveDeselectButtonState();
-}
-
-function commitPixelTransform(_skipUndo) {
-  if (!pxTransformActive || !pxTransformData) return;
-  // Flush any pending nudge so the session state is fully materialized before
-  // we bake and stamp.
-  if (_nudgePending) flushNudgeUndo();
-  if (!pxTransformActive || !pxTransformData) return;
-  // Smart-object commit: bake ALL accumulated rotation (persistent total plus
-  // any stray live delta) into srcCanvas before stamping.
-  const pendingRot = (pxTransformData.totalRotation || 0) + (pxTransformData.liveRotation || 0);
-  if (pendingRot) bakeInteractiveRotation(pendingRot);
-  const origBounds = { ...pxTransformData.srcBounds };
-  const finalBounds = { ...pxTransformData.curBounds };
-  const moved = (origBounds.x !== finalBounds.x || origBounds.y !== finalBounds.y ||
-                 origBounds.w !== finalBounds.w || origBounds.h !== finalBounds.h) || !!pendingRot;
-  const layer = getActiveLayer();
-  if (layer) { const d = pxTransformData; layer.ctx.drawImage(d.srcCanvas, 0, 0, d.srcCanvas.width, d.srcCanvas.height, d.curBounds.x, d.curBounds.y, d.curBounds.w, d.curBounds.h); SnapEngine.invalidateLayer(layer); }
-  const cb = pxTransformData.curBounds;
-  selection = { type: 'rect', x: cb.x, y: cb.y, w: cb.w, h: cb.h }; buildSelectionPath();
-  pxTransformActive = false; pxTransformData = null; pxTransformHandle = null; pxTransformStartMouse = null; pxTransformOrigBounds = null;
-  compositeAll(); drawOverlay(); updateLayerPanel();
-  updateMoveDeselectButtonState();
-  if (!_skipUndo && moved) pushUndo('Free Transform');
-}
-
-function cancelPixelTransform() {
-  if (!pxTransformActive || !pxTransformData) return;
-  // Escape during a nudge burst: drop the pending undo with the transform.
-  if (_nudgeTimer) { clearTimeout(_nudgeTimer); _nudgeTimer = null; }
-  _nudgePending = false;
-  const layer = getActiveLayer();
-  if (layer) { const d = pxTransformData; layer.ctx.drawImage(d.srcCanvas, 0, 0, d.srcCanvas.width, d.srcCanvas.height, d.srcBounds.x, d.srcBounds.y, d.srcBounds.w, d.srcBounds.h); SnapEngine.invalidateLayer(layer); }
-  pxTransformActive = false; pxTransformData = null; pxTransformHandle = null; pxTransformStartMouse = null; pxTransformOrigBounds = null;
-  _rotateCenter = null; _rotateStartAngle = 0;
-  compositeAll(); drawOverlay(); updateLayerPanel();
-  updateMoveDeselectButtonState();
-}
-
-function hitTestPxTransform(px, py) {
-  if (!pxTransformActive || !pxTransformData) return null;
-  // Rotation hit zones take priority since they live outside the box edge
-  // where no other handle exists. Checked before the resize/move handles so
-  // that the curved-arrow affordance wins over the (nonexistent) edge space.
-  const rot = hitTestPxTransformRotate(px, py);
-  if (rot) return 'rotate';
-  const b = pxTransformData.curBounds; const t = 8 / zoom; const {x, y, w, h} = b;
-  // Inverse-rotate the input point into the transform's local (unrotated)
-  // frame so all subsequent tests can use axis-aligned geometry.
-  const theta = pxTransformData.totalRotation || 0;
-  let lx = px, ly = py;
-  if (theta) {
-    const cx = x + w / 2, cy = y + h / 2;
-    const c = Math.cos(-theta), s = Math.sin(-theta);
-    const dx0 = px - cx, dy0 = py - cy;
-    lx = cx + dx0 * c - dy0 * s;
-    ly = cy + dx0 * s + dy0 * c;
-  }
-  const handles = [{n:'nw',hx:x,hy:y},{n:'n',hx:x+w/2,hy:y},{n:'ne',hx:x+w,hy:y},{n:'w',hx:x,hy:y+h/2},{n:'e',hx:x+w,hy:y+h/2},{n:'sw',hx:x,hy:y+h},{n:'s',hx:x+w/2,hy:y+h},{n:'se',hx:x+w,hy:y+h}];
-  for (const hd of handles) { if (Math.abs(lx - hd.hx) <= t && Math.abs(ly - hd.hy) <= t) return hd.n; }
-  if (lx >= x && lx <= x + w && ly >= y && ly <= y + h) return 'move';
-  return null;
-}
-
-/**
- * Rotation zones for the Pixel Transform box. Four small circular targets
- * sit just outside each center-edge handle (n/s/e/w). Returns the zone id
- * if the point hits any zone, otherwise null.
- *
- *   • Offset: 18 screen-px outside the edge (scaled by zoom).
- *   • Radius: 11 screen-px hit-target.
- *
- * Photoshop puts rotation affordances near the corners — we use the center
- * edges because the corners are already claimed by diagonal resize handles
- * and the user specifically asked for rotation above the center edges.
- */
-/**
- * Bakes the current live rotation into a new srcCanvas, updating curBounds
- * to the rotated AABB centered on the original curBounds center. Preserves
- * any prior resize because the source is drawn at curBounds width/height,
- * not srcCanvas native width/height. Does NOT push undo or re-render —
- * callers handle both.
- */
-function bakeInteractiveRotation(rad) {
-  if (!pxTransformActive || !pxTransformData) return;
-  const d = pxTransformData;
-  const cw = d.curBounds.w, ch = d.curBounds.h;
-  const absCos = Math.abs(Math.cos(rad));
-  const absSin = Math.abs(Math.sin(rad));
-  const newW = Math.max(1, Math.ceil(cw * absCos + ch * absSin));
-  const newH = Math.max(1, Math.ceil(cw * absSin + ch * absCos));
-  const rotCanvas = document.createElement('canvas');
-  rotCanvas.width = newW; rotCanvas.height = newH;
-  const rCtx = rotCanvas.getContext('2d');
-  rCtx.imageSmoothingEnabled = true;
-  rCtx.imageSmoothingQuality = 'high';
-  rCtx.translate(newW / 2, newH / 2);
-  rCtx.rotate(rad);
-  rCtx.drawImage(d.srcCanvas, 0, 0, d.srcCanvas.width, d.srcCanvas.height, -cw / 2, -ch / 2, cw, ch);
-  const cx = d.curBounds.x + d.curBounds.w / 2;
-  const cy = d.curBounds.y + d.curBounds.h / 2;
-  d.srcCanvas = rotCanvas;
-  d.curBounds.w = newW; d.curBounds.h = newH;
-  d.curBounds.x = Math.round(cx - newW / 2);
-  d.curBounds.y = Math.round(cy - newH / 2);
-  d.isIrregular = false; d.origSelPath = null;
-  d.liveRotation = 0;
-  d.totalRotation = 0;
-}
-
-function hitTestPxTransformRotate(px, py) {
-  if (!pxTransformActive || !pxTransformData) return null;
-  const b = pxTransformData.curBounds;
-  // Inverse-rotate the input point so we can reuse axis-aligned zone tests.
-  const theta = pxTransformData.totalRotation || 0;
-  let lx = px, ly = py;
-  if (theta) {
-    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-    const c = Math.cos(-theta), s = Math.sin(-theta);
-    const dx0 = px - cx, dy0 = py - cy;
-    lx = cx + dx0 * c - dy0 * s;
-    ly = cy + dx0 * s + dy0 * c;
-  }
-  const off = 18 / zoom;
-  const r   = 11 / zoom;
-  const zones = [
-    { cx: b.x + b.w / 2, cy: b.y - off       },
-    { cx: b.x + b.w / 2, cy: b.y + b.h + off },
-    { cx: b.x - off,       cy: b.y + b.h / 2 },
-    { cx: b.x + b.w + off, cy: b.y + b.h / 2 },
-  ];
-  const r2 = r * r;
-  for (const z of zones) {
-    const dx = lx - z.cx, dy = ly - z.cy;
-    if (dx * dx + dy * dy <= r2) return 'rotate';
-  }
-  return null;
-}
-
-/**
- * Arrow-key nudge for the active Pixel Transform OR floating selection.
- * Called with a 1px (plain arrow) or 10px (Shift+arrow) delta. Visually
- * moves the content immediately; undo is coalesced via flushNudgeUndo()
- * so a burst of consecutive nudges produces a single history entry.
- *
- * Returns true if the keystroke was consumed.
- */
-function nudgeMove(dx, dy) {
-  if (pxTransformActive && pxTransformData) {
-    // Any in-progress rotation drag makes arrow keys ambiguous — bail.
-    if (pxTransformHandle) return false;
-    pxTransformData.curBounds.x += dx;
-    pxTransformData.curBounds.y += dy;
-    compositeAll(); drawOverlay(); updatePropertiesPanel();
-    _nudgePending = true;
-    if (_nudgeTimer) clearTimeout(_nudgeTimer);
-    _nudgeTimer = setTimeout(flushNudgeUndo, NUDGE_IDLE_MS);
-    return true;
-  }
-  if (floatingActive && floatingCanvas && currentTool === 'move') {
-    floatingOffset.x += dx;
-    floatingOffset.y += dy;
-    compositeAll(); drawOverlay(); updatePropertiesPanel();
-    _nudgePending = true;
-    if (_nudgeTimer) clearTimeout(_nudgeTimer);
-    _nudgeTimer = setTimeout(flushNudgeUndo, NUDGE_IDLE_MS);
-    return true;
-  }
-  if (currentTool === 'movesel' && selection && !transformHandleDrag) {
-    // Move Selection tool: arrow keys nudge the selection geometry only
-    // (no layer pixels move). Undo coalesces via flushNudgeUndo like the
-    // other branches so a burst of key presses is one history entry.
-    const sb = getSelectionBounds();
-    if (!sb) return false;
-    applySelectionMove(sb, dx, dy);
-    buildSelectionPath(); drawOverlay(); updatePropertiesPanel();
-    _nudgePending = true;
-    if (_nudgeTimer) clearTimeout(_nudgeTimer);
-    _nudgeTimer = setTimeout(flushNudgeUndo, NUDGE_IDLE_MS);
-    return true;
-  }
-  return false;
-}
-
-/**
- * Commits any pending nudge burst as a single 'Nudge' undo entry. Safe to
- * call at any time — no-ops when no nudge is pending. Mirrors the mouseup
- * drag-end flow: stamp srcCanvas to layer, push undo, re-enter the
- * transform session so the user can keep editing.
- */
-function flushNudgeUndo() {
-  if (_nudgeTimer) { clearTimeout(_nudgeTimer); _nudgeTimer = null; }
-  if (!_nudgePending) return;
-  _nudgePending = false;
-  if (pxTransformActive && pxTransformData) {
-    // Smart-object Free Transform: arrow-key nudges accumulate into curBounds
-    // but are NOT committed as their own history entry. The whole session is
-    // captured by a single 'Free Transform' entry at commit time.
-    return;
-  }
-  if (floatingActive) {
-    pushUndo('Nudge');
-  } else if (currentTool === 'movesel' && selection) {
-    pushUndo('Move Selection');
-  }
-}
-
-function computePxTransformBounds(handle, mx, my, shiftKey, altKey) {
-  const orig = pxTransformOrigBounds; const start = pxTransformStartMouse;
-  let dx = mx - start.x; let dy = my - start.y;
-  // Resize handles live on the rotated box but operate on the unrotated AABB.
-  // Inverse-rotate the drag delta into the object's local frame so corner and
-  // edge drags feel natural regardless of totalRotation. Move is unaffected —
-  // translation happens in canvas space because the center moves rigidly.
-  const theta = (pxTransformData && pxTransformData.totalRotation) || 0;
-  if (theta && handle !== 'move') {
-    const c = Math.cos(-theta), s = Math.sin(-theta);
-    const ldx = dx * c - dy * s;
-    const ldy = dx * s + dy * c;
-    dx = ldx; dy = ldy;
-  }
-  let nx = orig.x, ny = orig.y, nw = orig.w, nh = orig.h;
-  if (handle === 'move') { nx += dx; ny += dy; }
-  else {
-    if (handle === 'nw') { nx += dx; ny += dy; nw -= dx; nh -= dy; }
-    else if (handle === 'n') { ny += dy; nh -= dy; } else if (handle === 'ne') { nw += dx; ny += dy; nh -= dy; }
-    else if (handle === 'w') { nx += dx; nw -= dx; } else if (handle === 'e') { nw += dx; }
-    else if (handle === 'sw') { nx += dx; nw -= dx; nh += dy; } else if (handle === 's') { nh += dy; } else if (handle === 'se') { nw += dx; nh += dy; }
-    if (shiftKey && handle !== 'move') {
-      const aspect = orig.w / orig.h;
-      if (['n','s'].includes(handle)) { nw = Math.round(nh * aspect); nx = orig.x + Math.round((orig.w - nw) / 2); }
-      else if (['w','e'].includes(handle)) { nh = Math.round(nw / aspect); ny = orig.y + Math.round((orig.h - nh) / 2); }
-      else { const ratioW = nw / orig.w; const ratioH = nh / orig.h; if (Math.abs(ratioW) > Math.abs(ratioH)) { nh = Math.round(nw / aspect); } else { nw = Math.round(nh * aspect); } if (handle.includes('n')) ny = orig.y + orig.h - nh; if (handle.includes('w')) nx = orig.x + orig.w - nw; }
-    }
-    if (altKey && handle !== 'move') { const centerX = orig.x + orig.w / 2; const centerY = orig.y + orig.h / 2; nx = Math.round(centerX - nw / 2); ny = Math.round(centerY - nh / 2); }
-    if (nw < 1) nw = 1; if (nh < 1) nh = 1;
-  }
-  return { x: nx, y: ny, w: nw, h: nh };
-}
-
-function drawPxTransformHandles() {
-  if (!pxTransformActive || !pxTransformData) return;
-  const b = pxTransformData.curBounds;
-  const rot = (pxTransformData.totalRotation || 0) + (pxTransformData.liveRotation || 0);
-  const p1 = c2s(b.x, b.y); const p2 = c2s(b.x + b.w, b.y + b.h);
-  const sx = p1.x, sy = p1.y, sw = p2.x - p1.x, sh = p2.y - p1.y;
-  const cxS = sx + sw / 2, cyS = sy + sh / 2;
-  const hs = 4; const ctx = overlayCtx;
-  ctx.save();
-  if (rot) { ctx.translate(cxS, cyS); ctx.rotate(rot); ctx.translate(-cxS, -cyS); }
-  // Thin outline: always drawn for irregular selections; also drawn whenever
-  // the transform has any rotation so the rotated bounding box is visible.
-  if (pxTransformData.isIrregular || rot) {
-    ctx.strokeStyle = 'rgba(100, 170, 255, 0.55)';
-    ctx.lineWidth = 1; ctx.setLineDash([]);
-    ctx.strokeRect(sx, sy, sw, sh);
-  }
-  const handles = [[sx,sy],[sx+sw/2,sy],[sx+sw,sy],[sx,sy+sh/2],[sx+sw,sy+sh/2],[sx,sy+sh],[sx+sw/2,sy+sh],[sx+sw,sy+sh]];
-  ctx.lineWidth = 1.2;
-  for (const [hx, hy] of handles) { ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#333333'; ctx.fillRect(hx - hs, hy - hs, hs * 2, hs * 2); ctx.strokeRect(hx - hs, hy - hs, hs * 2, hs * 2); }
-  // Rotation-zone affordances at the 4 center-edge positions. Hidden only
-  // during an active drag — they should remain visible after a rotation so
-  // the user can keep rotating without losing the affordance.
-  if (!pxTransformHandle) {
-    const off = 18;
-    const rotCenters = [
-      [cxS, sy - off], [cxS, sy + sh + off],
-      [sx - off, cyS], [sx + sw + off, cyS],
-    ];
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 1;
-    for (const [rx, ry] of rotCenters) {
-      ctx.beginPath(); ctx.arc(rx, ry, 3, 0, Math.PI * 2); ctx.stroke();
-    }
-  }
-  ctx.restore();
-  // Angle tooltip while actively rotating (drawn unrotated on top).
-  if (pxTransformHandle === 'rotate' && rot) {
-    drawRotationAngleTooltip(rot);
-  }
-}
-
-/**
- * Small HUD label showing the current rotation angle in degrees, drawn
- * near the top-right of the (rotated) bounding box. Kept on-screen via
- * viewport clamping so it never drifts off the workspace.
- */
-function drawRotationAngleTooltip(rotRad) {
-  if (!pxTransformData) return;
-  const b = pxTransformData.curBounds;
-  // Anchor near the box center, offset toward the top-right, in screen px.
-  const cxC = b.x + b.w / 2, cyC = b.y + b.h / 2;
-  const anchorC = c2s(cxC, cyC);
-  const radius = (Math.min(b.w, b.h) / 2 + 28) * zoom;
-  // Label angle follows rotation so it visually "orbits" the box.
-  const la = rotRad - Math.PI / 2; // start above, rotating with the box
-  let lx = anchorC.x + Math.cos(la) * radius;
-  let ly = anchorC.y + Math.sin(la) * radius;
-  let deg = rotRad * 180 / Math.PI;
-  // Normalize to (-180, 180]
-  while (deg >   180) deg -= 360;
-  while (deg <= -180) deg += 360;
-  const txt = (deg >= 0 ? '+' : '') + deg.toFixed(1) + '°';
-  const ctx = overlayCtx;
-  ctx.save();
-  ctx.font = '600 11px system-ui, -apple-system, Segoe UI, sans-serif';
-  const metrics = ctx.measureText(txt);
-  const padX = 7, padY = 4;
-  const tw = metrics.width + padX * 2;
-  const th = 16 + padY * 0;
-  // Clamp to overlay bounds so the tooltip never leaves the viewport.
-  lx = Math.max(4, Math.min(overlayCanvas.width  - tw - 4, lx - tw / 2));
-  ly = Math.max(4, Math.min(overlayCanvas.height - th - 4, ly - th / 2));
-  ctx.fillStyle = 'rgba(20,22,28,0.92)';
-  ctx.strokeStyle = 'rgba(100,170,255,0.65)';
-  ctx.lineWidth = 1;
-  const r = 4;
-  ctx.beginPath();
-  ctx.moveTo(lx + r, ly);
-  ctx.lineTo(lx + tw - r, ly);
-  ctx.quadraticCurveTo(lx + tw, ly, lx + tw, ly + r);
-  ctx.lineTo(lx + tw, ly + th - r);
-  ctx.quadraticCurveTo(lx + tw, ly + th, lx + tw - r, ly + th);
-  ctx.lineTo(lx + r, ly + th);
-  ctx.quadraticCurveTo(lx, ly + th, lx, ly + th - r);
-  ctx.lineTo(lx, ly + r);
-  ctx.quadraticCurveTo(lx, ly, lx + r, ly);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = '#e9f1ff';
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillText(txt, lx + padX, ly + th / 2 + 0.5);
-  ctx.restore();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -2634,27 +1413,6 @@ function pickMoveTarget(px, py) {
 /* ═══════════════════════════════════════════════════════
    MOUSE EVENT HANDLING
    ═══════════════════════════════════════════════════════ */
-
-workspace.addEventListener('mousedown', onMouseDown);
-workspace.addEventListener('mousemove', onMouseMove);
-workspace.addEventListener('mouseup', onMouseUp);
-workspace.addEventListener('mouseleave', onMouseUp);
-workspace.addEventListener('dblclick', onDblClick);
-workspace.addEventListener('contextmenu', function(e) {
-  if (currentTool === 'gradient' && gradActive) {
-    const pos = screenToCanvas(e.clientX, e.clientY);
-    const hit = gradHitTest(pos.x, pos.y);
-    if (hit && hit.type === 'stop' && hit.index > 0 && hit.index < gradStops.length - 1) {
-      e.preventDefault();
-      showGradStopCtx(hit.index, e.clientX, e.clientY);
-      return;
-    }
-  }
-});
-document.addEventListener('mousedown', function(e) {
-  const menu = document.getElementById('gradStopCtx');
-  if (menu && menu.classList.contains('active') && !menu.contains(e.target)) hideGradStopCtx();
-});
 
 function onDblClick(e) {
   // Move tool: double-clicking inside the transform box (or on any of its
@@ -3077,32 +1835,6 @@ function magBuildPreviewPath() {
     }
   }
   return p;
-}
-
-/**
- * Draw magnetic lasso overlay: committed path + live wire + anchor dots.
- */
-function drawMagneticOverlay() {
-  prepareOverlay();
-  if (selectionMode !== 'new' && selectionPath) drawAntsOnPath(overlayCtx, selectionPath);
-
-  const previewPath = magBuildPreviewPath();
-  drawAntsOnPath(overlayCtx, previewPath);
-
-  // Anchor dots
-  overlayCtx.save();
-  overlayCtx.fillStyle = '#fff';
-  overlayCtx.strokeStyle = '#000';
-  overlayCtx.lineWidth = 1;
-  for (let i = 0; i < magAnchors.length; i++) {
-    const sp = c2s(magAnchors[i].x, magAnchors[i].y);
-    const r = i === 0 ? 4 : 3; // First anchor slightly larger
-    overlayCtx.beginPath();
-    overlayCtx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
-    overlayCtx.fill();
-    overlayCtx.stroke();
-  }
-  overlayCtx.restore();
 }
 
 /**
@@ -4043,28 +2775,6 @@ function pickColor(x, y) {
    EYEDROPPER — Panel toggle mode
    ═══════════════════════════════════════════════════════ */
 
-const _eyedropperCursorSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">' +
-  '<path d="M14.31,7.57l2.11,2.11l-4.29,4.29c-1.47,1.47-3.1,2.78-4.85,3.9L4.09,19.9l2.03-3.18' +
-  'c1.12-1.75,2.43-3.38,3.9-4.85L14.31,7.57M14.31,6.26l-4.95,4.95c-1.52,1.52-2.87,3.2-4.02,5.01' +
-  'l-3.2,5.01v0.62h0.62l5.01-3.2c1.81-1.16,3.49-2.5,5.01-4.02l4.95-4.95L14.31,6.26L14.31,6.26z' +
-  'M21.94,4.16c-0.22-1.04-1.05-1.87-2.09-2.09c-0.93-0.19-1.79,0.09-2.41,0.64l-0.01-0.01l-2.07,2.07' +
-  'l-0.4-0.4l0,0c-0.37-0.37-0.9-0.57-1.48-0.48c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48' +
-  'l0,0l4.64,4.64l0,0c0.37,0.37,0.9,0.57,1.48,0.48c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48' +
-  'l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0C21.85,5.95,22.13,5.09,21.94,4.16z' +
-  'M19.27,2.94c0.13,0,0.26,0.01,0.39,0.04c0.68,0.14,1.23,0.69,1.37,1.37c0.12,0.58-0.03,1.16-0.42,1.6' +
-  'l-0.05,0.06l-0.02,0.02l-1.95,1.95l-0.66,0.66l0.66,0.66l0.37,0.37c0.18,0.18,0.26,0.43,0.22,0.68' +
-  'c-0.05,0.32-0.32,0.59-0.64,0.64C18.49,11,18.44,11,18.4,11c-0.21,0-0.4-0.08-0.55-0.23l-4.64-4.64' +
-  'C13.04,5.96,12.96,5.71,13,5.46c0.05-0.32,0.32-0.59,0.64-0.64c0.04-0.01,0.09-0.01,0.13-0.01' +
-  'c0.21,0,0.4,0.08,0.55,0.23l0.4,0.4l0.66,0.66l0.66-0.66l1.95-1.95l0.09-0.08C18.4,3.11,18.83,2.94,19.27,2.94' +
-  'M19.27,2.01c-0.7,0-1.34,0.27-1.82,0.7l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.31-0.31-0.74-0.5-1.21-0.5' +
-  'c-0.09,0-0.18,0.01-0.27,0.02c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64' +
-  'l0,0c0.31,0.31,0.74,0.5,1.21,0.5c0.09,0,0.18-0.01,0.27-0.02c0.72-0.11,1.31-0.7,1.42-1.42' +
-  'c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0' +
-  'c0.55-0.62,0.83-1.48,0.64-2.41c-0.22-1.04-1.05-1.87-2.09-2.09C19.65,2.03,19.46,2.01,19.27,2.01L19.27,2.01z' +
-  'M2.65,21.92l0.11-0.07l-0.62-0.62l-0.07,0.11C1.83,21.72,2.27,22.16,2.65,21.92z"' +
-  ' fill="%23f2f2f7" stroke="black" stroke-width="0.5"/></svg>';
-const _eyedropperCursorUrl = "url('data:image/svg+xml;utf8," + _eyedropperCursorSvg + "') 2 22, none";
-
 function _injectEyedropperCursor() {
   let s = document.getElementById('eyedropperCursorStyle');
   if (!s) { s = document.createElement('style'); s.id = 'eyedropperCursorStyle'; document.head.appendChild(s); }
@@ -4403,175 +3113,128 @@ function applyFilter() {
    FILE I/O
    ═══════════════════════════════════════════════════════ */
 
-function newImage() {
-  closeAllMenus();
-  document.getElementById('newImageModal').classList.add('show');
-  syncNewImagePresetActive();
-  // Probe the system clipboard for image dimensions to pre-fill the dialog,
-  // matching professional editors where clipboard content defines new document
-  // size. Uses the async Clipboard API — requires secure context (HTTPS).
-  // Fails silently on file:// or permission denial; defaults remain as-is.
-  probeClipboardDimensions();
-}
-
-function syncNewImagePresetActive() {
-  const w = parseInt(document.getElementById('newWidth').value, 10);
-  const h = parseInt(document.getElementById('newHeight').value, 10);
-  document.querySelectorAll('#newImagePresets .preset-chip').forEach(chip => {
-    const cw = parseInt(chip.dataset.w, 10);
-    const ch = parseInt(chip.dataset.h, 10);
-    chip.classList.toggle('active', cw === w && ch === h);
-  });
-}
-
-let newImageDimLocked = true;
-let newImageDimRatio = 1920 / 1080;
-
-(function initNewImagePresets() {
-  const wire = () => {
-    const presets = document.getElementById('newImagePresets');
-    const wIn = document.getElementById('newWidth');
-    const hIn = document.getElementById('newHeight');
-    const lockBtn = document.getElementById('newDimLock');
-    if (!presets || !wIn || !hIn || !lockBtn) return;
-
-    presets.addEventListener('click', e => {
-      const chip = e.target.closest('.preset-chip');
-      if (!chip) return;
-      wIn.value = chip.dataset.w;
-      hIn.value = chip.dataset.h;
-      newImageDimRatio = parseInt(chip.dataset.w, 10) / parseInt(chip.dataset.h, 10);
-      syncNewImagePresetActive();
-    });
-
-    let suppressLink = false;
-    const linkFrom = (src, dst) => {
-      if (suppressLink || !newImageDimLocked) return;
-      const v = parseInt(src.value, 10);
-      if (!v || v < 1) return;
-      suppressLink = true;
-      const ratio = src === wIn ? newImageDimRatio : 1 / newImageDimRatio;
-      dst.value = Math.max(1, Math.round(v / ratio));
-      suppressLink = false;
-      syncNewImagePresetActive();
-    };
-    wIn.addEventListener('input', () => { linkFrom(wIn, hIn); syncNewImagePresetActive(); });
-    hIn.addEventListener('input', () => { linkFrom(hIn, wIn); syncNewImagePresetActive(); });
-
-    lockBtn.addEventListener('click', () => {
-      newImageDimLocked = !newImageDimLocked;
-      lockBtn.classList.toggle('locked', newImageDimLocked);
-      const useEl = lockBtn.querySelector('svg use');
-      useEl.setAttribute('href', newImageDimLocked ? '#icon-chain-linked' : '#icon-chain-unlinked');
-      if (newImageDimLocked) {
-        const w = parseInt(wIn.value, 10) || 1;
-        const h = parseInt(hIn.value, 10) || 1;
-        newImageDimRatio = w / h;
-      }
-    });
-  };
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', wire);
-  } else {
-    wire();
-  }
-})();
-
-/**
- * probeClipboardDimensions — Reads the system clipboard via the async Clipboard
- * API (navigator.clipboard.read) looking for image data. If found, decodes it
- * into an Image to extract natural dimensions and populates the New Image
- * dialog's width/height fields. Called when the New Image modal opens.
- *
- * This is async and non-blocking: the modal appears instantly with defaults
- * (1920x1080), and if a clipboard image is detected the fields update shortly
- * after (typically < 100ms). Silent no-op when the API is unavailable.
- */
-async function probeClipboardDimensions() {
-  try {
-    if (!navigator.clipboard || !navigator.clipboard.read) return;
-    const items = await navigator.clipboard.read();
-    for (const item of items) {
-      const imageType = item.types.find(t => t.startsWith('image/'));
-      if (imageType) {
-        const blob = await item.getType(imageType);
-        const img = new Image();
-        img.onload = () => {
-          document.getElementById('newWidth').value = img.naturalWidth || img.width;
-          document.getElementById('newHeight').value = img.naturalHeight || img.height;
-          syncNewImagePresetActive();
-          URL.revokeObjectURL(img.src);
-        };
-        img.src = URL.createObjectURL(blob);
-        return;
-      }
-    }
-  } catch (e) { /* Clipboard API unavailable or permission denied */ }
-}
-
-function createNewImage() {
-  const w = parseInt(document.getElementById('newWidth').value) || 1920; const h = parseInt(document.getElementById('newHeight').value) || 1080;
-  const bg = document.getElementById('newBg').value; initCanvas(w, h, bg); closeModal('newImageModal');
-}
-
-function openImage() { closeAllMenus(); document.getElementById('fileInput').click(); }
-
-document.getElementById('fileInput').addEventListener('change', function(e) {
-  const file = e.target.files[0]; if (!file) return;
-  // .ico files route into Icon Editor Mode (or PNG-import via choice modal)
-  if (window.IEM && window.IEM.isIcoFile && window.IEM.isIcoFile(file)) {
-    window.IEM.handleOpenIco(file);
-    this.value = '';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    const img = new Image();
-    img.onload = function() {
-      initCanvas(img.width, img.height, 'transparent');
-      layers[0].ctx.drawImage(img, 0, 0);
-      layers[0].name = file.name.replace(/\.[^.]+$/, '');
-      compositeAll(); updateLayerPanel();
-      // initCanvas already reset + recorded 'New Image'; replace that anchor
-      // with the actual opened-file state by resetting and recording fresh.
-      if (typeof History !== 'undefined' && History) History.reset();
-      pushUndo('Open Image');
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file); this.value = '';
-});
-
-
 /* ═══════════════════════════════════════════════════════
    IMPORT IMAGE AS LAYER — Smart Object System
    ═══════════════════════════════════════════════════════ */
 
-const RASTER_MIME_TYPES = new Set(['image/png','image/jpeg','image/jpg','image/gif','image/webp','image/bmp','image/avif']);
+/**
+ * Image-larger-than-canvas chooser. Resolves to 'expand' | 'keep' | 'cancel'.
+ * Enter triggers the focused card (default Expand). Esc / Cancel button /
+ * overlay-click resolve to 'cancel'. Used by single-image paste and single-
+ * file import-as-layer when the incoming bitmap exceeds the canvas in either
+ * dimension.
+ */
+let _importSizeDialogActive = false;
+function openImportSizeDialog(imgW, imgH) {
+  return new Promise((resolve) => {
+    if (_importSizeDialogActive) { resolve('cancel'); return; }
+    _importSizeDialogActive = true;
+    const overlay = document.getElementById('importSizeModal');
+    const expandBtn = document.getElementById('importSizeExpand');
+    const keepBtn = document.getElementById('importSizeKeep');
+    const cancelBtn = document.getElementById('importSizeCancel');
+    const dimsEl = document.getElementById('importSizeDims');
+    if (dimsEl) dimsEl.textContent = `The incoming image (${imgW} × ${imgH}) is larger than the canvas (${canvasW} × ${canvasH}).`;
 
-function importImageAsLayer(file) {
+    let focusIdx = 0;
+    const cards = [expandBtn, keepBtn];
+    const setFocus = (i) => {
+      focusIdx = (i + cards.length) % cards.length;
+      cards.forEach((c, idx) => c.classList.toggle('is-focused', idx === focusIdx));
+      cards[focusIdx].focus();
+    };
+
+    const cleanup = (choice) => {
+      overlay.classList.remove('show');
+      cards.forEach(c => c.classList.remove('is-focused'));
+      expandBtn.removeEventListener('click', onExpand);
+      keepBtn.removeEventListener('click', onKeep);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('mousedown', onOverlay);
+      document.removeEventListener('keydown', onKey, true);
+      _importSizeDialogActive = false;
+      resolve(choice);
+    };
+    const onExpand = () => cleanup('expand');
+    const onKeep   = () => cleanup('keep');
+    const onCancel = () => cleanup('cancel');
+    const onOverlay = (e) => { if (e.target === overlay) cleanup('cancel'); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cleanup('cancel'); }
+      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); cleanup(cards[focusIdx].dataset.choice); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); setFocus(focusIdx + 1); }
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'Tab' && e.shiftKey) { e.preventDefault(); setFocus(focusIdx - 1); }
+    };
+
+    expandBtn.addEventListener('click', onExpand);
+    keepBtn.addEventListener('click', onKeep);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('mousedown', onOverlay);
+    document.addEventListener('keydown', onKey, true);
+
+    overlay.classList.add('show');
+    setFocus(0);
+  });
+}
+
+/**
+ * expandCanvasToFit — Grows the document to (newW, newH), keeping all existing
+ * layer content anchored to the top-left (Paint.NET behavior). No-op if the
+ * requested dimensions are already covered. Does not push undo on its own —
+ * callers (import/paste) bake the expand + new-layer placement into a single
+ * history entry.
+ */
+function expandCanvasToFit(newW, newH) {
+  newW = Math.max(canvasW, newW | 0);
+  newH = Math.max(canvasH, newH | 0);
+  if (newW === canvasW && newH === canvasH) return;
+  layers.forEach(l => {
+    const tmp = document.createElement('canvas');
+    tmp.width = newW; tmp.height = newH;
+    tmp.getContext('2d').drawImage(l.canvas, 0, 0);
+    l.canvas.width = newW; l.canvas.height = newH;
+    l.ctx = l.canvas.getContext('2d', { willReadFrequently: true });
+    l.ctx.drawImage(tmp, 0, 0);
+  });
+  canvasW = newW; canvasH = newH;
+  compositeCanvas.width = newW; compositeCanvas.height = newH;
+  overlayCanvas.width = newW; overlayCanvas.height = newH;
+  canvasWrapper.style.width = newW + 'px'; canvasWrapper.style.height = newH + 'px';
+  checkerPattern = null;
+  SnapEngine.invalidateAllLayers();
+}
+
+/**
+ * stampImageAsCommittedLayer — Inserts a full-resolution image as a new layer
+ * at (originX, originY) and pushes a regular undo entry. No selection, no
+ * Free Transform. Used by the multi-file batch drop where canvas is auto-
+ * expanded to fit all incoming images anchored at top-left.
+ */
+function stampImageAsCommittedLayer(srcCanvas, layerName, originX, originY) {
+  const layerCanvas = document.createElement('canvas');
+  layerCanvas.width = canvasW; layerCanvas.height = canvasH;
+  const layerCtx = layerCanvas.getContext('2d', { willReadFrequently: true });
+  layerCtx.drawImage(srcCanvas, originX, originY);
+  const layer = { id: layerIdCounter++, name: layerName, canvas: layerCanvas, ctx: layerCtx, visible: true, opacity: 1 };
+  const insertAt = Math.max(0, activeLayerIndex);
+  layers.splice(insertAt, 0, layer);
+  activeLayerIndex = layers.indexOf(layer);
+  selectedLayers = new Set([activeLayerIndex]);
+  SnapEngine.invalidateLayer(layer);
+  pushUndo(`Import "${layerName}"`);
+}
+
+function _decodeFileToCanvas(file) {
   return new Promise((resolve, reject) => {
     if (!RASTER_MIME_TYPES.has(file.type.toLowerCase())) { reject(new Error(`Unsupported format: ${file.type}`)); return; }
     const reader = new FileReader();
-    reader.onload = function(ev) {
+    reader.onload = (ev) => {
       const img = new Image();
-      img.onload = function() {
-        if (floatingActive) commitFloating();
-        const smartCanvas = document.createElement('canvas'); smartCanvas.width = img.naturalWidth || img.width; smartCanvas.height = img.naturalHeight || img.height;
-        smartCanvas.getContext('2d').drawImage(img, 0, 0);
-        const layerCanvas = document.createElement('canvas'); layerCanvas.width = canvasW; layerCanvas.height = canvasH;
-        const layerCtx = layerCanvas.getContext('2d');
-        const srcW = smartCanvas.width, srcH = smartCanvas.height;
-        const scaleX = canvasW / srcW, scaleY = canvasH / srcH, scale = Math.min(scaleX, scaleY, 1);
-        const fitW = Math.round(srcW * scale), fitH = Math.round(srcH * scale);
-        const dx = Math.round((canvasW - fitW) / 2), dy = Math.round((canvasH - fitH) / 2);
-        layerCtx.drawImage(smartCanvas, 0, 0, srcW, srcH, dx, dy, fitW, fitH);
-        const layerName = file.name.replace(/\.[^.]+$/, '');
-        const layer = { id: layerIdCounter++, name: layerName, canvas: layerCanvas, ctx: layerCtx, visible: true, opacity: 1, smartSource: smartCanvas, smartRect: { dx, dy, w: fitW, h: fitH } };
-        layers.splice(activeLayerIndex, 0, layer); activeLayerIndex = layers.indexOf(layer);
-        compositeAll(); updateLayerPanel(); selectTool('move');
-        pushUndo(`Import "${file.name.replace(/\.[^.]+$/, '')}"`);
-        resolve();
+      img.onload = () => {
+        const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0);
+        resolve(c);
       };
       img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
       img.src = ev.target.result;
@@ -4581,25 +3244,81 @@ function importImageAsLayer(file) {
   });
 }
 
+/**
+ * Single-image import-as-layer.
+ *  • Always commits any active transform / floating selection first.
+ *  • If the image is bigger than the canvas in either dimension, prompts the
+ *    user (Expand / Keep / Cancel).
+ *      – Expand: canvas grows to fit (TL-anchored), image drops at (0,0),
+ *        Free Transform engaged.
+ *      – Keep: image is centered (clipped where it extends past canvas),
+ *        Free Transform engaged.
+ *  • If the image fits within the canvas, it is centered and Free Transform
+ *    is engaged (per spec — every single-file add lands in transform mode).
+ */
+async function importImageAsLayer(file) {
+  const srcCanvas = await _decodeFileToCanvas(file);
+  if (pxTransformActive) commitPixelTransform();
+  if (floatingActive) commitFloating();
+
+  const layerName = file.name.replace(/\.[^.]+$/, '');
+  const w = srcCanvas.width, h = srcCanvas.height;
+
+  if (w > canvasW || h > canvasH) {
+    const choice = await openImportSizeDialog(w, h);
+    if (choice === 'cancel') return;
+    if (choice === 'expand') {
+      expandCanvasToFit(w, h);
+      placeImageAsTransformLayer(srcCanvas, layerName, 0, 0);
+      zoomFit();
+      updateStatus();
+      return;
+    }
+  }
+
+  const px = Math.round((canvasW - w) / 2);
+  const py = Math.round((canvasH - h) / 2);
+  placeImageAsTransformLayer(srcCanvas, layerName, px, py);
+}
+
 async function importFilesAsLayers(files) {
   const validFiles = Array.from(files).filter(f => RASTER_MIME_TYPES.has(f.type.toLowerCase()));
   if (validFiles.length === 0) return;
-  for (let i = 0; i < validFiles.length; i++) {
-    try { await importImageAsLayer(validFiles[i]); if (i < validFiles.length - 1) await new Promise(r => requestAnimationFrame(r)); }
-    catch (err) { console.warn('[PixelForge] Import skipped:', err.message); }
+
+  if (validFiles.length === 1) {
+    try { await importImageAsLayer(validFiles[0]); }
+    catch (err) { console.warn('[Opsin] Import skipped:', err.message); }
+    return;
   }
+
+  // Batch drop: decode everything first, expand canvas to fit the largest
+  // dimensions, then stamp each image at top-left as its own committed layer
+  // (no per-file prompt, no Free Transform — Paint.NET batch behavior).
+  if (pxTransformActive) commitPixelTransform();
+  if (floatingActive) commitFloating();
+
+  const decoded = [];
+  for (const f of validFiles) {
+    try { decoded.push({ name: f.name.replace(/\.[^.]+$/, ''), canvas: await _decodeFileToCanvas(f) }); }
+    catch (err) { console.warn('[Opsin] Import skipped:', err.message); }
+  }
+  if (decoded.length === 0) return;
+
+  let maxW = canvasW, maxH = canvasH;
+  for (const d of decoded) { if (d.canvas.width > maxW) maxW = d.canvas.width; if (d.canvas.height > maxH) maxH = d.canvas.height; }
+  if (maxW > canvasW || maxH > canvasH) {
+    expandCanvasToFit(maxW, maxH);
+    zoomFit();
+    updateStatus();
+  }
+  for (const d of decoded) {
+    stampImageAsCommittedLayer(d.canvas, d.name, 0, 0);
+  }
+  compositeAll();
+  updateLayerPanel();
 }
 
 function triggerImportLayer() { document.getElementById('importLayerInput').click(); }
-document.getElementById('importLayerInput').addEventListener('change', async function() { if (!this.files || this.files.length === 0) return; await importFilesAsLayers(this.files); this.value = ''; });
-
-let _dragCounter = 0;
-const ICO_MIME_TYPES = new Set(['image/x-icon','image/vnd.microsoft.icon','image/ico']);
-function _hasImageFiles(dataTransfer) { if (!dataTransfer) return false; if (dataTransfer.items && dataTransfer.items.length) return Array.from(dataTransfer.items).some(item => item.kind === 'file' && (RASTER_MIME_TYPES.has(item.type.toLowerCase()) || ICO_MIME_TYPES.has(item.type.toLowerCase()))); return dataTransfer.types && dataTransfer.types.includes('Files'); }
-workspace.addEventListener('dragenter', (e) => { if (!_hasImageFiles(e.dataTransfer)) return; e.preventDefault(); _dragCounter++; document.getElementById('dropOverlay').classList.add('visible'); });
-workspace.addEventListener('dragover', (e) => { if (!_hasImageFiles(e.dataTransfer)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-workspace.addEventListener('dragleave', (e) => { _dragCounter--; if (_dragCounter <= 0) { _dragCounter = 0; document.getElementById('dropOverlay').classList.remove('visible'); } });
-workspace.addEventListener('drop', async (e) => { e.preventDefault(); _dragCounter = 0; document.getElementById('dropOverlay').classList.remove('visible'); const files = e.dataTransfer && e.dataTransfer.files; if (!files || files.length === 0) return; if (window.IEM && window.IEM.handleDroppedFiles && window.IEM.handleDroppedFiles(files)) return; await importFilesAsLayers(files); });
 
 function saveImage(format) {
   closeAllMenus();
@@ -4874,8 +3593,6 @@ function encodeTIFF(imageData, w, h, bitDepth) {
 /* ═══════════════════════════════════════════════════════
    EXPORT ICO — Multi-size .ico encoder with Lanczos-3
    ═══════════════════════════════════════════════════════ */
-
-const ICO_DEFAULT_SIZES = [256, 128, 64, 48, 32, 16];
 
 /* ── Lanczos-3 High-Quality Resampler ────────────────── */
 // Separable 2-pass Lanczos-3 windowed sinc filter operating in linear light.
@@ -5276,18 +3993,8 @@ async function executeIcoExport() {
    MENUS
    ═══════════════════════════════════════════════════════ */
 
-let openMenuId = null;
-document.querySelectorAll('.menu-item').forEach(item => {
-  item.addEventListener('click', function(e) { e.stopPropagation(); const menuId = 'menu-' + this.dataset.menu; if (openMenuId === menuId) { closeAllMenus(); return; } closeAllMenus(); document.getElementById(menuId).classList.add('show'); this.classList.add('open'); openMenuId = menuId; });
-  item.addEventListener('mouseenter', function() { if (openMenuId) { closeAllMenus(); const menuId = 'menu-' + this.dataset.menu; document.getElementById(menuId).classList.add('show'); this.classList.add('open'); openMenuId = menuId; } });
-  item.addEventListener('mouseleave', function(e) { if (openMenuId && (!e.relatedTarget || !e.relatedTarget.closest('.menu-item'))) closeAllMenus(); });
-});
-document.querySelectorAll('.menu-action:not(.menu-has-submenu)').forEach(btn => { btn.addEventListener('click', () => closeAllMenus()); });
-
 function closeAllMenus() { document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('show')); document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('open')); openMenuId = null; if (window.IEM && window.IEM.applyFileMenuState) window.IEM.applyFileMenuState(); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-document.addEventListener('click', (e) => { if (openMenuId && !e.target.closest('.menu-item')) closeAllMenus(); });
-document.querySelectorAll('.modal-overlay').forEach(modal => { if (modal.id === 'settingsModal') return; modal.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); }); });
 
 /* ═══════════════════════════════════════════════════════
    SETTINGS — Color Mode (Light / Dark / System) + theme manager
@@ -5447,94 +4154,6 @@ document.querySelectorAll('.settings-cat').forEach(btn => {
 });
 
 /* ═══════════════════════════════════════════════════════
-   KEYBOARD SHORTCUTS
-   ═══════════════════════════════════════════════════════ */
-
-document.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
-  const k = e.key.toLowerCase(); const ctrl = e.ctrlKey || e.metaKey;
-  // Arrow-key nudge: Move tool / Pixel Transform / Floating Selection.
-  // Plain arrow = 1 px, Shift+arrow = 10 px. Handled before any other
-  // shortcut so the arrows aren't intercepted by future bindings.
-  if (!ctrl && (k === 'arrowleft' || k === 'arrowright' || k === 'arrowup' || k === 'arrowdown')) {
-    const step = e.shiftKey ? 10 : 1;
-    let dx = 0, dy = 0;
-    if (k === 'arrowleft')  dx = -step;
-    else if (k === 'arrowright') dx = step;
-    else if (k === 'arrowup')    dy = -step;
-    else if (k === 'arrowdown')  dy = step;
-    if (nudgeMove(dx, dy)) { e.preventDefault(); return; }
-  }
-  // Magnetic lasso keyboard handlers (must precede generic Escape/Backspace/Enter)
-  if (currentTool==='lasso' && lassoMode==='magnetic' && magActive) {
-    if (k === 'escape') {
-      e.preventDefault(); cancelMagneticLasso(); return;
-    }
-    if (k === 'backspace') {
-      e.preventDefault();
-      if (magAnchors.length > 1) {
-        magAnchors.pop();
-        if (magSegments.length > 0) magSegments.pop();
-        magLivePath = null;
-        drawMagneticOverlay();
-      } else {
-        cancelMagneticLasso();
-      }
-      return;
-    }
-    if (k === 'enter' && magAnchors.length > 2) {
-      e.preventDefault(); finishMagneticLasso(true); return;
-    }
-  }
-  if (ctrl && !e.shiftKey && k === 'z') { e.preventDefault(); if (window.IEM && window.IEM.active) window.IEM.dispatchUndo(); else doUndo(); }
-  else if (k === 'escape') { e.preventDefault(); if (panelEyedropperActive) { togglePanelEyedropper(); return; } if (document.getElementById('cpIframeOverlay')) { closeColorPicker(); return; } if (currentTool === 'ruler' && rulerState.active) { clearRuler(); return; } if (pxTransformActive) { cancelPixelTransform(); if (selection || selectionPath) clearSelection(); return; } if (floatingActive) commitFloating(); if (selection || selectionPath) clearSelection(); if (gradActive) { commitGradient(); drawOverlay(); } }
-  else if (k === 'enter') { if (pxTransformActive) { e.preventDefault(); commitPixelTransform(); return; } }
-  else if ((ctrl && k === 'y') || (ctrl && e.shiftKey && k === 'z')) { e.preventDefault(); if (window.IEM && window.IEM.active) window.IEM.dispatchRedo(); else doRedo(); }
-  else if (ctrl && k === 'c') { e.preventDefault(); doCopy(); }
-  else if (ctrl && k === 'x') { e.preventDefault(); doCut(); }
-  else if (ctrl && k === 'v') { /* allow native paste event to fire — handled by paste event listener */ }
-  else if (ctrl && k === 'n') { e.preventDefault(); newImage(); }
-  else if (ctrl && k === 'o') { e.preventDefault(); openImage(); }
-  else if (ctrl && k === 'a') { e.preventDefault(); selectAll(); }
-  else if (ctrl && !e.shiftKey && k === 'i') { e.preventDefault(); applyFilterDirect('invert'); }
-  else if (ctrl && e.shiftKey && k === 'i') { e.preventDefault(); invertSelection(); }
-  else if (ctrl && k === 'e') { e.preventDefault(); mergeLayers(); }
-  else if (ctrl && k === 'd') {
-    e.preventDefault();
-    if (gradActive) commitGradient();
-    // Move tool: Ctrl+D commits any active transform AND clears the selection
-    // in one gesture (Q6/Q7). On other tools it's plain Deselect.
-    if (pxTransformActive || (currentTool === 'move' && floatingActive)) {
-      deselectMove();
-    } else {
-      clearSelection();
-    }
-  }
-  else if (ctrl && k === '=') { e.preventDefault(); zoomIn(); }
-  else if (ctrl && k === '-') { e.preventDefault(); zoomOut(); }
-  else if (ctrl && k === '0') { e.preventDefault(); zoomFit(); }
-  else if (ctrl && k === '1') { e.preventDefault(); zoom100(); }
-  else if (ctrl && k === 'r') { location.reload(); }
-  else if (ctrl && e.shiftKey && k === ';') { e.preventDefault(); SnapEngine.toggle(); }
-  else if (ctrl && !e.shiftKey && k === ';') { e.preventDefault(); toggleGuides(); }
-  else if (k === 'delete' || k === 'backspace') { if (selection) { e.preventDefault(); deleteSelection(); } }
-  else if (k === 'x') { swapColors(); }
-  else if (k === '[') {
-    e.preventDefault(); const cur = getDrawSize(); const step = cur > 100 ? 20 : cur > 20 ? 5 : cur > 5 ? 2 : 1; const s = Math.max(1, cur - step);
-    if (currentTool === 'pencil') { document.getElementById('pencilSize').value = s; document.getElementById('pencilSizeNum').value = s; }
-    else { document.getElementById('drawSize').value = s; document.getElementById('drawSizeNum').value = s; }
-  }
-  else if (k === ']') {
-    e.preventDefault(); const cur = getDrawSize(); const step = cur > 100 ? 20 : cur > 20 ? 5 : cur > 5 ? 2 : 1; const max = currentTool === 'pencil' ? 100 : 5000; const s = Math.min(max, cur + step);
-    if (currentTool === 'pencil') { document.getElementById('pencilSize').value = s; document.getElementById('pencilSizeNum').value = s; }
-    else { document.getElementById('drawSize').value = s; document.getElementById('drawSizeNum').value = s; }
-  }
-  else if (k === 'i' && !ctrl) { e.preventDefault(); togglePanelEyedropper(); }
-  else if (k === ' ') { e.preventDefault(); }
-  else if (toolKeys[k]) { selectTool(toolKeys[k]); }
-});
-
-/* ═══════════════════════════════════════════════════════
    STATUS BAR
    ═══════════════════════════════════════════════════════ */
 
@@ -5542,14 +4161,6 @@ function updateStatus(e) {
   document.getElementById('statusSize').textContent = `${canvasW} × ${canvasH}`;
   document.getElementById('statusZoom').textContent = Math.round(zoom * 100) + '%';
 }
-
-/* ═══════════════════════════════════════════════════════
-   SPACE BAR PAN
-   ═══════════════════════════════════════════════════════ */
-
-let spaceDown = false;
-document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !spaceDown && !e.target.matches('input,select,textarea')) { spaceDown = true; workspace.style.cursor = 'grab'; e.preventDefault(); } });
-document.addEventListener('keyup', (e) => { if (e.code === 'Space') { spaceDown = false; workspace.style.cursor = getToolCursor(); } });
 
 /* ═══════════════════════════════════════════════════════
    BRUSH CURSOR PREVIEW
@@ -5576,8 +4187,6 @@ function updateBrushCursor(e) {
     brushCursorEl.style.transform = `translate(${e.clientX - effScreenSize/2}px, ${e.clientY - effScreenSize/2}px)`;
   }
 }
-workspace.addEventListener('mousemove', updateBrushCursor);
-workspace.addEventListener('mouseleave', () => { brushCursorEl.style.display = 'none'; rulerMouseX = -1; rulerMouseY = -1; if (rulersVisible) drawRulers(); });
 
 /* ═══════════════════════════════════════════════════════
    COPY / CUT / PASTE — Floating Selection System
@@ -5664,8 +4273,7 @@ function hashCanvasContent(canvas) {
 
 /**
  * pasteCanvasInternal — Single canonical paste finalizer used by every entry
- * point (internal Ctrl+V via doPaste, external image via pasteImageOntoCanvas,
- * and the round-trip branch in the system-clipboard paste listener).
+ * point (internal Ctrl+V via doPaste and the system-clipboard paste listener).
  *
  * Sequence:
  *   1. Commit any active pixel transform / floating selection so the paste
@@ -5706,15 +4314,14 @@ function pasteCanvasInternal(srcCanvas, originX, originY) {
   selectionPath = new Path2D();
   selectionPath.rect(px, py, w, h);
 
-  // Push the Paste undo BEFORE switching to the move tool. selectTool('move')
-  // now auto-enters Free Transform when a selection exists, which clears the
-  // stamped pixels off the layer into srcCanvas — capturing the entry after
-  // that point would save an empty region. Recording first freezes the
-  // pristine stamped pixels into history, and _pxTransformWasActiveForPush
-  // still marks the entry so undo/redo re-engages the transform session.
+  // Push the Paste undo BEFORE engaging the smart-object transform.
+  // The history snapshot freezes the pristine stamped pixels (clipped at
+  // canvas bounds); the live session then carries the FULL srcCanvas in
+  // pxTransformData so off-canvas pixels survive drag/resize until commit.
   _pxTransformWasActiveForPush = true;
   pushUndo('Paste');
 
+  engageSmartObjectTransform(srcCanvas, px, py);
   selectTool('move');
   compositeAll();
   drawOverlay();
@@ -5833,10 +4440,10 @@ async function doPaste() {
             clipboardCanvas.height === h &&
             hashCanvasContent(tc) === clipboardSignature) {
           // Internal round-trip — preserve origin.
-          pasteCanvasInternal(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
+          pasteCanvasWithSizeCheck(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
         } else {
           // External image — center it.
-          pasteCanvasInternal(tc, Math.round((canvasW - w) / 2), Math.round((canvasH - h) / 2));
+          pasteCanvasWithSizeCheck(tc, Math.round((canvasW - w) / 2), Math.round((canvasH - h) / 2));
         }
         return;
       }
@@ -5844,24 +4451,36 @@ async function doPaste() {
   }
   // Fall back to internal clipboard.
   if (clipboardCanvas) {
-    pasteCanvasInternal(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
+    pasteCanvasWithSizeCheck(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
   }
 }
 
 /**
- * pasteImageOntoCanvas — External-image paste helper. Wraps an
- * HTMLImageElement in a canvas and delegates to pasteCanvasInternal with a
- * centered origin. Used by the drag-and-drop and paste-event paths when the
- * source is an external image (no internal origin to preserve).
+ * pasteCanvasWithSizeCheck — Paste entry-point that gates oversized images
+ * through the Image-Larger-Than-Canvas chooser. Both internal (Ctrl+V round-
+ * trip) and external (clipboard / drag-drop) paste paths route through here
+ * so the prompt fires consistently.
+ *
+ *  • Expand → grow canvas to fit (TL anchor) and stamp the image at (0,0).
+ *  • Keep   → stamp at the requested origin (clipped where it extends past
+ *             the canvas — same as the prior paste behavior).
+ *  • Cancel → no-op.
  */
-function pasteImageOntoCanvas(img) {
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-  if (!w || !h) return;
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  c.getContext('2d').drawImage(img, 0, 0);
-  pasteCanvasInternal(c, Math.round((canvasW - w) / 2), Math.round((canvasH - h) / 2));
+async function pasteCanvasWithSizeCheck(srcCanvas, originX, originY) {
+  if (!srcCanvas || !srcCanvas.width || !srcCanvas.height) return;
+  const w = srcCanvas.width, h = srcCanvas.height;
+  if (w > canvasW || h > canvasH) {
+    const choice = await openImportSizeDialog(w, h);
+    if (choice === 'cancel') return;
+    if (choice === 'expand') {
+      expandCanvasToFit(w, h);
+      zoomFit();
+      updateStatus();
+      pasteCanvasInternal(srcCanvas, 0, 0);
+      return;
+    }
+  }
+  pasteCanvasInternal(srcCanvas, originX, originY);
 }
 
 /**
@@ -5915,10 +4534,10 @@ document.addEventListener('paste', (e) => {
             clipboardCanvas.width === w &&
             clipboardCanvas.height === h &&
             hashCanvasContent(tc) === clipboardSignature) {
-          pasteCanvasInternal(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
+          pasteCanvasWithSizeCheck(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
         } else {
           // External image — drop it centered.
-          pasteCanvasInternal(tc, Math.round((canvasW - w) / 2), Math.round((canvasH - h) / 2));
+          pasteCanvasWithSizeCheck(tc, Math.round((canvasW - w) / 2), Math.round((canvasH - h) / 2));
         }
         URL.revokeObjectURL(url);
       };
@@ -6260,61 +4879,6 @@ function initPropertiesPanel() {
       else if (currentTool === 'movesel' && selection) propsAlignSelection(align);
     });
   });
-}
-
-/* --- Pixel Transform: Rotate / Flip / Align --- */
-
-function propsRotatePixelTransform(angleDeg) {
-  if (!pxTransformActive || !pxTransformData) return;
-  // Smart-object transform: panel rotate buttons accumulate into
-  // totalRotation just like the interactive rotation drag. Nothing is
-  // baked into srcCanvas until the session is committed, so the pixels
-  // stay lossless across any number of rotate clicks.
-  const rad = angleDeg * Math.PI / 180;
-  pxTransformData.totalRotation = (pxTransformData.totalRotation || 0) + rad;
-  compositeAll(); drawOverlay();
-  updatePropertiesPanel();
-}
-
-function propsFlipPixelTransform(axis) {
-  if (!pxTransformActive || !pxTransformData) return;
-  const d = pxTransformData;
-  // Flip acts on srcCanvas pixels, so any accumulated rotation must be
-  // baked first — otherwise the flip would apply in the unrotated source
-  // frame rather than the frame the user actually sees.
-  const pending = (d.totalRotation || 0) + (d.liveRotation || 0);
-  if (pending) bakeInteractiveRotation(pending);
-  const src = d.srcCanvas;
-  const flipped = document.createElement('canvas');
-  flipped.width = src.width; flipped.height = src.height;
-  const fCtx = flipped.getContext('2d');
-  if (axis === 'h') { fCtx.translate(src.width, 0); fCtx.scale(-1, 1); }
-  else { fCtx.translate(0, src.height); fCtx.scale(1, -1); }
-  fCtx.drawImage(src, 0, 0);
-  d.srcCanvas = flipped;
-  compositeAll(); drawOverlay();
-  // No history push — the flip is part of the live session and will be
-  // captured by the single 'Free Transform' entry at commit time.
-}
-
-function propsAlignPixelTransform(align) {
-  if (!pxTransformActive || !pxTransformData) return;
-  const cb = pxTransformData.curBounds;
-  // Photoshop-style: each button moves on a single axis only; the
-  // perpendicular axis stays at the object's current position.
-  switch (align) {
-    case 'l':  cb.x = 0; break;
-    case 'ch': cb.x = Math.round((canvasW - cb.w) / 2); break;
-    case 'r':  cb.x = canvasW - cb.w; break;
-    case 't':  cb.y = 0; break;
-    case 'cv': cb.y = Math.round((canvasH - cb.h) / 2); break;
-    case 'b':  cb.y = canvasH - cb.h; break;
-    default: return;
-  }
-  compositeAll(); drawOverlay();
-  updatePropertiesPanel();
-  // No history push — alignment is part of the live session and folds into
-  // the single 'Free Transform' entry at commit time.
 }
 
 /* --- Floating Selection: Align --- */
@@ -6753,33 +5317,6 @@ const SnapEngine = (function () {
    RULERS
    ═══════════════════════════════════════════════════════ */
 
-const rulerH = document.getElementById('rulerH');
-const rulerV = document.getElementById('rulerV');
-const rulerCorner = document.getElementById('rulerCorner');
-const rulerHCtx = rulerH.getContext('2d');
-const rulerVCtx = rulerV.getContext('2d');
-const RULER_SIZE = 20;
-// Ruler colors are canvas-drawn — read live from CSS variables so the
-// ThemeManager drives them automatically (no reassignment needed).
-function getRulerColors() {
-  const s = getComputedStyle(document.documentElement);
-  return {
-    bg:        s.getPropertyValue('--bg-secondary').trim() || '#242428',
-    tick:      s.getPropertyValue('--ruler-tick').trim()   || 'rgba(200,200,200,0.5)',
-    text:      s.getPropertyValue('--ruler-text').trim()   || 'rgba(200,200,200,0.55)',
-    indicator: s.getPropertyValue('--accent').trim()       || '#007aff'
-  };
-}
-
-function getRulerInterval() {
-  const steps = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
-  const targetScreen = 80;
-  for (let i = 0; i < steps.length; i++) {
-    if (steps[i] * zoom >= targetScreen) return steps[i];
-  }
-  return steps[steps.length - 1];
-}
-
 function toggleRulers() {
   rulersVisible = !rulersVisible;
   rulerH.style.display = rulersVisible ? '' : 'none';
@@ -6794,173 +5331,9 @@ function toggleRulers() {
   }
 }
 
-function drawRulers() {
-  if (!rulersVisible) return;
-  const { bg: RULER_BG, tick: RULER_TICK, text: RULER_TEXT, indicator: RULER_INDICATOR } = getRulerColors();
-
-  const dpr = window.devicePixelRatio || 1;
-  const wsRect = _getWsRect();
-  const hW = Math.round(wsRect.width - RULER_SIZE);
-  const vH = Math.round(wsRect.height - RULER_SIZE);
-
-  // Resize canvases if needed (account for DPR for crisp rendering)
-  if (rulerH.width !== hW * dpr || rulerH.height !== RULER_SIZE * dpr) {
-    rulerH.width = hW * dpr;
-    rulerH.height = RULER_SIZE * dpr;
-    rulerH.style.width = hW + 'px';
-    rulerH.style.height = RULER_SIZE + 'px';
-  }
-  if (rulerV.width !== RULER_SIZE * dpr || rulerV.height !== vH * dpr) {
-    rulerV.width = RULER_SIZE * dpr;
-    rulerV.height = vH * dpr;
-    rulerV.style.width = RULER_SIZE + 'px';
-    rulerV.style.height = vH + 'px';
-  }
-
-  const interval = getRulerInterval();
-  const sub = interval >= 10 ? 10 : interval >= 5 ? 5 : interval >= 2 ? 4 : 2;
-  const subSize = interval / sub;
-
-  // ── Horizontal ruler ──
-  rulerHCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  rulerHCtx.clearRect(0, 0, hW, RULER_SIZE);
-  rulerHCtx.fillStyle = RULER_BG;
-  rulerHCtx.fillRect(0, 0, hW, RULER_SIZE);
-
-  // The screen x position for canvas coordinate 0 is: panX (relative to workspace)
-  // But the horizontal ruler starts at RULER_SIZE from workspace left,
-  // so offset is panX - RULER_SIZE
-  const hOffset = panX - RULER_SIZE;
-
-  // Find range of canvas coords visible in the ruler
-  const canvasXStart = (-hOffset) / zoom;
-  const canvasXEnd = (hW - hOffset) / zoom;
-
-  // Find first major tick before visible range
-  const firstMajor = Math.floor(canvasXStart / interval) * interval;
-
-  rulerHCtx.fillStyle = RULER_TEXT;
-  rulerHCtx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  rulerHCtx.textBaseline = 'top';
-
-  for (let val = firstMajor; val <= canvasXEnd; val += subSize) {
-    const screenX = val * zoom + hOffset;
-    if (screenX < -1 || screenX > hW + 1) continue;
-
-    const roundedVal = Math.round(val * 1000) / 1000;
-    const isMajor = Math.abs(roundedVal % interval) < 0.001;
-    const isHalf = !isMajor && sub >= 4 && Math.abs(roundedVal % (interval / 2)) < 0.001;
-
-    const tickH = isMajor ? 12 : isHalf ? 8 : 4;
-    const x = Math.round(screenX) + 0.5;
-
-    rulerHCtx.strokeStyle = RULER_TICK;
-    rulerHCtx.lineWidth = 1;
-    rulerHCtx.beginPath();
-    rulerHCtx.moveTo(x, RULER_SIZE);
-    rulerHCtx.lineTo(x, RULER_SIZE - tickH);
-    rulerHCtx.stroke();
-
-    if (isMajor) {
-      const label = Math.round(roundedVal).toString();
-      rulerHCtx.fillStyle = RULER_TEXT;
-      rulerHCtx.fillText(label, screenX + 2, 2);
-    }
-  }
-
-  // Mouse indicator on horizontal ruler
-  if (rulerMouseX >= RULER_SIZE && rulerMouseX >= 0) {
-    const ix = Math.round(rulerMouseX - RULER_SIZE) + 0.5;
-    rulerHCtx.strokeStyle = RULER_INDICATOR;
-    rulerHCtx.lineWidth = 1;
-    rulerHCtx.beginPath();
-    rulerHCtx.moveTo(ix, 0);
-    rulerHCtx.lineTo(ix, RULER_SIZE);
-    rulerHCtx.stroke();
-  }
-
-  // ── Vertical ruler ──
-  rulerVCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  rulerVCtx.clearRect(0, 0, RULER_SIZE, vH);
-  rulerVCtx.fillStyle = RULER_BG;
-  rulerVCtx.fillRect(0, 0, RULER_SIZE, vH);
-
-  const vOffset = panY - RULER_SIZE;
-
-  const canvasYStart = (-vOffset) / zoom;
-  const canvasYEnd = (vH - vOffset) / zoom;
-  const firstMajorY = Math.floor(canvasYStart / interval) * interval;
-
-  rulerVCtx.fillStyle = RULER_TEXT;
-  rulerVCtx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-
-  for (let val = firstMajorY; val <= canvasYEnd; val += subSize) {
-    const screenY = val * zoom + vOffset;
-    if (screenY < -1 || screenY > vH + 1) continue;
-
-    const roundedVal = Math.round(val * 1000) / 1000;
-    const isMajor = Math.abs(roundedVal % interval) < 0.001;
-    const isHalf = !isMajor && sub >= 4 && Math.abs(roundedVal % (interval / 2)) < 0.001;
-
-    const tickH = isMajor ? 12 : isHalf ? 8 : 4;
-    const y = Math.round(screenY) + 0.5;
-
-    rulerVCtx.strokeStyle = RULER_TICK;
-    rulerVCtx.lineWidth = 1;
-    rulerVCtx.beginPath();
-    rulerVCtx.moveTo(RULER_SIZE, y);
-    rulerVCtx.lineTo(RULER_SIZE - tickH, y);
-    rulerVCtx.stroke();
-
-    if (isMajor) {
-      const label = Math.round(roundedVal).toString();
-      rulerVCtx.save();
-      rulerVCtx.translate(2, screenY + 2);
-      rulerVCtx.rotate(-Math.PI / 2);
-      rulerVCtx.fillStyle = RULER_TEXT;
-      rulerVCtx.textBaseline = 'top';
-      rulerVCtx.fillText(label, 0, 0);
-      rulerVCtx.restore();
-    }
-  }
-
-  // Mouse indicator on vertical ruler
-  if (rulerMouseY >= RULER_SIZE && rulerMouseY >= 0) {
-    const iy = Math.round(rulerMouseY - RULER_SIZE) + 0.5;
-    rulerVCtx.strokeStyle = RULER_INDICATOR;
-    rulerVCtx.lineWidth = 1;
-    rulerVCtx.beginPath();
-    rulerVCtx.moveTo(0, iy);
-    rulerVCtx.lineTo(RULER_SIZE, iy);
-    rulerVCtx.stroke();
-  }
-}
-
 /* ═══════════════════════════════════════════════════════
    GUIDES
    ═══════════════════════════════════════════════════════ */
-
-const guideOverlay = document.getElementById('guideOverlay');
-const guideOverlayCtx = guideOverlay.getContext('2d');
-const GUIDE_COLOR = '#00DCFF';
-const GUIDE_COLOR_SELECTED = '#0000FF';
-
-function hitTestGuide(clientX, clientY) {
-  if (!guidesVisible || guides.length === 0) return null;
-  const wsRect = workspace.getBoundingClientRect();
-  const mx = clientX - wsRect.left;
-  const my = clientY - wsRect.top;
-  const threshold = 6;
-  let bestGuide = null, bestDist = threshold;
-  for (let i = guides.length - 1; i >= 0; i--) {
-    const g = guides[i];
-    const dist = g.axis === 'v'
-      ? Math.abs(mx - (g.pos * zoom + panX))
-      : Math.abs(my - (g.pos * zoom + panY));
-    if (dist < bestDist) { bestDist = dist; bestGuide = g; }
-  }
-  return bestGuide;
-}
 
 function toggleGuides() {
   guidesVisible = !guidesVisible;
@@ -6977,185 +5350,10 @@ function clearAllGuides() {
   updatePropertiesPanel();
 }
 
-function drawGuides() {
-  const dpr = window.devicePixelRatio || 1;
-  const wsRect = workspace.getBoundingClientRect();
-  const w = Math.round(wsRect.width);
-  const h = Math.round(wsRect.height);
-
-  if (guideOverlay.width !== w * dpr || guideOverlay.height !== h * dpr) {
-    guideOverlay.width = w * dpr;
-    guideOverlay.height = h * dpr;
-    guideOverlay.style.width = w + 'px';
-    guideOverlay.style.height = h + 'px';
-  }
-
-  guideOverlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  guideOverlayCtx.clearRect(0, 0, w, h);
-
-  if (!guidesVisible || guides.length === 0) return;
-
-  for (const g of guides) {
-    const isSelected = (g === selectedGuide) || (draggingGuide && g === draggingGuide.guide);
-    guideOverlayCtx.strokeStyle = isSelected ? GUIDE_COLOR_SELECTED : GUIDE_COLOR;
-    guideOverlayCtx.lineWidth = 1;
-    guideOverlayCtx.setLineDash([]);
-
-    if (g.axis === 'v') {
-      const sx = Math.round(g.pos * zoom + panX) + 0.5;
-      guideOverlayCtx.beginPath();
-      guideOverlayCtx.moveTo(sx, 0);
-      guideOverlayCtx.lineTo(sx, h);
-      guideOverlayCtx.stroke();
-    } else {
-      const sy = Math.round(g.pos * zoom + panY) + 0.5;
-      guideOverlayCtx.beginPath();
-      guideOverlayCtx.moveTo(0, sy);
-      guideOverlayCtx.lineTo(w, sy);
-      guideOverlayCtx.stroke();
-    }
-  }
-}
-
 /* ═══════════════════════════════════════════════════════
    RULER TOOL (screen-space UI overlay)
    Viewport-only measurement; does not touch layers or undo.
    ═══════════════════════════════════════════════════════ */
-
-const uiOverlay = document.getElementById('uiOverlay');
-const uiOverlayCtx = uiOverlay.getContext('2d');
-const RULER_COLOR = '#007aff';
-const RULER_CROSSHAIR = '#000000';
-const RULER_HANDLE_SIZE = 9;     // screen px, square edge
-const RULER_HANDLE_HIT = 7;      // screen px, half-extent hit radius
-const RULER_LINE_HIT = 6;        // screen px, perpendicular corridor
-
-// Canvas-space (x,y) → workspace screen-space (sx,sy)
-function _rulerCanvasToScreen(cx, cy) {
-  return { sx: cx * zoom + panX, sy: cy * zoom + panY };
-}
-
-function drawUIOverlay() {
-  const dpr = window.devicePixelRatio || 1;
-  const wsRect = workspace.getBoundingClientRect();
-  const w = Math.round(wsRect.width);
-  const h = Math.round(wsRect.height);
-
-  if (uiOverlay.width !== w * dpr || uiOverlay.height !== h * dpr) {
-    uiOverlay.width = w * dpr;
-    uiOverlay.height = h * dpr;
-    uiOverlay.style.width = w + 'px';
-    uiOverlay.style.height = h + 'px';
-  }
-
-  uiOverlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  uiOverlayCtx.clearRect(0, 0, w, h);
-
-  if (!rulerState.active) return;
-
-  const p1 = _rulerCanvasToScreen(rulerState.x1, rulerState.y1);
-  const p2 = _rulerCanvasToScreen(rulerState.x2, rulerState.y2);
-
-  // ── Line: single solid 3px accent stroke ──
-  uiOverlayCtx.save();
-  uiOverlayCtx.lineCap = 'butt';
-  uiOverlayCtx.lineJoin = 'miter';
-
-  uiOverlayCtx.strokeStyle = RULER_COLOR;
-  uiOverlayCtx.lineWidth = 2;
-  uiOverlayCtx.beginPath();
-  uiOverlayCtx.moveTo(p1.sx, p1.sy);
-  uiOverlayCtx.lineTo(p2.sx, p2.sy);
-  uiOverlayCtx.stroke();
-
-  // ── Endpoint handles: transparent fill, blue outline, black crosshair ──
-  const hs = RULER_HANDLE_SIZE;
-  const half = Math.floor(hs / 2); // 4 for 900px
-
-  for (const p of [p1, p2]) {
-    // Crisp pixel alignment: align rect corner to integer grid
-    const cx = Math.round(p.sx);
-    const cy = Math.round(p.sy);
-    const rx = cx - half;
-    const ry = cy - half;
-
-    // Accent outline only (no fill so the pixel beneath is visible)
-    uiOverlayCtx.strokeStyle = RULER_COLOR;
-    uiOverlayCtx.lineWidth = 1;
-    uiOverlayCtx.strokeRect(rx + 0.5, ry + 0.5, hs - 1, hs - 1);
-
-    // Black 1px crosshair glyph through the center pixel
-    uiOverlayCtx.strokeStyle = RULER_CROSSHAIR;
-    uiOverlayCtx.lineWidth = 0.5;
-    uiOverlayCtx.beginPath();
-    uiOverlayCtx.moveTo(rx + 0.5,       cy + 0.5);
-    uiOverlayCtx.lineTo(rx + hs - 0.5,  cy + 0.5);
-    uiOverlayCtx.moveTo(cx + 0.5,       ry + 0.5);
-    uiOverlayCtx.lineTo(cx + 0.5,       ry + hs - 0.5);
-    uiOverlayCtx.stroke();
-  }
-  uiOverlayCtx.restore();
-}
-
-// Screen-space hit test. Returns {type:'handle', which:1|2} | {type:'line'} | null
-function rulerHitTest(clientX, clientY) {
-  if (!rulerState.active) return null;
-  const wsRect = workspace.getBoundingClientRect();
-  const mx = clientX - wsRect.left;
-  const my = clientY - wsRect.top;
-
-  const p1 = _rulerCanvasToScreen(rulerState.x1, rulerState.y1);
-  const p2 = _rulerCanvasToScreen(rulerState.x2, rulerState.y2);
-
-  // Handles win over line (handles first)
-  const d1 = Math.max(Math.abs(mx - p1.sx), Math.abs(my - p1.sy));
-  if (d1 <= RULER_HANDLE_HIT) return { type: 'handle', which: 1 };
-  const d2 = Math.max(Math.abs(mx - p2.sx), Math.abs(my - p2.sy));
-  if (d2 <= RULER_HANDLE_HIT) return { type: 'handle', which: 2 };
-
-  // Perpendicular distance from segment
-  const dx = p2.sx - p1.sx;
-  const dy = p2.sy - p1.sy;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq < 0.0001) return null;
-  let t = ((mx - p1.sx) * dx + (my - p1.sy) * dy) / lenSq;
-  if (t < 0 || t > 1) return null;
-  const px = p1.sx + t * dx;
-  const py = p1.sy + t * dy;
-  const pd = Math.hypot(mx - px, my - py);
-  if (pd <= RULER_LINE_HIT) return { type: 'line' };
-  return null;
-}
-
-function getRulerCursor(hit, isDragging) {
-  if (!hit) return 'crosshair';
-  if (hit.type === 'handle') return isDragging ? 'grabbing' : 'grab';
-  if (hit.type === 'line') return 'all-scroll';
-  return 'crosshair';
-}
-
-// Photoshop-style 45° constraint: project raw point onto nearest 45° ray from anchor
-function applyRulerShiftConstraint(anchorX, anchorY, rawX, rawY) {
-  const dx = rawX - anchorX;
-  const dy = rawY - anchorY;
-  const len = Math.hypot(dx, dy);
-  if (len < 0.0001) return { x: anchorX, y: anchorY };
-  const step = Math.PI / 4;
-  const ang = Math.round(Math.atan2(dy, dx) / step) * step;
-  return { x: anchorX + len * Math.cos(ang), y: anchorY + len * Math.sin(ang) };
-}
-
-// Endpoint pipeline: SnapEngine → shift constraint → integer pixel lock
-function snapRulerPoint(pt, e, anchor) {
-  const snapped = SnapEngine.snapPoint({ x: pt.x, y: pt.y }, { modifiers: e });
-  let x = snapped.x, y = snapped.y;
-  if (e && e.shiftKey && anchor) {
-    const c = applyRulerShiftConstraint(anchor.x, anchor.y, x, y);
-    x = c.x; y = c.y;
-  }
-  return { x: Math.round(x), y: Math.round(y) };
-}
-
 
 function clearRuler() {
   rulerState.active = false;
@@ -7305,13 +5503,6 @@ setInterval(() => {
     }
   }
 }, 4000);
-
-/* ═══════════════════════════════════════════════════════
-   INIT ON LOAD
-   ═══════════════════════════════════════════════════════ */
-
-window.addEventListener('load', init);
-window.addEventListener('resize', () => { _wsRectCache = null; if (isFitMode) { zoomFit(); } else { centerCanvas(); drawRulers(); drawGuides(); drawUIOverlay(); } });
 
 /* ═══════════════════════════════════════════════════════
    PWA TOOLBAR DETECTION

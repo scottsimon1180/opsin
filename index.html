@@ -67,7 +67,6 @@
       <button class="menu-action" onclick="doPaste()">Paste <span class="shortcut">Ctrl+V</span></button>
       <div class="menu-sep"></div>
       <button class="menu-action" onclick="selectAll()">Select All <span class="shortcut">Ctrl+A</span></button>
-      <button class="menu-action" onclick="invertSelection()">Invert Selection <span class="shortcut">Ctrl+Shift+I</span></button>
       <button class="menu-action" onclick="clearSelection()">Deselect <span class="shortcut">Ctrl+D</span></button>
       <div class="menu-sep"></div>
       <button class="menu-action" onclick="deleteSelection()">Delete Selection <span class="shortcut">Del</span></button>
@@ -85,6 +84,13 @@
       <button class="menu-action" onclick="rotateCW()">Rotate 90° CW</button>
       <button class="menu-action" onclick="rotateCCW()">Rotate 90° CCW</button>
       <button class="menu-action" onclick="rotate180()">Rotate 180°</button>
+    </div>
+  </div>
+  <div class="menu-item" data-menu="select">Select
+    <div class="menu-dropdown" id="menu-select">
+      <button class="menu-action" onclick="selectAll()">Select All <span class="shortcut">Ctrl+A</span></button>
+      <button class="menu-action" onclick="invertSelection()">Invert Selection <span class="shortcut">Ctrl+Shift+I</span></button>
+      <button class="menu-action" onclick="clearSelection()">Deselect <span class="shortcut">Ctrl+D</span></button>
     </div>
   </div>
   <div class="menu-item" data-menu="filter">Adjustments
@@ -1256,11 +1262,23 @@
 
 <script src="js/version.js"></script>
 <script src="js/linked_icons.js"></script>
+<script src="js/core/constants.js"></script>
 <script src="js/history.js"></script>
+<script src="js/core/config.js"></script>
+<script src="js/core/dom.js"></script>
+<script src="js/core/state.js"></script>
+<script src="js/core/coordinates.js"></script>
 <script src="js/script.js"></script>
+<script src="js/document/layers.js"></script>
+<script src="js/document/documentModel.js"></script>
+<script src="js/document/layerTransforms.js"></script>
+<script src="js/core/rendering.js"></script>
+<script src="js/core/events.js"></script>
 <script src="js/toolbar.js"></script>
+<script src="js/core/keyboardShortcuts.js"></script>
 <script src="js/pngExport.js"></script>
 <script src="js/iconEditMode.js"></script>
+<script src="js/core/app.js"></script>
 <script>
   if (typeof OPSIN_VERSION !== 'undefined') {
     document.getElementById('statusVersion').textContent = OPSIN_VERSION;

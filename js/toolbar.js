@@ -158,8 +158,6 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
   btn.addEventListener('click', () => selectTool(btn.dataset.tool));
 });
 
-const toolKeys = {v:'move',q:'movesel',h:'pan',m:'select',l:'lasso',w:'wand',r:'ruler',b:'brush',p:'pencil',e:'eraser',g:'fill',d:'gradient',t:'text',u:'shape',z:'zoom'};
-
 /* ═══════════════════════════════════════════════════════
    OPTIONS BAR WIRING — slider sync + wheel scroll
    ═══════════════════════════════════════════════════════ */

@@ -121,8 +121,7 @@
 
   /* ──── Configuration ──────────────────────────────────────────────── */
 
-  const TILE_SIZE = 256;
-  const DEFAULT_MAX_BYTES = 512 * 1024 * 1024; // 512 MB
+  const DEFAULT_MAX_BYTES = 512 * 1024 * 1024; // 512 MB fallback when History.init() is called without maxBytes
   const TILE_BYTES = TILE_SIZE * TILE_SIZE * 4; // 262144 bytes / full tile
   const TILE_OVERHEAD = 96; // approximate per-tile struct + Map entry cost
 
@@ -396,7 +395,7 @@
     for (let i = 0; i < entry.structure.length; i++) {
       const s = entry.structure[i];
       const c = host.createLayerCanvas();
-      const ctx = c.getContext('2d');
+      const ctx = c.getContext('2d', { willReadFrequently: true });
       const snap = entry.layerSnapshots.get(s.id);
       if (snap) restoreLayer(ctx, snap);
       newLayers[i] = {
