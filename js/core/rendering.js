@@ -29,6 +29,7 @@ function compositeAll() {
   for (let i = layers.length - 1; i >= 0; i--) {
     const l = layers[i];
     if (!l.visible) continue;
+    if (window.TextTool && window.TextTool.isLayerPreviewSuppressed && window.TextTool.isLayerPreviewSuppressed(l)) continue;
     compositeCtx.globalAlpha = l.opacity;
     compositeCtx.drawImage(l.canvas, 0, 0);
     if (i === activeLayerIndex && floatingActive && floatingCanvas) {
@@ -61,6 +62,7 @@ function compositeAllWithStrokeBuffer() {
   for (let i = layers.length - 1; i >= 0; i--) {
     const l = layers[i];
     if (!l.visible) continue;
+    if (window.TextTool && window.TextTool.isLayerPreviewSuppressed && window.TextTool.isLayerPreviewSuppressed(l)) continue;
     compositeCtx.globalAlpha = l.opacity;
 
     if (i === activeLayerIndex) {

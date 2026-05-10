@@ -47,6 +47,7 @@
           <button class="menu-action" data-export-type="png" onclick="PngExport.openDialog()"><span class="menu-label">PNG</span></button>
           <button class="menu-action" data-export-type="jpg" onclick="saveImage('jpg')"><span class="menu-label">JPG</span></button>
           <button class="menu-action" data-export-type="webp" onclick="saveImage('webp')"><span class="menu-label">WebP</span></button>
+          <button class="menu-action" data-export-type="svg" onclick="SvgExport.openDialog()"><span class="menu-label">SVG</span></button>
           <button class="menu-action" data-export-type="tif" onclick="openExportModal('tif')"><span class="menu-label">TIF</span></button>
           <button class="menu-action" data-export-type="bmp" onclick="openExportModal('bmp')"><span class="menu-label">BMP</span></button>
           <button class="menu-action" data-export-type="ico" onclick="openExportIcoModal()"><span class="menu-label">ICO</span></button>
@@ -168,6 +169,14 @@
         <svg><use href="#icon-shape-line"/></svg>
       </button>
     </div>
+    <div class="tool-indicator-group hidden" id="toolIndicatorPen">
+      <button class="tool-indicator-btn active" id="optPenVariantPen" onclick="setPenVariant('pen')" title="Pen">
+        <svg><use href="#icon-pen"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optPenVariantAnchor" onclick="setPenVariant('anchor')" title="Anchor Point">
+        <svg><use href="#icon-anchor-point"/></svg>
+      </button>
+    </div>
   </div>
   <!-- Move tool controls -->
   <div class="opt-group hidden" id="opt-move">
@@ -176,6 +185,15 @@
       <span>Auto-Select Layer</span>
     </label>
     <button class="opt-action-btn opt-deselect-btn" id="optMoveDeselect" onclick="deselectMove()" title="Deselect (Ctrl+D) — commit the active transform and clear overlays" disabled>Deselect</button>
+  </div>
+  <!-- Direct Selection (Move Selection on shape layer) controls -->
+  <div class="opt-group hidden" id="opt-direct-select">
+    <span class="opt-label">Anchor X</span>
+    <input type="number" class="opt-input opt-input-md" id="dsAnchorX" disabled>
+    <span class="opt-label">Y</span>
+    <input type="number" class="opt-input opt-input-md" id="dsAnchorY" disabled>
+    <span class="ds-status-label" id="dsStatus">No anchors selected</span>
+    <button class="opt-action-btn" id="dsConvertBtn" title="Convert all primitive shapes on the active layer to editable paths">Convert to Path</button>
   </div>
   <!-- Brush / Eraser controls -->
   <div class="opt-group hidden" id="opt-draw-size">
@@ -216,31 +234,241 @@
     <input type="number" class="opt-input opt-input-sm" id="toolOpacityNum" value="100" min="1" max="100">
     <span class="opt-unit">%</span>
   </div>
-  <div class="opt-group hidden" id="opt-fill-mode">
+  <!-- Legacy hidden inputs preserved for any code reading them -->
+  <input type="hidden" id="shapeFillMode" value="both">
+  <input type="hidden" id="shapeStrokeWidth" value="2">
+
+  <!-- Shape tool — Illustrator-style fill/stroke chips -->
+  <!-- Pen tool — stripped-down options -->
+  <div class="opt-group hidden" id="opt-pen-mode">
+    <div class="opt-seg-bar">
+      <button class="opt-mode-btn active" id="optPenEdit" onclick="setPenMode('edit')" title="Edit anchors / draw new path">Edit</button>
+      <button class="opt-mode-btn" id="optPenAdd"  onclick="setPenMode('add')"  title="Add anchor on segment">Add</button>
+      <button class="opt-mode-btn" id="optPenSub"  onclick="setPenMode('minus')" title="Remove anchor">Minus</button>
+    </div>
+  </div>
+  <div class="opt-group hidden" id="opt-pen-fill">
     <span class="opt-label">Fill</span>
-    <select class="opt-select" id="shapeFillMode">
-      <option value="stroke">Stroke</option>
-      <option value="fill">Fill</option>
-      <option value="both">Both</option>
-    </select>
-  </div>
-  <div class="opt-group hidden" id="opt-stroke-width">
+    <div class="sh-chip-stack">
+      <button type="button" class="sh-chip-btn" id="penFillBtn" title="Fill color">
+        <span class="sh-chip" id="penFillChip"></span>
+      </button>
+      <button type="button" class="sh-chip-mini" id="penFillNoneBtn" title="No fill">
+        <svg viewBox="0 0 12 12"><use href="#icon-no-color"/></svg>
+      </button>
+    </div>
     <span class="opt-label">Stroke</span>
-    <input type="number" class="opt-input opt-input-sm" id="shapeStrokeWidth" value="2" min="1" max="50">
+    <div class="sh-chip-stack">
+      <button type="button" class="sh-chip-btn sh-chip-stroke" id="penStrokeBtn" title="Stroke color">
+        <span class="sh-chip" id="penStrokeChip"></span>
+      </button>
+      <button type="button" class="sh-chip-mini" id="penStrokeNoneBtn" title="No stroke">
+        <svg viewBox="0 0 12 12"><use href="#icon-no-color"/></svg>
+      </button>
+    </div>
   </div>
-  <div class="opt-group hidden" id="opt-font">
-    <span class="opt-label">Font</span>
-    <select class="opt-select" id="textFont">
-      <option value="Arial">Arial</option>
-      <option value="Helvetica">Helvetica</option>
-      <option value="Georgia">Georgia</option>
-      <option value="Times New Roman">Times New Roman</option>
-      <option value="Courier New">Courier New</option>
-      <option value="Verdana">Verdana</option>
-      <option value="Impact">Impact</option>
-    </select>
-    <input type="number" class="opt-input opt-input-md" id="textSize" value="24" min="6" max="400">
+  <div class="opt-group hidden" id="opt-pen-width">
+    <span class="opt-label">Width</span>
+    <input type="number" class="opt-input opt-input-sm" id="penStrokeWidth" value="2" min="0" max="500" step="0.5">
     <span class="opt-unit">px</span>
+  </div>
+
+  <div class="opt-group hidden" id="opt-shape-fill">
+    <span class="opt-label">Fill</span>
+    <div class="sh-chip-stack">
+      <button type="button" class="sh-chip-btn" id="shFillBtn" title="Fill color">
+        <span class="sh-chip" id="shFillChip"></span>
+      </button>
+      <button type="button" class="sh-chip-mini" id="shFillNoneBtn" title="No fill">
+        <svg viewBox="0 0 12 12"><use href="#icon-no-color"/></svg>
+      </button>
+    </div>
+    <button type="button" class="sh-swap" id="shSwapBtn" title="Swap fill and stroke">
+      <svg viewBox="0 0 14 14"><use href="#icon-swap-horizontal-small"/></svg>
+    </button>
+    <span class="opt-label">Stroke</span>
+    <div class="sh-chip-stack">
+      <button type="button" class="sh-chip-btn sh-chip-stroke" id="shStrokeBtn" title="Stroke color">
+        <span class="sh-chip" id="shStrokeChip"></span>
+      </button>
+      <button type="button" class="sh-chip-mini" id="shStrokeNoneBtn" title="No stroke">
+        <svg viewBox="0 0 12 12"><use href="#icon-no-color"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Stroke width + alignment + cap + join -->
+  <div class="opt-group hidden" id="opt-shape-stroke-style">
+    <span class="opt-label">Width</span>
+    <input type="number" class="opt-input opt-input-sm" id="shStrokeWidth" value="2" min="0" max="500" step="0.5">
+    <span class="opt-unit">px</span>
+    <div class="opt-icon-group" id="shAlignGroup" title="Stroke alignment">
+      <button type="button" class="opt-icon-btn active" data-align="center" title="Align Center">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-align-center"/></svg>
+      </button>
+      <button type="button" class="opt-icon-btn" data-align="inner" title="Align Inside">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-align-inner"/></svg>
+      </button>
+      <button type="button" class="opt-icon-btn" data-align="outer" title="Align Outside">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-align-outer"/></svg>
+      </button>
+    </div>
+    <div class="opt-icon-group" id="shCapGroup" title="Stroke cap">
+      <button type="button" class="opt-icon-btn active" data-cap="butt" title="Butt Cap">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-cap-butt"/></svg>
+      </button>
+      <button type="button" class="opt-icon-btn" data-cap="round" title="Round Cap">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-cap-round"/></svg>
+      </button>
+      <button type="button" class="opt-icon-btn" data-cap="square" title="Square Cap">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-cap-square"/></svg>
+      </button>
+    </div>
+    <div class="opt-icon-group" id="shJoinGroup" title="Stroke join">
+      <button type="button" class="opt-icon-btn active" data-join="miter" title="Miter Join">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-join-miter"/></svg>
+      </button>
+      <button type="button" class="opt-icon-btn" data-join="round" title="Round Join">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-join-round"/></svg>
+      </button>
+      <button type="button" class="opt-icon-btn" data-join="bevel" title="Bevel Join">
+        <svg viewBox="0 0 24 24"><use href="#icon-stroke-join-bevel"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Stroke type: preset dropdown + 6-field custom + offset (custom only when type ≠ Solid) -->
+  <div class="opt-group hidden" id="opt-shape-dash">
+    <span class="opt-label">Type</span>
+    <div class="sh-preset-drop">
+      <button type="button" class="sh-preset-btn" id="shDashPresetBtn">Solid</button>
+      <div class="sh-preset-menu" id="shDashPresetMenu" role="listbox"></div>
+    </div>
+    <div class="sh-dash-grid" id="shDashGrid" title="Dash, Gap × 3 (Illustrator style)">
+      <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="shDash1" value="0" min="0" step="1" title="Dash 1">
+      <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="shGap1"  value="0" min="0" step="1" title="Gap 1">
+      <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="shDash2" value="0" min="0" step="1" title="Dash 2">
+      <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="shGap2"  value="0" min="0" step="1" title="Gap 2">
+      <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="shDash3" value="0" min="0" step="1" title="Dash 3">
+      <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="shGap3"  value="0" min="0" step="1" title="Gap 3">
+    </div>
+    <span class="opt-label sh-tight" id="shDashOffsetLabel">Offset</span>
+    <input type="number" class="opt-input opt-input-sm" id="shDashOffset" value="0" step="1" title="Dash offset">
+  </div>
+
+  <!-- Corner radius (rect only) -->
+  <div class="opt-group hidden" id="opt-shape-corner">
+    <span class="opt-label">Radius</span>
+    <input type="number" class="opt-input opt-input-sm" id="shCornerRadius" value="0" min="0" max="9999" step="1">
+    <span class="opt-unit">px</span>
+  </div>
+
+  <!-- Text tool — Pixlr-inspired -->
+  <div class="opt-group hidden" id="opt-text-font">
+    <span class="opt-label">Font</span>
+    <div class="tx-fontdrop" id="txFontDrop">
+      <button type="button" class="tx-fontdrop-btn" id="txFontBtn">Arial</button>
+      <div class="tx-fontdrop-menu" id="txFontMenu" role="listbox"></div>
+      <input type="file" id="txFontFile" accept=".ttf,.otf,.woff,.woff2" hidden>
+    </div>
+  </div>
+  <div class="opt-group hidden" id="opt-text-size">
+    <span class="opt-label">Size</span>
+    <div class="tx-sizebox" id="txSizeBox">
+      <input type="text" class="opt-input" id="txSize" value="24">
+      <span class="tx-size-toggle" id="txSizeToggle"></span>
+      <div class="tx-size-menu" id="txSizeMenu"></div>
+    </div>
+    <span class="opt-unit">px</span>
+  </div>
+  <div class="opt-group hidden" id="opt-text-fill">
+    <span class="opt-label">Fill</span>
+    <button type="button" class="tx-fill-swatch" id="txFillBtn" title="Text Color">
+      <span class="tx-fill-chip" id="txFillChip"></span>
+    </button>
+  </div>
+  <div class="opt-group hidden" id="opt-text-format">
+    <button type="button" class="opt-action-btn" id="txFormatBtn">Format</button>
+  </div>
+
+  <!-- Format popover (anchored to txFormatBtn at runtime) -->
+  <div class="tx-popover" id="txFormatPopover" hidden>
+    <div class="tx-pop-row">
+      <span class="tx-pop-label">Line</span>
+      <input type="range" class="opt-range" id="txLineSpacing" min="0.5" max="3" step="0.05" value="1.2">
+      <input type="number" class="opt-input opt-input-md" id="txLineSpacingNum" value="1.20" step="0.05" min="0.5" max="3">
+    </div>
+    <div class="tx-pop-row">
+      <span class="tx-pop-label">Letter</span>
+      <input type="range" class="opt-range" id="txLetterSpacing" min="-10" max="40" value="0">
+      <input type="number" class="opt-input opt-input-sm" id="txLetterSpacingNum" value="0" min="-10" max="40">
+      <span class="opt-unit">px</span>
+    </div>
+    <div class="tx-pop-row">
+      <span class="tx-pop-label">Align</span>
+      <div class="opt-icon-group" id="txAlignGroup">
+        <button type="button" class="opt-icon-btn active" data-align="left"    title="Left"><svg viewBox="0 0 24 24"><use href="#icon-text-align-left"/></svg></button>
+        <button type="button" class="opt-icon-btn"        data-align="center"  title="Center"><svg viewBox="0 0 24 24"><use href="#icon-text-align-center"/></svg></button>
+        <button type="button" class="opt-icon-btn"        data-align="right"   title="Right"><svg viewBox="0 0 24 24"><use href="#icon-text-align-right"/></svg></button>
+        <button type="button" class="opt-icon-btn"        data-align="justify" title="Justify"><svg viewBox="0 0 24 24"><use href="#icon-text-align-justify"/></svg></button>
+      </div>
+    </div>
+    <div class="tx-pop-row">
+      <span class="tx-pop-label">Style</span>
+      <div class="opt-icon-group" id="txStyleGroup">
+        <button type="button" class="opt-icon-btn tx-style-b" data-style="bold"      title="Bold (Ctrl+B)"><b>B</b></button>
+        <button type="button" class="opt-icon-btn tx-style-i" data-style="italic"    title="Italic (Ctrl+I)"><i>I</i></button>
+        <button type="button" class="opt-icon-btn tx-style-u" data-style="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rasterize confirmation modal -->
+  <div class="tx-rasterize-overlay" id="txRasterizeModal" hidden>
+    <div class="tx-rasterize-card">
+      <div class="tx-rasterize-head">
+        <div class="tx-rasterize-icon">!</div>
+        <div class="tx-rasterize-title" id="txRasterizeTitle">Rasterize Text Layer?</div>
+      </div>
+      <div class="tx-rasterize-body" id="txRasterizeBody">
+        This text layer must be rasterized before using the <strong id="txRasterizeToolName">Brush</strong> tool.
+        Rasterizing converts the editable text to pixels and cannot be undone in the edit history.
+      </div>
+      <div class="tx-rasterize-foot">
+        <button type="button" class="tx-btn tx-btn-secondary" id="txRasterizeCancel">Cancel</button>
+        <button type="button" class="tx-btn tx-btn-primary"   id="txRasterizeConfirm">Rasterize</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Layer-panel context menu (right-click) -->
+  <div class="layer-ctx-menu" id="layerCtxMenu" hidden>
+    <button type="button" class="layer-ctx-item" id="layerCtxRasterize">Rasterize Layer</button>
+    <button type="button" class="layer-ctx-item" id="layerCtxEditText">Edit Text</button>
+  </div>
+
+  <!-- Shape rasterize confirmation modal (mirrors the text-tool variant) -->
+  <div class="tx-rasterize-overlay" id="shRasterizeModal" hidden>
+    <div class="tx-rasterize-card">
+      <div class="tx-rasterize-head">
+        <div class="tx-rasterize-icon">!</div>
+        <div class="tx-rasterize-title">Rasterize Shape Layer?</div>
+      </div>
+      <div class="tx-rasterize-body">
+        This shape layer must be rasterized before using the <strong id="shRasterizeToolName">Brush</strong> tool.
+        Rasterizing converts the editable shapes to pixels and cannot be undone in the edit history.
+      </div>
+      <div class="tx-rasterize-foot">
+        <button type="button" class="tx-btn tx-btn-secondary" id="shRasterizeCancel">Cancel</button>
+        <button type="button" class="tx-btn tx-btn-primary"   id="shRasterizeConfirm">Rasterize</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shape right-click context menu (selected-shape actions) -->
+  <div class="layer-ctx-menu sh-ctx-menu" id="shapeCtxMenu" hidden>
+    <button type="button" class="layer-ctx-item" data-action="duplicate">Duplicate<span class="layer-ctx-shortcut">Ctrl+D</span></button>
+    <button type="button" class="layer-ctx-item" data-action="delete">Delete<span class="layer-ctx-shortcut">Del</span></button>
   </div>
   <div class="opt-group hidden" id="opt-gradient-opacity">
     <span class="opt-label">Opacity</span>
@@ -336,12 +564,6 @@
 
     <div class="tool-sep"></div>
 
-    <button class="tool-btn" data-tool="ruler" title="Ruler (R)">
-      <svg><use href="#icon-ruler-tool"/></svg>
-    </button>
-
-    <div class="tool-sep"></div>
-
     <button class="tool-btn" data-tool="brush" title="Brush (B)">
       <svg><use href="#icon-brush"/></svg>
     </button>
@@ -360,15 +582,26 @@
     <button class="tool-btn" data-tool="gradient" title="Gradient (D)">
       <svg><use href="#icon-gradient"/></svg>
     </button>
-        <div class="tool-sep"></div>
 
-    <button class="tool-btn" id="importLayerBtn" title="Import Image as Layer" onclick="triggerImportLayer()">
-      <svg><use href="#icon-import-layer"/></svg>
+    <div class="tool-sep"></div>
+
+    <button class="tool-btn" data-tool="eyedropper" title="Eyedropper">
+      <svg><use href="#icon-eyedropper"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="ruler" title="Ruler (R)">
+      <svg><use href="#icon-ruler-tool"/></svg>
     </button>
 
+    <div class="tool-sep"></div>
 
     <button class="tool-btn" data-tool="text" title="Text (T)">
       <svg><use href="#icon-text"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="pen" id="penToolBtn" title="Pen">
+      <svg><use href="#icon-pen"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="directselect" id="directSelectToolBtn" title="Direct Selection (A)">
+      <svg><use href="#icon-direct-select"/></svg>
     </button>
     <button class="tool-btn" data-tool="shape" id="shapeToolBtn" title="Shapes (U)">
       <svg><use href="#icon-shape"/></svg>
@@ -398,9 +631,7 @@
     <!-- Gradient stop right-click delete menu -->
     <div class="grad-stop-ctx" id="gradStopCtx">
       <button class="grad-stop-delete" onclick="executeGradStopDelete()" title="Delete Stop">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-        </svg>
+        <svg width="18" height="18" viewBox="0 0 24 24"><use href="#icon-trash-outline"/></svg>
       </button>
     </div>
     <!-- Drag-and-drop import overlay — anchored to workspace -->
@@ -547,6 +778,199 @@
             <svg aria-hidden="true"><use href="#icon-align-bottom"/></svg>
           </button>
         </div>
+
+        <!-- ── Shape-tool extension (visible only when shape tool active) ── -->
+        <section class="props-shape" id="propsShapeSection" hidden aria-label="Shape properties">
+          <div class="props-shape-divider" aria-hidden="true">
+            <span class="props-shape-divider-line"></span>
+            <span class="props-shape-divider-tag">SHAPE</span>
+            <span class="props-shape-divider-line"></span>
+          </div>
+
+          <!-- Appearance: fill + stroke chips -->
+          <div class="props-shape-row props-shape-row--chips">
+            <div class="props-shape-chipset">
+              <span class="props-shape-tag">Fill</span>
+              <button type="button" class="sh-chip-btn" id="pshFillBtn" title="Fill color">
+                <span class="sh-chip" id="pshFillChip"></span>
+              </button>
+              <button type="button" class="sh-chip-mini" id="pshFillNoneBtn" title="No fill">
+                <svg viewBox="0 0 12 12"><use href="#icon-no-color"/></svg>
+              </button>
+            </div>
+            <button type="button" class="sh-swap props-shape-swap" id="pshSwapBtn" title="Swap fill and stroke">
+              <svg viewBox="0 0 14 14"><use href="#icon-swap-horizontal-small"/></svg>
+            </button>
+            <div class="props-shape-chipset">
+              <span class="props-shape-tag">Stroke</span>
+              <button type="button" class="sh-chip-btn sh-chip-stroke" id="pshStrokeBtn" title="Stroke color">
+                <span class="sh-chip" id="pshStrokeChip"></span>
+              </button>
+              <button type="button" class="sh-chip-mini" id="pshStrokeNoneBtn" title="No stroke">
+                <svg viewBox="0 0 12 12"><use href="#icon-no-color"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Stroke width + alignment -->
+          <div class="props-shape-row">
+            <label class="props-shape-label" for="pshStrokeWidth">Stroke</label>
+            <div class="props-input-wrap props-shape-numwrap">
+              <input type="number" class="props-input" id="pshStrokeWidth" value="2" min="0" max="500" step="0.5">
+              <span class="props-unit">px</span>
+            </div>
+            <div class="opt-icon-group props-shape-icongroup" id="pshAlignGroup" title="Stroke alignment">
+              <button type="button" class="opt-icon-btn active" data-align="center" title="Align Center">
+                <svg viewBox="0 0 24 24"><use href="#icon-stroke-align-center"/></svg>
+              </button>
+              <button type="button" class="opt-icon-btn" data-align="inner" title="Align Inside">
+                <svg viewBox="0 0 24 24"><use href="#icon-stroke-align-inner"/></svg>
+              </button>
+              <button type="button" class="opt-icon-btn" data-align="outer" title="Align Outside">
+                <svg viewBox="0 0 24 24"><use href="#icon-stroke-align-outer"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Stroke type (preset dropdown) -->
+          <div class="props-shape-row">
+            <label class="props-shape-label">Type</label>
+            <div class="sh-preset-drop props-shape-preset">
+              <button type="button" class="sh-preset-btn" id="pshDashPresetBtn">Solid</button>
+              <div class="sh-preset-menu" id="pshDashPresetMenu" role="listbox"></div>
+            </div>
+          </div>
+
+          <!-- Custom dash editor (only when dashed) -->
+          <div class="props-shape-row props-shape-dash-row" id="pshDashRow">
+            <div class="sh-dash-grid props-shape-dashgrid" id="pshDashGrid" title="Dash, Gap × 3 (Illustrator style)">
+              <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="pshDash1" value="0" min="0" step="1" title="Dash 1">
+              <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="pshGap1"  value="0" min="0" step="1" title="Gap 1">
+              <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="pshDash2" value="0" min="0" step="1" title="Dash 2">
+              <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="pshGap2"  value="0" min="0" step="1" title="Gap 2">
+              <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="pshDash3" value="0" min="0" step="1" title="Dash 3">
+              <input type="number" class="opt-input opt-input-sm sh-dash-inp" id="pshGap3"  value="0" min="0" step="1" title="Gap 3">
+            </div>
+            <div class="props-shape-offset">
+              <span class="props-shape-label props-shape-label--mini" id="pshDashOffsetLabel">Offset</span>
+              <input type="number" class="opt-input opt-input-sm" id="pshDashOffset" value="0" step="1" title="Dash offset">
+            </div>
+          </div>
+
+          <!-- Corner radius (rect only) -->
+          <div class="props-shape-row" id="pshCornerRow">
+            <label class="props-shape-label" for="pshCornerRadius">Radius</label>
+            <div class="props-input-wrap props-shape-numwrap">
+              <input type="number" class="props-input" id="pshCornerRadius" value="0" min="0" max="9999" step="1">
+              <span class="props-unit">px</span>
+            </div>
+          </div>
+
+          <!-- Cap + join -->
+          <div class="props-shape-row props-shape-row--split">
+            <div class="props-shape-cell">
+              <span class="props-shape-label props-shape-label--mini">Cap</span>
+              <div class="opt-icon-group props-shape-icongroup" id="pshCapGroup">
+                <button type="button" class="opt-icon-btn active" data-cap="butt" title="Butt Cap">
+                  <svg viewBox="0 0 24 24"><use href="#icon-stroke-cap-butt"/></svg>
+                </button>
+                <button type="button" class="opt-icon-btn" data-cap="round" title="Round Cap">
+                  <svg viewBox="0 0 24 24"><use href="#icon-stroke-cap-round"/></svg>
+                </button>
+                <button type="button" class="opt-icon-btn" data-cap="square" title="Square Cap">
+                  <svg viewBox="0 0 24 24"><use href="#icon-stroke-cap-square"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="props-shape-cell">
+              <span class="props-shape-label props-shape-label--mini">Join</span>
+              <div class="opt-icon-group props-shape-icongroup" id="pshJoinGroup">
+                <button type="button" class="opt-icon-btn active" data-join="miter" title="Miter Join">
+                  <svg viewBox="0 0 24 24"><use href="#icon-stroke-join-miter"/></svg>
+                </button>
+                <button type="button" class="opt-icon-btn" data-join="round" title="Round Join">
+                  <svg viewBox="0 0 24 24"><use href="#icon-stroke-join-round"/></svg>
+                </button>
+                <button type="button" class="opt-icon-btn" data-join="bevel" title="Bevel Join">
+                  <svg viewBox="0 0 24 24"><use href="#icon-stroke-join-bevel"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ── Text-tool extension (visible only when text tool active) ── -->
+        <section class="props-shape props-text" id="propsTextSection" hidden aria-label="Text properties">
+          <div class="props-shape-divider" aria-hidden="true">
+            <span class="props-shape-divider-line"></span>
+            <span class="props-shape-divider-tag">TEXT</span>
+            <span class="props-shape-divider-line"></span>
+          </div>
+
+          <!-- Font dropdown -->
+          <div class="props-shape-row props-text-row--font">
+            <label class="props-shape-label">Font</label>
+            <div class="tx-fontdrop props-text-fontdrop" id="ptxFontDrop">
+              <button type="button" class="tx-fontdrop-btn" id="ptxFontBtn">Arial</button>
+              <div class="tx-fontdrop-menu" id="ptxFontMenu" role="listbox"></div>
+            </div>
+          </div>
+
+          <!-- Size + Fill (split row) -->
+          <div class="props-shape-row props-shape-row--split">
+            <div class="props-shape-cell">
+              <span class="props-shape-label props-shape-label--mini">Size</span>
+              <div class="tx-sizebox props-text-sizebox" id="ptxSizeBox">
+                <input type="text" class="opt-input opt-input-sm" id="ptxSize" value="24">
+                <span class="tx-size-toggle" id="ptxSizeToggle"></span>
+                <div class="tx-size-menu" id="ptxSizeMenu"></div>
+              </div>
+            </div>
+            <div class="props-shape-cell">
+              <span class="props-shape-label props-shape-label--mini">Fill</span>
+              <button type="button" class="tx-fill-swatch" id="ptxFillBtn" title="Text Color">
+                <span class="tx-fill-chip" id="ptxFillChip"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Line spacing -->
+          <div class="props-shape-row props-text-row--spacing">
+            <label class="props-shape-label" for="ptxLineSpacingNum">Line</label>
+            <input type="range" class="opt-range props-text-range" id="ptxLineSpacing" min="0.5" max="3" step="0.05" value="1.2">
+            <input type="number" class="opt-input opt-input-sm" id="ptxLineSpacingNum" value="1.20" step="0.05" min="0.5" max="3">
+          </div>
+
+          <!-- Letter spacing -->
+          <div class="props-shape-row props-text-row--spacing">
+            <label class="props-shape-label" for="ptxLetterSpacingNum">Letter</label>
+            <input type="range" class="opt-range props-text-range" id="ptxLetterSpacing" min="-10" max="40" value="0">
+            <input type="number" class="opt-input opt-input-sm" id="ptxLetterSpacingNum" value="0" min="-10" max="40">
+            <span class="props-unit">px</span>
+          </div>
+
+          <!-- Alignment -->
+          <div class="props-shape-row">
+            <label class="props-shape-label">Align</label>
+            <div class="opt-icon-group props-shape-icongroup" id="ptxAlignGroup">
+              <button type="button" class="opt-icon-btn active" data-align="left" title="Left"><svg viewBox="0 0 24 24"><use href="#icon-text-align-left"/></svg></button>
+              <button type="button" class="opt-icon-btn" data-align="center" title="Center"><svg viewBox="0 0 24 24"><use href="#icon-text-align-center"/></svg></button>
+              <button type="button" class="opt-icon-btn" data-align="right" title="Right"><svg viewBox="0 0 24 24"><use href="#icon-text-align-right"/></svg></button>
+              <button type="button" class="opt-icon-btn" data-align="justify" title="Justify"><svg viewBox="0 0 24 24"><use href="#icon-text-align-justify"/></svg></button>
+            </div>
+          </div>
+
+          <!-- Style -->
+          <div class="props-shape-row">
+            <label class="props-shape-label">Style</label>
+            <div class="opt-icon-group props-shape-icongroup" id="ptxStyleGroup">
+              <button type="button" class="opt-icon-btn tx-style-b" data-style="bold"      title="Bold (Ctrl+B)"><b>B</b></button>
+              <button type="button" class="opt-icon-btn tx-style-i" data-style="italic"    title="Italic (Ctrl+I)"><i>I</i></button>
+              <button type="button" class="opt-icon-btn tx-style-u" data-style="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -621,7 +1045,9 @@
   <span class="status-item" id="statusZoom">100%</span>
   <span class="status-sep"></span>
   <span class="status-item" id="statusTool">Move</span>
+  <span class="status-spacer"></span>
   <span class="status-item" id="statusVersionAlt" onclick="openInfoPopup()"></span>
+  <span class="status-item status-system-monitor" id="statusSystemMonitor" title="Browser-safe live estimates. OS-wide CPU, GPU, and RAM usage are not exposed to file:// pages.">CPU --% | GPU --% | RAM --</span>
 </div>
 
 <!-- ═══════════════════ NEW IMAGE MODAL ═══════════════════ -->
@@ -698,6 +1124,21 @@
   </div>
 </div>
 
+<!-- ═══════════════════ ADJUSTMENT PANEL (Brightness/Contrast & Hue/Saturation) ═══════════════════ -->
+<div class="adj-overlay" id="adjOverlay">
+  <div class="adj-panel" id="adjustmentPanel">
+    <div class="adj-titlebar" id="adjTitlebar">
+      <span class="adj-title" id="adjTitle">Adjustment</span>
+      <button class="adj-close" id="adjCloseBtn" onclick="cancelAdjustment()" title="Close">&times;</button>
+    </div>
+    <div class="adj-body" id="adjControls"></div>
+    <div class="adj-footer">
+      <button class="adj-btn" onclick="cancelAdjustment()">Cancel</button>
+      <button class="adj-btn primary" onclick="commitAdjustment()">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- Hidden file input (open image) -->
 <input type="file" id="fileInput" accept="image/*,image/x-icon,image/vnd.microsoft.icon,.ico">
 
@@ -711,19 +1152,22 @@
 <div class="modal-overlay" id="resizeImageModal">
   <div class="modal">
     <div class="modal-title">Resize Image</div>
-    <div class="modal-row">
-      <span class="modal-label">Width</span>
-      <input type="number" class="modal-input" id="resizeW" value="1920" min="1" max="16384">
-    </div>
-    <div class="modal-row">
-      <span class="modal-label">Height</span>
-      <input type="number" class="modal-input" id="resizeH" value="1080" min="1" max="16384">
-    </div>
-    <div class="modal-row">
-      <label class="opt-checkbox-label" style="margin-left:80px">
-        <input type="checkbox" id="resizeConstrain" checked>
-        <span>Constrain proportions</span>
-      </label>
+    <div class="dim-pair">
+      <div class="modal-row">
+        <span class="modal-label">Width</span>
+        <input type="number" class="modal-input" id="resizeW" value="1920" min="1" max="16384">
+      </div>
+      <div class="modal-row">
+        <span class="modal-label">Height</span>
+        <input type="number" class="modal-input" id="resizeH" value="1080" min="1" max="16384">
+      </div>
+      <div class="dim-lock-wrap">
+        <span class="dim-lock-rail dim-lock-rail--top" aria-hidden="true"></span>
+        <span class="dim-lock-rail dim-lock-rail--bot" aria-hidden="true"></span>
+        <button type="button" class="dim-lock-btn locked" id="resizeDimLock" title="Link Width &amp; Height">
+          <svg><use href="#icon-chain-linked"/></svg>
+        </button>
+      </div>
     </div>
     <div class="modal-buttons">
       <button class="modal-btn" onclick="closeModal('resizeImageModal')">Cancel</button>
@@ -736,13 +1180,22 @@
 <div class="modal-overlay" id="canvasSizeModal">
   <div class="modal">
     <div class="modal-title">Canvas Size</div>
-    <div class="modal-row">
-      <span class="modal-label">Width</span>
-      <input type="number" class="modal-input" id="canvasSizeW" value="1920" min="1" max="16384">
-    </div>
-    <div class="modal-row">
-      <span class="modal-label">Height</span>
-      <input type="number" class="modal-input" id="canvasSizeH" value="1080" min="1" max="16384">
+    <div class="dim-pair">
+      <div class="modal-row">
+        <span class="modal-label">Width</span>
+        <input type="number" class="modal-input" id="canvasSizeW" value="1920" min="1" max="16384">
+      </div>
+      <div class="modal-row">
+        <span class="modal-label">Height</span>
+        <input type="number" class="modal-input" id="canvasSizeH" value="1080" min="1" max="16384">
+      </div>
+      <div class="dim-lock-wrap">
+        <span class="dim-lock-rail dim-lock-rail--top" aria-hidden="true"></span>
+        <span class="dim-lock-rail dim-lock-rail--bot" aria-hidden="true"></span>
+        <button type="button" class="dim-lock-btn" id="canvasSizeDimLock" title="Link Width &amp; Height">
+          <svg><use href="#icon-chain-unlinked"/></svg>
+        </button>
+      </div>
     </div>
     <div class="modal-row">
       <span class="modal-label">Anchor</span>
@@ -770,16 +1223,7 @@
       </div>
       <button type="button" class="import-size-card is-default" id="importSizeExpand" data-choice="expand">
         <div class="import-size-card-icon">
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <rect x="3" y="3" width="34" height="34" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2.5" opacity="0.55"/>
-            <rect x="11.5" y="11.5" width="17" height="17" rx="1.5" fill="currentColor" opacity="0.14" stroke="currentColor" stroke-width="1.4"/>
-            <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
-              <path d="M8.5 8.5 L5 5"/><polyline points="5,9 5,5 9,5"/>
-              <path d="M31.5 8.5 L35 5"/><polyline points="31,5 35,5 35,9"/>
-              <path d="M8.5 31.5 L5 35"/><polyline points="9,35 5,35 5,31"/>
-              <path d="M31.5 31.5 L35 35"/><polyline points="35,31 35,35 31,35"/>
-            </g>
-          </svg>
+          <svg viewBox="0 0 40 40" aria-hidden="true"><use href="#icon-canvas-expand"/></svg>
         </div>
         <div class="import-size-card-text">
           <div class="import-size-card-title">Expand Canvas</div>
@@ -789,16 +1233,7 @@
       </button>
       <button type="button" class="import-size-card" id="importSizeKeep" data-choice="keep">
         <div class="import-size-card-icon">
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <rect x="9.5" y="14.5" width="21" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.5"/>
-            <rect x="6.5" y="7.5" width="22" height="18" rx="1.5" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.4"/>
-            <g stroke="currentColor" stroke-width="1.2">
-              <rect x="5" y="6" width="3" height="3" rx="0.5" fill="var(--surface)"/>
-              <rect x="27" y="6" width="3" height="3" rx="0.5" fill="var(--surface)"/>
-              <rect x="5" y="24" width="3" height="3" rx="0.5" fill="var(--surface)"/>
-              <rect x="27" y="24" width="3" height="3" rx="0.5" fill="var(--surface)"/>
-            </g>
-          </svg>
+          <svg viewBox="0 0 40 40" aria-hidden="true"><use href="#icon-canvas-keep"/></svg>
         </div>
         <div class="import-size-card-text">
           <div class="import-size-card-title">Keep Canvas Size</div>
@@ -860,7 +1295,6 @@
           <span class="ico-check"></span>
           <span class="ico-all-label">Select All</span>
         </label>
-        <button class="ico-master-fmt" id="icoMasterFmt" data-mode="auto" onclick="cycleIcoMasterFormat()">Default</button>
       </div>
       <div class="ico-list-sep"></div>
       <label class="ico-size-row" data-ico-size="256" data-fmt="png">
@@ -1037,6 +1471,164 @@
   </div>
 </div>
 
+<!-- ═══════════════════ SVG EXPORT DIALOG ═══════════════════ -->
+<div class="modal-overlay" id="svgExportModal">
+  <div class="modal svg-export-modal">
+    <div class="modal-title">Export SVG</div>
+    <div class="svg-export-body">
+      <!-- LEFT: Layer picker ─────────────────────────────── -->
+      <div class="svg-export-layers-pane">
+        <div class="svg-export-layer-list-wrap">
+          <div class="svg-export-layer-list-inner">
+            <label class="svg-export-select-all">
+              <input type="checkbox" id="svgExportSelectAll" checked>
+              <span class="svg-export-layers-heading">Included Layers</span>
+              <span class="svg-export-count-readout" id="svgExportCountReadout">0 of 0</span>
+              <span class="svg-export-check-col"><span class="svg-export-check"></span></span>
+            </label>
+            <div class="svg-export-list-sep"></div>
+            <div class="svg-export-layer-list" id="svgExportLayerList"></div>
+          </div>
+        </div>
+      </div>
+      <!-- RIGHT: Options ──────────────────────────────────── -->
+      <div class="svg-export-options-pane">
+        <div class="svg-export-section">
+          <div class="svg-export-section-title">Output</div>
+          <div class="svg-export-row svg-export-dim-row-combined">
+            <label class="svg-export-dim-label" for="svgExportWidthInput">Width</label>
+            <div class="svg-export-input-wrap">
+              <input type="number" class="svg-export-input-num" id="svgExportWidthInput" min="1" step="1">
+              <span class="svg-export-input-suffix">px</span>
+            </div>
+            <label class="svg-export-dim-label" for="svgExportHeightInput">Height</label>
+            <div class="svg-export-input-wrap">
+              <input type="number" class="svg-export-input-num" id="svgExportHeightInput" min="1" step="1">
+              <span class="svg-export-input-suffix">px</span>
+            </div>
+            <button class="svg-export-dim-link" id="svgExportDimLink" type="button" title="Lock aspect ratio">
+              <svg class="svg-export-dim-link-locked"><use href="#icon-chain-linked"/></svg>
+              <svg class="svg-export-dim-link-unlocked"><use href="#icon-chain-unlinked"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="svg-export-section">
+          <div class="svg-export-section-title">Content</div>
+          <div class="svg-export-subgroup" id="svgExportTextSubgroup">
+            <div class="svg-export-row">
+              <label class="svg-export-row-label" for="svgExportTextSelect">Text Format</label>
+              <div class="svg-export-cs">
+                <select id="svgExportTextSelect">
+                  <option value="text">Keep as &lt;text&gt;</option>
+                  <option value="outlines" selected>Convert to outlines</option>
+                </select>
+              </div>
+            </div>
+            <label class="svg-export-checkbox-row svg-export-indent" id="svgExportEmbedFontsRow">
+              <input type="checkbox" id="svgExportEmbedFonts">
+              <span class="svg-export-check svg-export-check-sm"></span>
+              <span class="svg-export-cb-label">Embed custom fonts</span>
+            </label>
+          </div>
+          <div class="svg-export-subgroup" id="svgExportRasterSubgroup">
+            <div class="svg-export-row">
+              <label class="svg-export-row-label" for="svgExportRasterSelect">Raster Images</label>
+              <div class="svg-export-cs">
+                <select id="svgExportRasterSelect">
+                  <option value="embedded" selected>Embedded</option>
+                  <option value="linked">Linked</option>
+                </select>
+              </div>
+            </div>
+            <div class="svg-export-format-group svg-export-indent" id="svgExportFormatGroup">
+              <label class="svg-export-fmt-radio">
+                <input type="radio" name="svgExportRasterFmt" value="png" checked>
+                <span class="svg-export-fmt-dot"></span>
+                <span class="svg-export-fmt-label">PNG</span>
+              </label>
+              <label class="svg-export-fmt-radio">
+                <input type="radio" name="svgExportRasterFmt" value="jpg">
+                <span class="svg-export-fmt-dot"></span>
+                <span class="svg-export-fmt-label">JPG</span>
+              </label>
+              <label class="svg-export-fmt-radio">
+                <input type="radio" name="svgExportRasterFmt" value="webp">
+                <span class="svg-export-fmt-dot"></span>
+                <span class="svg-export-fmt-label">WebP</span>
+              </label>
+            </div>
+            <div class="svg-export-warn" id="svgExportLinkedWarn" hidden>
+              <svg viewBox="0 0 24 24"><use href="#icon-alert-triangle"/></svg>
+              <span>Linked images require both files to ship together.</span>
+            </div>
+          </div>
+        </div>
+        <div class="svg-export-section">
+          <div class="svg-export-section-title">Formatting</div>
+          <div class="svg-export-row">
+            <label class="svg-export-row-label" for="svgExportStyleSelect">Styling</label>
+            <div class="svg-export-cs">
+              <select id="svgExportStyleSelect">
+                <option value="attributes" selected>Presentation attributes</option>
+                <option value="inline">Inline style</option>
+                <option value="classes">CSS classes</option>
+              </select>
+            </div>
+          </div>
+          <div class="svg-export-row">
+            <label class="svg-export-row-label" for="svgExportPrecisionSelect">Precision</label>
+            <div class="svg-export-cs svg-export-cs--up">
+              <select id="svgExportPrecisionSelect">
+                <option value="0">0 decimals</option>
+                <option value="1">1 decimal</option>
+                <option value="2" selected>2 decimals</option>
+                <option value="3">3 decimals</option>
+                <option value="4">4 decimals</option>
+              </select>
+            </div>
+          </div>
+          <div class="svg-export-toggles">
+            <label class="svg-export-checkbox-row">
+              <input type="checkbox" id="svgExportMinify">
+              <span class="svg-export-check svg-export-check-sm"></span>
+              <span class="svg-export-cb-label">Minify</span>
+            </label>
+            <label class="svg-export-checkbox-row">
+              <input type="checkbox" id="svgExportResponsive">
+              <span class="svg-export-check svg-export-check-sm"></span>
+              <span class="svg-export-cb-label">Responsive</span>
+            </label>
+          </div>
+          <div class="svg-export-toggles">
+            <label class="svg-export-checkbox-row">
+              <input type="checkbox" id="svgExportCurrentColor">
+              <span class="svg-export-check svg-export-check-sm"></span>
+              <span class="svg-export-cb-label">Use currentColor</span>
+            </label>
+          </div>
+        </div>
+        <div class="svg-export-size-readout-row">
+          <span class="svg-export-size-label">    Estimated Size</span>
+          <span class="svg-export-size-value" id="svgExportSizeValue">—</span>
+        </div>
+      </div>
+    </div>
+    <!-- FOOTER ─────────────────────────────────────────── -->
+    <div class="svg-export-footer">
+      <button class="svg-export-foot-btn" id="svgExportCopyBtn" type="button" title="Copy SVG code to clipboard">
+        <svg class="svg-export-foot-icon"><use href="#icon-copy-svg"/></svg>
+        <span class="svg-export-foot-btn-label">SVG Code</span>
+      </button>
+      <button class="svg-export-foot-btn" id="svgExportPreviewBtn" type="button" title="Open SVG in a new browser tab">
+        <span class="svg-export-foot-btn-label">Preview</span>
+      </button>
+      <span class="svg-export-foot-divider"></span>
+      <button class="modal-btn" id="svgExportCancelBtn">Cancel</button>
+      <button class="modal-btn primary" id="svgExportOkBtn">Export</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
 <div class="modal-overlay settings-overlay" id="settingsModal">
   <div class="settings-modal">
@@ -1080,7 +1672,7 @@
                 </div>
                 <div class="theme-choice-meta">
                   <span class="theme-choice-label">Light</span>
-                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14"><use href="#icon-theme-check"/></svg></span>
                 </div>
               </button>
               <button class="theme-choice" data-mode="dark" aria-pressed="false">
@@ -1094,7 +1686,7 @@
                 </div>
                 <div class="theme-choice-meta">
                   <span class="theme-choice-label">Dark</span>
-                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14"><use href="#icon-theme-check"/></svg></span>
                 </div>
               </button>
               <button class="theme-choice" data-mode="system" aria-pressed="true">
@@ -1108,7 +1700,7 @@
                 </div>
                 <div class="theme-choice-meta">
                   <span class="theme-choice-label">System</span>
-                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <span class="theme-choice-check"><svg viewBox="0 0 24 24" width="14" height="14"><use href="#icon-theme-check"/></svg></span>
                 </div>
               </button>
             </div>
@@ -1133,23 +1725,14 @@
     <div class="iem-choice-grid">
       <button class="iem-choice-card" onclick="IEM.choosePngImport()">
         <div class="iem-choice-card-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5L5 21"/>
-          </svg>
+          <svg viewBox="0 0 24 24"><use href="#icon-image-landscape"/></svg>
         </div>
         <div class="iem-choice-card-title">Import as PNG</div>
         <div class="iem-choice-card-desc">Open the largest size as a single editable raster image. The other sizes are discarded.</div>
       </button>
       <button class="iem-choice-card iem-choice-card-primary" onclick="IEM.chooseIconMode()">
         <div class="iem-choice-card-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/>
-            <rect x="14" y="14" width="7" height="7" rx="1"/>
-          </svg>
+          <svg viewBox="0 0 24 24"><use href="#icon-grid-2x2"/></svg>
         </div>
         <div class="iem-choice-card-title">Edit in Icon Mode</div>
         <div class="iem-choice-card-desc">Edit every embedded size independently. Re-export as a multi-size .ico.</div>
@@ -1263,21 +1846,44 @@
 <script src="js/version.js"></script>
 <script src="js/linked_icons.js"></script>
 <script src="js/core/constants.js"></script>
-<script src="js/history.js"></script>
+<script src="js/history/history.js"></script>
 <script src="js/core/config.js"></script>
 <script src="js/core/dom.js"></script>
+<script src="js/core/mathInput.js"></script>
 <script src="js/core/state.js"></script>
 <script src="js/core/coordinates.js"></script>
+<script src="js/core/systemMonitor.js"></script>
 <script src="js/script.js"></script>
+<script src="js/history/historyPanel.js"></script>
 <script src="js/document/layers.js"></script>
 <script src="js/document/documentModel.js"></script>
 <script src="js/document/layerTransforms.js"></script>
+<script src="js/document/canvasSize.js"></script>
+<script src="js/document/resizeImage.js"></script>
 <script src="js/core/rendering.js"></script>
+<script src="js/document/imageImport.js"></script>
+<script src="js/document/clipboard.js"></script>
 <script src="js/core/events.js"></script>
-<script src="js/toolbar.js"></script>
+<script src="js/tools/toolRegistry.js"></script>
+<script src="js/tools/toolbar.js"></script>
+<script src="js/tools/viewTools.js"></script>
+<script src="js/tools/paintingTools.js"></script>
+<script src="js/tools/fillTools.js"></script>
+<script src="js/tools/selectionTools.js"></script>
+<script src="js/tools/transformTools.js"></script>
+<script src="js/storage/customFonts.js"></script>
+<script src="js/tools/textTool.js"></script>
+<script src="js/tools/drawingTools.js"></script>
+<script src="js/tools/directSelection.js"></script>
 <script src="js/core/keyboardShortcuts.js"></script>
-<script src="js/pngExport.js"></script>
-<script src="js/iconEditMode.js"></script>
+<script src="js/export/jpgExport.js"></script>
+<script src="js/export/webpExport.js"></script>
+<script src="js/export/bmpExport.js"></script>
+<script src="js/export/tifExport.js"></script>
+<script src="js/export/pngExport.js"></script>
+<script src="js/export/icoExport.js"></script>
+<script src="js/export/svgExport.js"></script>
+<script src="js/modes/iconEditMode.js"></script>
 <script src="js/core/app.js"></script>
 <script>
   if (typeof OPSIN_VERSION !== 'undefined') {

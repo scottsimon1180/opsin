@@ -15,6 +15,11 @@ function init() {
   initMoveToolOptions();
   document.getElementById('selectToolBtn').innerHTML = RECT_SELECT_SVG;
   SnapEngine.syncMenuCheck();
+  // Load any persisted custom fonts from IndexedDB so they appear in the
+  // text-tool font dropdown immediately on app start.
+  if (window.CustomFonts && window.CustomFonts.init) {
+    window.CustomFonts.init().catch(() => {});
+  }
   // PWA File Handling API — must register after app is ready so consumer fires after init
   if ('launchQueue' in window) {
     window.launchQueue.setConsumer(async (launchParams) => {

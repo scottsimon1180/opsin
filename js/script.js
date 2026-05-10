@@ -321,6 +321,13 @@ function pushUndo(actionName) {
 
 function doUndo() {
   if (_nudgePending) flushNudgeUndo();
+  // Any open text-edit session must commit before we mutate the layer
+  // array out from under it; otherwise the floating tx-box DOM holds a
+  // stale layer reference. If the edit changed the model, this commit
+  // becomes the entry the user immediately undoes — Photoshop semantics.
+  if (window.TextTool && window.TextTool.isActive && window.TextTool.isActive()) {
+    window.TextTool.endEdit(true);
+  }
   if (cancelActiveOperation()) return;
   if (typeof History === 'undefined' || !History) return;
   History.undo();
@@ -328,56 +335,11 @@ function doUndo() {
 
 function doRedo() {
   if (_nudgePending) flushNudgeUndo();
+  if (window.TextTool && window.TextTool.isActive && window.TextTool.isActive()) {
+    window.TextTool.endEdit(true);
+  }
   if (typeof History === 'undefined' || !History) return;
   History.redo();
-}
-
-/**
- * Render the History panel using real SVG icons from linked_icons.js.
- * Each entry's iconId maps to an `<svg><use href="#icon-..."/></svg>` glyph.
- */
-function updateHistoryPanel() {
-  const list = document.getElementById('historyList');
-  if (!list) return;
-  if (typeof History === 'undefined' || !History) { list.innerHTML = ''; return; }
-
-  const timeline = History.getTimeline();
-  const cursor = History.getCursor();
-
-  // Rebuild the list; this runs only on state changes, not per-frame.
-  list.innerHTML = '';
-
-  for (let i = 0; i < timeline.length; i++) {
-    const entry = timeline[i];
-    const el = document.createElement('button');
-    el.className = 'history-entry';
-    el.type = 'button';
-    if (i < cursor) el.classList.add('past');
-    else if (i === cursor) el.classList.add('current');
-    else el.classList.add('future');
-
-    const icon = document.createElement('span');
-    icon.className = 'history-icon';
-    icon.innerHTML = '<svg><use href="#icon-' + (entry.iconId || 'menu-refresh') + '"/></svg>';
-
-    const label = document.createElement('span');
-    label.className = 'history-label';
-    label.textContent = entry.name;
-
-    el.appendChild(icon);
-    el.appendChild(label);
-    el.title = entry.name;
-    el.onclick = () => {
-      if (cancelActiveOperation()) return;
-      History.jumpTo(i);
-    };
-    list.appendChild(el);
-  }
-
-  const currentEl = list.querySelector('.history-entry.current');
-  if (currentEl) {
-    currentEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
 }
 
 
@@ -392,6 +354,10 @@ function updateTransform() {
   drawRulers();
   drawGuides();
   drawUIOverlay();
+  if (window.TextTool && window.TextTool.onZoomChange) window.TextTool.onZoomChange();
+  if (window.ShapeTool && window.ShapeTool.onZoomChange) window.ShapeTool.onZoomChange();
+  if (window.DirectSelection && window.DirectSelection.onZoomChange) window.DirectSelection.onZoomChange();
+  if (window.PenTool && window.PenTool.onZoomChange) window.PenTool.onZoomChange();
 }
 
 function zoomTo(newZoom, cx, cy) {
@@ -441,13 +407,6 @@ function centerCanvas(avail) {
   panY = avail.rulerOffset + (avail.height - canvasH * zoom) / 2;
   updateTransform();
 }
-
-/* ═══════════════════════════════════════════════════════
-   DRAWING TOOLS — Professional Engine
-   ═══════════════════════════════════════════════════════ */
-
-let smoothX = 0, smoothY = 0;
-let dabDistAccum = 0;
 
 function wheelDelta(e) {
   return (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? Math.sign(e.deltaX) : -Math.sign(e.deltaY)) * (e.shiftKey ? 10 : 1);
@@ -525,128 +484,6 @@ function hexToRGBA(hex) {
   return cached;
 }
 
-// Brush dab cache — rebuilt only when (size, hardness, color) changes.
-// Pre-rendering the dab ourselves lets us apply ordered dither so 8-bit alpha
-// banding (visible as contour rings on large soft brushes) becomes imperceptible
-// high-frequency noise. This matches how Photoshop/Photopea/Pixlr render soft brushes.
-let _dabCache = null;
-const _BAYER4 = [
-  [ 0, 8, 2,10],
-  [12, 4,14, 6],
-  [ 3,11, 1, 9],
-  [15, 7,13, 5]
-];
-
-function buildDabCanvas(size, hardness, rgb) {
-  const d = Math.max(2, Math.ceil(size) + 2); // +2 for a 1-px transparent margin
-  const c = document.createElement('canvas');
-  c.width = d; c.height = d;
-  const cx = c.getContext('2d');
-  const img = cx.createImageData(d, d);
-  const data = img.data;
-  const r = size / 2;
-  const plateau = r * hardness;
-  const fadeBand = Math.max(1e-6, r * (1 - hardness));
-  const cxp = d / 2, cyp = d / 2;
-  for (let y = 0; y < d; y++) {
-    for (let x = 0; x < d; x++) {
-      const dx = x + 0.5 - cxp, dy = y + 0.5 - cyp;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      let a;
-      if (dist <= plateau) a = 1.0;
-      else if (dist >= r) a = 0.0;
-      else a = 1.0 - (dist - plateau) / fadeBand;
-      // Ordered dither: ±0.5 LSB shift from a 4×4 Bayer matrix breaks banding
-      // without changing the mean alpha of any region.
-      const dith = (_BAYER4[y & 3][x & 3] / 16) - 0.5;
-      const a8 = Math.max(0, Math.min(255, Math.round(a * 255 + dith)));
-      const i = (y * d + x) * 4;
-      data[i]   = rgb.r;
-      data[i+1] = rgb.g;
-      data[i+2] = rgb.b;
-      data[i+3] = a8;
-    }
-  }
-  cx.putImageData(img, 0, 0);
-  return c;
-}
-
-function getDabCanvas(size, hardness, color) {
-  const rgb = hexToRGBA(color);
-  if (_dabCache && _dabCache.size === size && _dabCache.hardness === hardness
-      && _dabCache.r === rgb.r && _dabCache.g === rgb.g && _dabCache.b === rgb.b) {
-    return _dabCache.canvas;
-  }
-  const canvas = buildDabCanvas(size, hardness, rgb);
-  _dabCache = { size, hardness, r: rgb.r, g: rgb.g, b: rgb.b, canvas };
-  return canvas;
-}
-
-function renderBrushDab(ctx, x, y, size, hardness, color) {
-  const r = size/2;
-  if(r<0.25) return;
-  if(hardness>=0.995){
-    // Hard brush: use the native arc+fill to get browser sub-pixel anti-aliasing.
-    ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); return;
-  }
-  // Soft brush: stamp the dithered pre-rendered dab.
-  const dab = getDabCanvas(size, hardness, color);
-  ctx.drawImage(dab, x - dab.width/2, y - dab.height/2);
-}
-
-function getDabSpacing(size) { return Math.max(1, size * 0.15); }
-
-function stampBrushSegment(ctx, x0, y0, x1, y1, size, hardness, color) {
-  const dist = Math.hypot(x1-x0, y1-y0);
-  if(dist < 0.1) return;
-  const spacing = getDabSpacing(size);
-  const dx = (x1-x0)/dist, dy = (y1-y0)/dist;
-  let remaining = dist;
-  let cx = x0, cy = y0;
-  while(remaining > 0) {
-    const stepNeeded = spacing - dabDistAccum;
-    if(stepNeeded <= remaining) {
-      cx += dx * stepNeeded; cy += dy * stepNeeded;
-      remaining -= stepNeeded; dabDistAccum = 0;
-      renderBrushDab(ctx, cx, cy, size, hardness, color);
-    } else {
-      cx += dx * remaining; cy += dy * remaining;
-      dabDistAccum += remaining; remaining = 0;
-    }
-  }
-}
-
-function stampPencilDab(ctx, x, y, size, color) {
-  ctx.fillStyle=color;
-  const half=Math.floor(size/2);
-  ctx.fillRect(Math.floor(x)-half, Math.floor(y)-half, size, size);
-}
-
-function stampPencilLine(ctx, x0, y0, x1, y1, size, color) {
-  let ix0=Math.floor(x0), iy0=Math.floor(y0);
-  const ix1=Math.floor(x1), iy1=Math.floor(y1);
-  const dx=Math.abs(ix1-ix0), dy=Math.abs(iy1-iy0);
-  const sx=ix0<ix1?1:-1, sy=iy0<iy1?1:-1;
-  let err=dx-dy;
-  const half=Math.floor(size/2);
-  ctx.fillStyle=color;
-  while(true){
-    ctx.fillRect(ix0-half,iy0-half,size,size);
-    if(ix0===ix1&&iy0===iy1) break;
-    const e2=2*err;
-    if(e2>-dy){err-=dy;ix0+=sx;}
-    if(e2<dx){err+=dx;iy0+=sy;}
-  }
-}
-
-function smoothInit(x,y){smoothX=x;smoothY=y;}
-function smoothStep(x,y,smoothness){
-  const pull=1-smoothness*0.92;
-  smoothX+=(x-smoothX)*pull;
-  smoothY+=(y-smoothY)*pull;
-  return {x:smoothX,y:smoothY};
-}
-
 /* ═══════════════════════════════════════════════════════
    PAINT BUCKET — Scanline Flood Fill
    ═══════════════════════════════════════════════════════ */
@@ -705,372 +542,10 @@ function floodFill(ctx, startX, startY, fillColor, tolerance, opacity) {
   ctx.putImageData(imgData, 0, 0);
 }
 
-/* ═══════════════════════════════════════════════════════
-   MAGIC WAND — Tolerance-based Selection
-   ═══════════════════════════════════════════════════════ */
-
-function magicWandSelect(startX, startY, tolerance, contiguous) {
-  const layer = getActiveLayer();
-  if (!layer) return null;
-  const w = canvasW, h = canvasH;
-  const sx = Math.floor(startX), sy = Math.floor(startY);
-  if (sx < 0 || sy < 0 || sx >= w || sy >= h) return null;
-  const imgData = layer.ctx.getImageData(0, 0, w, h);
-  const data = imgData.data;
-  const tol = Math.max(0, Math.min(255, Math.floor(tolerance)));
-  const ti = (sy * w + sx) * 4;
-  const tR = data[ti], tG = data[ti + 1], tB = data[ti + 2], tA = data[ti + 3];
-  const mask = new Uint8Array(w * h);
-  function matches(pos) {
-    const i = pos * 4;
-    return Math.abs(data[i] - tR) <= tol && Math.abs(data[i+1] - tG) <= tol && Math.abs(data[i+2] - tB) <= tol && Math.abs(data[i+3] - tA) <= tol;
-  }
-  if (contiguous) {
-    const visited = new Uint8Array(w * h);
-    if (!matches(sx + sy * w)) return null;
-    let sl = sx, sr = sx;
-    while (sl > 0 && !visited[sy * w + sl - 1] && matches(sy * w + sl - 1)) sl--;
-    while (sr < w - 1 && !visited[sy * w + sr + 1] && matches(sy * w + sr + 1)) sr++;
-    const stack = [];
-    for (let x = sl; x <= sr; x++) { const pos = sy * w + x; visited[pos] = 1; mask[pos] = 1; }
-    stack.push([sy, sl, sr]);
-    function scanLine(y, parentLeft, parentRight) {
-      if (y < 0 || y >= h) return;
-      let x = parentLeft;
-      while (x <= parentRight) {
-        const pos = y * w + x;
-        if (visited[pos] || !matches(pos)) { x++; continue; }
-        let left = x, right = x;
-        while (left > 0 && !visited[y * w + left - 1] && matches(y * w + left - 1)) left--;
-        while (right < w - 1 && !visited[y * w + right + 1] && matches(y * w + right + 1)) right++;
-        for (let fx = left; fx <= right; fx++) { const fpos = y * w + fx; visited[fpos] = 1; mask[fpos] = 1; }
-        stack.push([y, left, right]);
-        x = right + 1;
-      }
-    }
-    while (stack.length > 0) { const [cy, cl, cr] = stack.pop(); scanLine(cy - 1, cl, cr); scanLine(cy + 1, cl, cr); }
-  } else {
-    for (let i = 0; i < w * h; i++) { if (matches(i)) mask[i] = 1; }
-  }
-  const contours = maskToContours(mask, w, h);
-  if (contours.length === 0) return null;
-  let minX = w, minY = h, maxX = 0, maxY = 0;
-  for (const poly of contours) { for (const p of poly) { if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y; if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; } }
-  return { contours: contours, bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY } };
-}
-
-/**
- * Converts a binary pixel mask into vector contour polygons using edge tracing.
- * Uses integer-keyed Map for edge lookup (no string allocation) and scans only the
- * tight bounding box of set pixels for performance on large canvases.
- * Each contour is a closed polygon of {x, y} grid-aligned vertices.
- * @param {Uint8Array} mask - Binary mask (0 = unset, nonzero = set), w*h elements.
- * @param {number} w - Mask width.
- * @param {number} h - Mask height.
- * @returns {Array<Array<{x:number, y:number}>>} Array of contour polygons.
- */
-function maskToContours(mask, w, h) {
-  // Find tight bounding box to limit edge scan
-  let bx0 = w, by0 = h, bx1 = -1, by1 = -1;
-  for (let i = 0; i < w * h; i++) {
-    if (mask[i]) {
-      const x = i % w, y = (i / w) | 0;
-      if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
-      if (y < by0) by0 = y; if (y > by1) by1 = y;
-    }
-  }
-  if (bx1 < 0) return [];
-
-  // Build edge map using integer keys (vertex grid is (w+1) wide)
-  const stride = w + 1;
-  const edgeMap = new Map();
-  function addEdge(fx, fy, tx, ty) {
-    const k = fy * stride + fx;
-    let arr = edgeMap.get(k);
-    if (!arr) { arr = []; edgeMap.set(k, arr); }
-    arr.push({ x: tx, y: ty, used: false });
-  }
-
-  for (let y = by0; y <= by1; y++) {
-    for (let x = bx0; x <= bx1; x++) {
-      if (!mask[y * w + x]) continue;
-      if (y === 0     || !mask[(y - 1) * w + x])     addEdge(x, y, x + 1, y);
-      if (x === w - 1 || !mask[y * w + x + 1])       addEdge(x + 1, y, x + 1, y + 1);
-      if (y === h - 1 || !mask[(y + 1) * w + x])     addEdge(x + 1, y + 1, x, y + 1);
-      if (x === 0     || !mask[y * w + x - 1])       addEdge(x, y + 1, x, y);
-    }
-  }
-
-  function turnRank(inDx, inDy, outDx, outDy) {
-    const cross = inDx * outDy - inDy * outDx;
-    const dot   = inDx * outDx + inDy * outDy;
-    if (cross > 0) return 0; if (cross === 0 && dot > 0) return 1; if (cross < 0) return 2; return 3;
-  }
-
-  const contours = [];
-  for (const [startKey, startEdges] of edgeMap) {
-    for (let si = 0; si < startEdges.length; si++) {
-      if (startEdges[si].used) continue;
-      startEdges[si].used = true;
-      const originX = startKey % stride;
-      const originY = (startKey / stride) | 0;
-      const poly = [{ x: originX, y: originY }];
-      let prevX = originX, prevY = originY;
-      let cx = startEdges[si].x, cy = startEdges[si].y;
-      let safety = (w + h) * 4 + edgeMap.size * 2;
-      while ((cx !== originX || cy !== originY) && safety-- > 0) {
-        poly.push({ x: cx, y: cy });
-        const edges = edgeMap.get(cy * stride + cx);
-        if (!edges) break;
-        const inDx = cx - prevX, inDy = cy - prevY;
-        let bestIdx = -1, bestRank = 999;
-        for (let i = 0; i < edges.length; i++) {
-          if (edges[i].used) continue;
-          const rank = turnRank(inDx, inDy, edges[i].x - cx, edges[i].y - cy);
-          if (rank < bestRank) { bestRank = rank; bestIdx = i; }
-        }
-        if (bestIdx === -1) break;
-        edges[bestIdx].used = true;
-        prevX = cx; prevY = cy;
-        cx = edges[bestIdx].x; cy = edges[bestIdx].y;
-      }
-      if (poly.length >= 3) contours.push(simplifyContour(poly));
-    }
-  }
-  return contours;
-}
-
-function simplifyContour(poly) {
-  if (poly.length < 3) return poly;
-  const out = [];
-  const len = poly.length;
-  for (let i = 0; i < len; i++) {
-    const prev = poly[(i - 1 + len) % len];
-    const curr = poly[i];
-    const next = poly[(i + 1) % len];
-    const collinearX = (prev.x === curr.x && curr.x === next.x);
-    const collinearY = (prev.y === curr.y && curr.y === next.y);
-    if (!collinearX && !collinearY) out.push(curr);
-  }
-  return out.length >= 3 ? out : poly;
-}
-
-function contoursToPath(contours) {
-  const path = new Path2D();
-  for (const poly of contours) {
-    if (poly.length < 3) continue;
-    path.moveTo(poly[0].x, poly[0].y);
-    for (let i = 1; i < poly.length; i++) path.lineTo(poly[i].x, poly[i].y);
-    path.closePath();
-  }
-  return path;
-}
-
-/* ═══════════════════════════════════════════════════════
-   GRADIENT TOOL — Multi-Stop Editable Linear Gradient
-   ═══════════════════════════════════════════════════════ */
-
-function getGradOpacity() { const v = parseInt(document.getElementById('gradOpacity').value); return (isNaN(v) ? 100 : v) / 100; }
-
-function gradSnapshot() {
-  const layer = getActiveLayer();
-  if (!layer) return;
-  gradBaseSnapshot = document.createElement('canvas');
-  gradBaseSnapshot.width = canvasW; gradBaseSnapshot.height = canvasH;
-  gradBaseSnapshot.getContext('2d').drawImage(layer.canvas, 0, 0);
-}
-
-function gradRestore() {
-  if (!gradBaseSnapshot) return;
-  const layer = getActiveLayer();
-  if (!layer) return;
-  layer.ctx.clearRect(0, 0, canvasW, canvasH);
-  layer.ctx.drawImage(gradBaseSnapshot, 0, 0);
-}
-
-const _parseColorCanvas = document.createElement('canvas');
-_parseColorCanvas.width = 1; _parseColorCanvas.height = 1;
-const _parseColorCtx = _parseColorCanvas.getContext('2d');
-let _parseCache1 = {hex:'', rgb:null}, _parseCache2 = {hex:'', rgb:null};
-function parseColor(hex) {
-  if (_parseCache1.hex === hex) return _parseCache1.rgb;
-  if (_parseCache2.hex === hex) return _parseCache2.rgb;
-  _parseColorCtx.clearRect(0, 0, 1, 1);
-  _parseColorCtx.fillStyle = hex;
-  _parseColorCtx.fillRect(0, 0, 1, 1);
-  const d = _parseColorCtx.getImageData(0, 0, 1, 1).data;
-  const rgb = {r:d[0], g:d[1], b:d[2]};
-  _parseCache2 = _parseCache1;
-  _parseCache1 = {hex, rgb};
-  return rgb;
-}
-
-// sRGB <-> linear conversions for perceptual interpolation
-function srgbToLinear(c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
-function linearToSrgb(c) { return Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); }
-
-function gradInterpolateColorAt(t) {
-  if (gradStops.length < 2) return '#000000';
-  if (t <= gradStops[0].t) return gradStops[0].color;
-  if (t >= gradStops[gradStops.length - 1].t) return gradStops[gradStops.length - 1].color;
-  for (let i = 0; i < gradStops.length - 1; i++) {
-    const s0 = gradStops[i], s1 = gradStops[i + 1];
-    if (t >= s0.t && t <= s1.t) {
-      const segLen = s1.t - s0.t;
-      if (segLen < 0.0001) return s0.color;
-      const localT = (t - s0.t) / segLen;
-      const mid = Math.max(0.001, Math.min(0.999, s0.mid || 0.5));
-      const gamma = Math.log(0.5) / Math.log(mid);
-      const blend = Math.pow(localT, gamma);
-      const c0 = parseColor(s0.color), c1 = parseColor(s1.color);
-      const lr0 = srgbToLinear(c0.r), lg0 = srgbToLinear(c0.g), lb0 = srgbToLinear(c0.b);
-      const lr1 = srgbToLinear(c1.r), lg1 = srgbToLinear(c1.g), lb1 = srgbToLinear(c1.b);
-      const r = linearToSrgb(lr0 * (1 - blend) + lr1 * blend);
-      const g = linearToSrgb(lg0 * (1 - blend) + lg1 * blend);
-      const b = linearToSrgb(lb0 * (1 - blend) + lb1 * blend);
-      return `rgb(${r},${g},${b})`;
-    }
-  }
-  return gradStops[gradStops.length - 1].color;
-}
-
-function renderGradientToLayer() {
-  if (!gradP1 || !gradP2 || gradStops.length < 2) return;
-  const layer = getActiveLayer();
-  if (!layer) return;
-  gradRestore();
-  const opacity = getGradOpacity();
-  const grad = layer.ctx.createLinearGradient(gradP1.x, gradP1.y, gradP2.x, gradP2.y);
-  const subsPerSeg = 24;
-  for (let i = 0; i < gradStops.length - 1; i++) {
-    const s0 = gradStops[i], s1 = gradStops[i + 1];
-    const c0 = parseColor(s0.color), c1 = parseColor(s1.color);
-    const lr0 = srgbToLinear(c0.r), lg0 = srgbToLinear(c0.g), lb0 = srgbToLinear(c0.b);
-    const lr1 = srgbToLinear(c1.r), lg1 = srgbToLinear(c1.g), lb1 = srgbToLinear(c1.b);
-    const mid = Math.max(0.001, Math.min(0.999, s0.mid || 0.5));
-    const gamma = Math.log(0.5) / Math.log(mid);
-    for (let j = 0; j <= subsPerSeg; j++) {
-      if (j === 0 && i > 0) continue;
-      const localT = j / subsPerSeg;
-      const blend = Math.pow(localT, gamma);
-      const r = linearToSrgb(lr0 * (1 - blend) + lr1 * blend);
-      const g = linearToSrgb(lg0 * (1 - blend) + lg1 * blend);
-      const b = linearToSrgb(lb0 * (1 - blend) + lb1 * blend);
-      const globalT = s0.t + (s1.t - s0.t) * localT;
-      grad.addColorStop(Math.max(0, Math.min(1, globalT)), `rgb(${r},${g},${b})`);
-    }
-  }
-  layer.ctx.save();
-  layer.ctx.globalAlpha = opacity;
-  if (selectionPath) layer.ctx.clip(selectionPath, selectionFillRule);
-  layer.ctx.fillStyle = grad;
-  layer.ctx.fillRect(0, 0, canvasW, canvasH);
-  layer.ctx.restore();
-  compositeAll();
-}
-
-function commitGradient() {
-  if (!gradActive) return;
-  // Flatten the entire gradient editing session into a single history entry.
-  // All intermediate edits (drag endpoint, add stop, change color, etc.) are
-  // deliberately NOT recorded — only this final commit. Pre-session state is
-  // preserved in-memory via gradBaseSnapshot for cancel, not in history.
-  gradActive = false; gradP1 = null; gradP2 = null;
-  gradStops = []; gradDragging = null; gradBaseSnapshot = null;
-  gradDragStartPos = null; gradStopAboutToDelete = false;
-  gradColorPickerMode = false; gradColorTarget = null;
-  hideGradStopCtx();
-  drawOverlay();
-  pushUndo('Gradient');
-}
-
-function gradPerpDist(px, py) {
-  if (!gradP1 || !gradP2) return 0;
-  const dx = gradP2.x - gradP1.x, dy = gradP2.y - gradP1.y;
-  const len = Math.hypot(dx, dy);
-  if (len < 1) return Math.hypot(px - gradP1.x, py - gradP1.y);
-  return Math.abs((py - gradP1.y) * dx - (px - gradP1.x) * dy) / len;
-}
-
-function gradProjectT(px, py) {
-  const dx = gradP2.x - gradP1.x, dy = gradP2.y - gradP1.y;
-  const len2 = dx * dx + dy * dy;
-  if (len2 < 1) return 0;
-  return Math.max(0, Math.min(1, ((px - gradP1.x) * dx + (py - gradP1.y) * dy) / len2));
-}
-
-function gradHitTest(px, py) {
-  if (!gradP1 || !gradP2 || gradStops.length < 2) return null;
-  const threshold = 12 / zoom;
-  for (let i = 0; i < gradStops.length; i++) {
-    const s = gradStops[i];
-    const sx = gradP1.x + (gradP2.x - gradP1.x) * s.t;
-    const sy = gradP1.y + (gradP2.y - gradP1.y) * s.t;
-    if (Math.hypot(px - sx, py - sy) <= threshold) return {type: 'stop', index: i};
-  }
-  for (let i = 0; i < gradStops.length - 1; i++) {
-    const s0 = gradStops[i], s1 = gradStops[i + 1];
-    const midT = s0.t + (s1.t - s0.t) * (s0.mid || 0.5);
-    const mx = gradP1.x + (gradP2.x - gradP1.x) * midT;
-    const my = gradP1.y + (gradP2.y - gradP1.y) * midT;
-    if (Math.hypot(px - mx, py - my) <= threshold) return {type: 'mid', index: i};
-  }
-  const perpD = gradPerpDist(px, py);
-  if (perpD <= threshold) {
-    const t = gradProjectT(px, py);
-    if (t > 0.001 && t < 0.999) return {type: 'line', t: t};
-  }
-  return null;
-}
-
-let gradHoverElement = null;
-
-function gradStopPos(i) {
-  const s = gradStops[i];
-  return {x: gradP1.x + (gradP2.x - gradP1.x) * s.t, y: gradP1.y + (gradP2.y - gradP1.y) * s.t};
-}
-
-// Right-click context menu for gradient stop deletion
-function showGradStopCtx(stopIndex, screenX, screenY) {
-  const menu = document.getElementById('gradStopCtx');
-  if (!menu) return;
-  menu.dataset.stopIndex = stopIndex;
-  menu.style.display = 'flex';
-  requestAnimationFrame(() => {
-    const mr = menu.getBoundingClientRect();
-    let x = screenX - mr.width / 2, y = screenY - mr.height - 10;
-    if (y < 4) y = screenY + 10;
-    if (x < 4) x = 4;
-    if (x + mr.width > window.innerWidth - 4) x = window.innerWidth - mr.width - 4;
-    menu.style.left = x + 'px'; menu.style.top = y + 'px';
-    menu.classList.add('active');
-  });
-}
-
-function hideGradStopCtx() {
-  const menu = document.getElementById('gradStopCtx');
-  if (!menu || !menu.classList.contains('active')) return;
-  menu.classList.remove('active');
-  setTimeout(() => { if (!menu.classList.contains('active')) menu.style.display = 'none'; }, 150);
-}
-
-function executeGradStopDelete() {
-  const menu = document.getElementById('gradStopCtx');
-  if (!menu) return;
-  const idx = parseInt(menu.dataset.stopIndex);
-  if (isNaN(idx) || idx <= 0 || idx >= gradStops.length - 1) { hideGradStopCtx(); return; }
-  // Mid-gradient edit — not a history entry; flattened into the eventual commit.
-  gradStops.splice(idx, 1);
-  renderGradientToLayer(); drawOverlay();
-  hideGradStopCtx();
-}
 
 /* ═══════════════════════════════════════════════════════
    SELECTION SYSTEM
    ═══════════════════════════════════════════════════════ */
-
-let isDrawingSelection = false;
-let drawingPreviewPath = null;
 
 /**
  * Rebuilds the selectionPath (Path2D) from the selection descriptor.
@@ -1310,35 +785,6 @@ function startMarchingAnts() {
 }
 startMarchingAnts();
 
-function getTransformHandle(px, py) {
-  if (!transformSelActive) return null;
-  const b = getSelectionBounds(); if (!b || b.w < 1) return null;
-  const {x,y,w,h} = b; const t = 8 / zoom;
-  const handles = [{n:'nw',hx:x,hy:y},{n:'n',hx:x+w/2,hy:y},{n:'ne',hx:x+w,hy:y},{n:'w',hx:x,hy:y+h/2},{n:'e',hx:x+w,hy:y+h/2},{n:'sw',hx:x,hy:y+h},{n:'s',hx:x+w/2,hy:y+h},{n:'se',hx:x+w,hy:y+h}];
-  for (const h of handles) { if (Math.abs(px-h.hx)<=t && Math.abs(py-h.hy)<=t) return h.n; }
-  if (px>=x && px<=x+w && py>=y && py<=y+h) return 'move';
-  return null;
-}
-
-function applyTransformDelta(handle, dx, dy) {
-  if (!selection) return;
-  // `b` is the pre-transform bounds. We read it once and reuse it below for the
-  // scale-origin math — the points/contours have not been mutated yet, so a
-  // second getSelectionBounds() call would return the same values.
-  const b = getSelectionBounds(); if (!b) return;
-  let {x,y,w,h} = b;
-  if (handle==='move'){x+=dx;y+=dy;}
-  else if(handle==='nw'){x+=dx;y+=dy;w-=dx;h-=dy;} else if(handle==='n'){y+=dy;h-=dy;} else if(handle==='ne'){w+=dx;y+=dy;h-=dy;}
-  else if(handle==='w'){x+=dx;w-=dx;} else if(handle==='e'){w+=dx;} else if(handle==='sw'){x+=dx;w-=dx;h+=dy;}
-  else if(handle==='s'){h+=dy;} else if(handle==='se'){w+=dx;h+=dy;}
-  if(w<1){x+=w;w=Math.abs(w)||1;} if(h<1){y+=h;h=Math.abs(h)||1;}
-  if (selection.type==='lasso' && selection.points) {
-    if(b.w>0 && b.h>0) { const sx=w/b.w, sy=h/b.h, ox=x-b.x*sx, oy=y-b.y*sy; selection.points = selection.points.map(p=>({x:p.x*sx+ox, y:p.y*sy+oy})); }
-  } else if ((selection.type==='wand' || selection.type==='composite') && selection.contours) {
-    if(b.w>0 && b.h>0) { const sx=w/b.w, sy=h/b.h, ox=x-b.x*sx, oy=y-b.y*sy; selection.contours = selection.contours.map(poly => poly.map(p=>({x:p.x*sx+ox, y:p.y*sy+oy}))); }
-  } else { selection.x=x; selection.y=y; selection.w=w; selection.h=h; }
-  buildSelectionPath(); drawOverlay();
-}
 
 /* ═══════════════════════════════════════════════════════
    MOVE TOOL — HIT TESTING & TARGET SELECTION
@@ -1384,10 +830,6 @@ function isPointInSelectionPath(px, py) {
  *   • If no selection and auto-select is OFF: target the active layer
  *     only, and only if it has an opaque pixel at (px, py).
  */
-/**
- * Move-tool "Deselect" action — commits any active pixel transform,
- * clears any active selection, and hides all transform overlays.
-
 function pickMoveTarget(px, py) {
   if (px < 0 || py < 0 || px >= canvasW || py >= canvasH) return null;
   if (selectionPath) {
@@ -1427,6 +869,29 @@ function onDblClick(e) {
       return;
     }
   }
+  if (currentTool === 'text' && window.TextTool && window.TextTool.beginEditAtPoint) {
+    const pos = screenToCanvas(e.clientX, e.clientY);
+    if (window.TextTool.beginEditAtPoint(pos.x, pos.y)) return;
+  }
+  if (currentTool === 'move' && window.TextTool && window.TextTool.beginEditAtPoint) {
+    const pos = screenToCanvas(e.clientX, e.clientY);
+    const hit = layers.some(l => l.kind === 'text' && l.visible && l.textModel
+      && (() => {
+        const m = l.textModel;
+        const cx = m.boxX + m.boxW / 2, cy = m.boxY + m.boxH / 2;
+        let lx = pos.x - cx, ly = pos.y - cy;
+        if (m.rotation) {
+          const c = Math.cos(-m.rotation), s = Math.sin(-m.rotation);
+          const rx = lx * c - ly * s, ry = lx * s + ly * c;
+          lx = rx; ly = ry;
+        }
+        return lx >= -m.boxW/2 && lx <= m.boxW/2 && ly >= -m.boxH/2 && ly <= m.boxH/2;
+      })());
+    if (hit) {
+      if (typeof selectTool === 'function') selectTool('text');
+      if (window.TextTool.beginEditAtPoint(pos.x, pos.y)) return;
+    }
+  }
   if (currentTool==='lasso' && lassoMode==='poly' && polyPoints.length>2) finishPolygonalLasso();
   if (currentTool==='lasso' && lassoMode==='magnetic' && magActive && magAnchors.length>1) { finishMagneticLasso(false); return; }
   if (currentTool==='gradient' && gradActive) {
@@ -1447,491 +912,15 @@ function onDblClick(e) {
   }
 }
 
-let gradColorTarget = null;
-let gradColorPickerMode = false;
 
-function finishPolygonalLasso() {
-  if (polyPoints.length < 3) { polyPoints=[]; drawOverlay(); return; }
-  const p = new Path2D();
-  p.moveTo(Math.round(polyPoints[0].x), Math.round(polyPoints[0].y));
-  for (let i=1;i<polyPoints.length;i++) p.lineTo(Math.round(polyPoints[i].x), Math.round(polyPoints[i].y));
-  p.closePath();
-  commitNewSelection(p, {type:'lasso', points:polyPoints.map(pt=>({x:Math.round(pt.x),y:Math.round(pt.y)}))});
-  polyPoints = []; isDrawingSelection = false; drawingPreviewPath = null; drawOverlay();
-}
 
-/* ═══════════════════════════════════════════════════════
-   MAGNETIC LASSO — Intelligent Scissors Engine
-   ═══════════════════════════════════════════════════════ */
 
-function getMagWidth()     { return parseInt(document.getElementById('magWidthNum').value) || 10; }
-function getMagContrast()  { return parseInt(document.getElementById('magContrastNum').value) || 50; }
-function getMagFrequency() { return parseInt(document.getElementById('magFrequencyNum').value) || 57; }
 
-/**
- * Compute Sobel gradient magnitude and direction on a local region of the
- * active layer.  Stores results in magEdgeMap (magnitude 0-1), magEdgeGx,
- * magEdgeGy, and records the region bounding box in magEdgeRegion.
- */
-function computeEdgeMap(rx, ry, rw, rh) {
-  const layer = getActiveLayer();
-  if (!layer) return;
-  // Clamp to canvas
-  if (rx < 0) { rw += rx; rx = 0; }
-  if (ry < 0) { rh += ry; ry = 0; }
-  if (rx + rw > canvasW) rw = canvasW - rx;
-  if (ry + rh > canvasH) rh = canvasH - ry;
-  if (rw < 3 || rh < 3) return;
 
-  const imgData = layer.ctx.getImageData(rx, ry, rw, rh);
-  const rgba = imgData.data;
-  const n = rw * rh;
 
-  // Luminance (Rec.709)
-  const lum = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const j = i * 4;
-    lum[i] = 0.2126 * rgba[j] + 0.7152 * rgba[j + 1] + 0.0722 * rgba[j + 2];
-  }
-
-  const gx = new Float32Array(n);
-  const gy = new Float32Array(n);
-  const mag = new Float32Array(n);
-  let maxMag = 0;
-
-  // Sobel 3x3
-  for (let y = 1; y < rh - 1; y++) {
-    for (let x = 1; x < rw - 1; x++) {
-      const tl = lum[(y - 1) * rw + x - 1], tc = lum[(y - 1) * rw + x], tr = lum[(y - 1) * rw + x + 1];
-      const ml = lum[y * rw + x - 1],                                     mr = lum[y * rw + x + 1];
-      const bl = lum[(y + 1) * rw + x - 1], bc = lum[(y + 1) * rw + x], br = lum[(y + 1) * rw + x + 1];
-      const sx = -tl + tr - 2 * ml + 2 * mr - bl + br;
-      const sy = -tl - 2 * tc - tr + bl + 2 * bc + br;
-      const idx = y * rw + x;
-      gx[idx] = sx;
-      gy[idx] = sy;
-      const m = Math.sqrt(sx * sx + sy * sy);
-      mag[idx] = m;
-      if (m > maxMag) maxMag = m;
-    }
-  }
-
-  // Normalize to [0, 1]
-  if (maxMag > 0) {
-    const inv = 1 / maxMag;
-    for (let i = 0; i < n; i++) mag[i] *= inv;
-  }
-
-  magEdgeMap = mag;
-  magEdgeGx = gx;
-  magEdgeGy = gy;
-  magEdgeRegion = { x: rx, y: ry, w: rw, h: rh };
-}
-
-/**
- * Ensure the cached edge map covers the bounding box between anchor and
- * cursor, plus the Width margin. Recomputes if necessary.
- */
-function ensureEdgeMapCoverage(ax, ay, cx, cy, width) {
-  const margin = width + 4;
-  const needX = Math.min(ax, cx) - margin;
-  const needY = Math.min(ay, cy) - margin;
-  const needR = Math.max(ax, cx) + margin;
-  const needB = Math.max(ay, cy) + margin;
-
-  if (magEdgeRegion &&
-      magEdgeRegion.x <= needX && magEdgeRegion.y <= needY &&
-      magEdgeRegion.x + magEdgeRegion.w >= needR &&
-      magEdgeRegion.y + magEdgeRegion.h >= needB) {
-    return; // Cached region is sufficient
-  }
-
-  // Expand to cover all anchors + generous padding
-  let ex = needX, ey = needY, er = needR, eb = needB;
-  if (magEdgeRegion) {
-    ex = Math.min(ex, magEdgeRegion.x);
-    ey = Math.min(ey, magEdgeRegion.y);
-    er = Math.max(er, magEdgeRegion.x + magEdgeRegion.w);
-    eb = Math.max(eb, magEdgeRegion.y + magEdgeRegion.h);
-  }
-  // Add extra padding so small cursor moves don't trigger recomputation
-  const pad = width * 3;
-  computeEdgeMap(
-    Math.floor(ex - pad), Math.floor(ey - pad),
-    Math.ceil(er - ex + pad * 2), Math.ceil(eb - ey + pad * 2)
-  );
-}
-
-/**
- * Find the pixel with highest gradient magnitude within searchWidth of pos.
- * Returns {x, y} in canvas coordinates.
- */
-function snapToNearestEdge(px, py, searchWidth) {
-  if (!magEdgeMap || !magEdgeRegion) return { x: Math.round(px), y: Math.round(py) };
-  const r = magEdgeRegion;
-  const sw = Math.max(2, searchWidth);
-  let bestX = Math.round(px), bestY = Math.round(py), bestMag = -1;
-
-  const x0 = Math.max(r.x + 1, Math.round(px) - sw);
-  const y0 = Math.max(r.y + 1, Math.round(py) - sw);
-  const x1 = Math.min(r.x + r.w - 2, Math.round(px) + sw);
-  const y1 = Math.min(r.y + r.h - 2, Math.round(py) + sw);
-
-  for (let y = y0; y <= y1; y++) {
-    for (let x = x0; x <= x1; x++) {
-      const idx = (y - r.y) * r.w + (x - r.x);
-      const m = magEdgeMap[idx];
-      if (m > bestMag) { bestMag = m; bestX = x; bestY = y; }
-    }
-  }
-  return { x: bestX, y: bestY };
-}
-
-/**
- * Binary min-heap on typed arrays — zero GC allocation during push/pop.
- */
-function MagHeap(capacity) {
-  this.costs = new Float64Array(capacity);
-  this.nodes = new Int32Array(capacity);
-  this.size = 0;
-}
-MagHeap.prototype.push = function(node, cost) {
-  let i = this.size++;
-  this.costs[i] = cost;
-  this.nodes[i] = node;
-  // Sift up
-  while (i > 0) {
-    const p = (i - 1) >> 1;
-    if (this.costs[p] <= cost) break;
-    this.costs[i] = this.costs[p]; this.nodes[i] = this.nodes[p];
-    this.costs[p] = cost; this.nodes[p] = node;
-    i = p;
-  }
-};
-MagHeap.prototype.pop = function() {
-  const cost = this.costs[0], node = this.nodes[0];
-  this.size--;
-  if (this.size > 0) {
-    this.costs[0] = this.costs[this.size];
-    this.nodes[0] = this.nodes[this.size];
-    // Sift down
-    let i = 0;
-    while (true) {
-      let s = i, l = 2 * i + 1, r = 2 * i + 2;
-      if (l < this.size && this.costs[l] < this.costs[s]) s = l;
-      if (r < this.size && this.costs[r] < this.costs[s]) s = r;
-      if (s === i) break;
-      const tc = this.costs[i]; const tn = this.nodes[i];
-      this.costs[i] = this.costs[s]; this.nodes[i] = this.nodes[s];
-      this.costs[s] = tc; this.nodes[s] = tn;
-      i = s;
-    }
-  }
-  return { node, cost };
-};
-
-// 8-connected neighbor offsets: dx, dy
-const _magDirs = [-1,-1, 0,-1, 1,-1, -1,0, 1,0, -1,1, 0,1, 1,1];
-const _SQRT2 = 1.4142135623730951;
-
-/**
- * Compute the minimum-cost path from anchor to cursor using Dijkstra on
- * the Sobel gradient map (Intelligent Scissors / Livewire).
- * Returns an array of {x, y} points in canvas coordinates, or null.
- */
-function computeLiveWire(ax, ay, cx, cy, searchWidth, contrast) {
-  if (!magEdgeMap || !magEdgeRegion) return null;
-  const r = magEdgeRegion;
-
-  // Bounding box for Dijkstra search
-  const margin = searchWidth + 2;
-  const bx = Math.max(r.x + 1, Math.min(ax, cx) - margin);
-  const by = Math.max(r.y + 1, Math.min(ay, cy) - margin);
-  const bx2 = Math.min(r.x + r.w - 2, Math.max(ax, cx) + margin);
-  const by2 = Math.min(r.y + r.h - 2, Math.max(ay, cy) + margin);
-  const bw = bx2 - bx + 1;
-  const bh = by2 - by + 1;
-  if (bw < 2 || bh < 2) return null;
-  const N = bw * bh;
-
-  // Ensure source and dest are within bounds
-  const sax = Math.max(bx, Math.min(bx2, ax));
-  const say = Math.max(by, Math.min(by2, ay));
-  const scx = Math.max(bx, Math.min(bx2, cx));
-  const scy = Math.max(by, Math.min(by2, cy));
-
-  const srcIdx = (say - by) * bw + (sax - bx);
-  const dstIdx = (scy - by) * bw + (scx - bx);
-  if (srcIdx === dstIdx) return [{ x: ax, y: ay }];
-
-  // Allocate or reuse Dijkstra buffers
-  if (N > _magBufCapacity) {
-    const cap = Math.max(N, 65536);
-    _magDist = new Float32Array(cap);
-    _magPrev = new Int32Array(cap);
-    _magVisited = new Uint8Array(cap);
-    _magHeapCosts = new Float64Array(cap * 2);
-    _magHeapNodes = new Int32Array(cap * 2);
-    _magBufCapacity = cap;
-  }
-  const dist = _magDist;
-  const prev = _magPrev;
-  const visited = _magVisited;
-  // Reset only the active region
-  for (let i = 0; i < N; i++) { dist[i] = 1e30; prev[i] = -1; visited[i] = 0; }
-
-  // Contrast threshold
-  const threshold = (100 - contrast) / 100;
-
-  // Heap
-  const heap = new MagHeap(Math.min(N * 2, 262144));
-  dist[srcIdx] = 0;
-  heap.push(srcIdx, 0);
-
-  while (heap.size > 0) {
-    const { node, cost } = heap.pop();
-    if (visited[node]) continue;
-    visited[node] = 1;
-    if (node === dstIdx) break;
-
-    const nx = node % bw, ny = (node / bw) | 0;
-    const canvasX = nx + bx, canvasY = ny + by;
-
-    for (let d = 0; d < 16; d += 2) {
-      const nnx = nx + _magDirs[d];
-      const nny = ny + _magDirs[d + 1];
-      if (nnx < 0 || nny < 0 || nnx >= bw || nny >= bh) continue;
-      const nIdx = nny * bw + nnx;
-      if (visited[nIdx]) continue;
-
-      const ncx = nnx + bx, ncy = nny + by;
-      const eIdx = (ncy - r.y) * r.w + (ncx - r.x);
-
-      // Edge cost: low on strong edges
-      let rawMag = magEdgeMap[eIdx];
-      // Apply contrast threshold
-      rawMag = rawMag > threshold ? (rawMag - threshold) / (1 - threshold + 0.001) : 0;
-      const edgeCost = 1 - rawMag;
-
-      // Direction cost: penalize crossing edges vs following them
-      const egx = magEdgeGx[eIdx], egy = magEdgeGy[eIdx];
-      let dirCost = 0;
-      if (egx !== 0 || egy !== 0) {
-        // Edge tangent direction (perpendicular to gradient)
-        const edgeAngle = Math.atan2(-egx, egy); // tangent = rotate gradient 90 degrees
-        const linkAngle = Math.atan2(_magDirs[d + 1], _magDirs[d]);
-        let angleDiff = Math.abs(linkAngle - edgeAngle);
-        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-        if (angleDiff > Math.PI / 2) angleDiff = Math.PI - angleDiff;
-        dirCost = angleDiff / (Math.PI / 2); // 0..1
-      }
-
-      // Weighted cost
-      const isDiag = (_magDirs[d] !== 0 && _magDirs[d + 1] !== 0);
-      const stepCost = (0.43 * edgeCost + 0.43 * dirCost + 0.14) * (isDiag ? _SQRT2 : 1);
-
-      const newDist = cost + stepCost;
-      if (newDist < dist[nIdx]) {
-        dist[nIdx] = newDist;
-        prev[nIdx] = node;
-        heap.push(nIdx, newDist);
-      }
-    }
-  }
-
-  // Backtrace
-  if (!visited[dstIdx]) return null;
-  const pts = [];
-  let cur = dstIdx;
-  while (cur !== -1) {
-    const lx = cur % bw, ly = (cur / bw) | 0;
-    pts.push({ x: lx + bx, y: ly + by });
-    cur = prev[cur];
-  }
-  pts.reverse();
-
-  // Simplify path — remove collinear points (Ramer-Douglas-Peucker would be
-  // overkill; just drop mid-points on perfectly straight 8-dir segments)
-  if (pts.length > 3) {
-    const simplified = [pts[0]];
-    for (let i = 1; i < pts.length - 1; i++) {
-      const p = pts[i - 1], c = pts[i], n = pts[i + 1];
-      const dx1 = c.x - p.x, dy1 = c.y - p.y;
-      const dx2 = n.x - c.x, dy2 = n.y - c.y;
-      if (dx1 !== dx2 || dy1 !== dy2) simplified.push(c);
-    }
-    simplified.push(pts[pts.length - 1]);
-    return simplified;
-  }
-  return pts;
-}
-
-/**
- * Check if auto-anchor should be placed based on frequency setting.
- */
-function checkAutoAnchor(px, py, frequency, searchWidth) {
-  if (frequency <= 0 || magAnchors.length === 0) return;
-  const last = magAnchors[magAnchors.length - 1];
-  const dist = Math.hypot(px - last.x, py - last.y);
-  // Distance threshold: higher frequency → shorter interval
-  const threshold = 60 - (52 * frequency / 100); // 60px at freq=0, 8px at freq=100
-  if (dist < threshold) return;
-  // Edge strength check: at high frequency, accept weaker edges
-  const minEdge = 0.8 - (0.65 * frequency / 100); // 0.8 at freq=0, 0.15 at freq=100
-  if (magEdgeMap && magEdgeRegion) {
-    const rx = Math.round(px) - magEdgeRegion.x;
-    const ry = Math.round(py) - magEdgeRegion.y;
-    if (rx >= 0 && ry >= 0 && rx < magEdgeRegion.w && ry < magEdgeRegion.h) {
-      const edgeStrength = magEdgeMap[ry * magEdgeRegion.w + rx];
-      if (edgeStrength < minEdge) return;
-    }
-  }
-  // Place auto-anchor: snap to nearest edge and commit current live wire
-  const snapped = snapToNearestEdge(px, py, searchWidth);
-  if (magLivePath && magLivePath.length > 1) {
-    magSegments.push(magLivePath);
-  }
-  magAnchors.push(snapped);
-  magLivePath = null;
-}
-
-/**
- * Assemble all magnetic lasso segments into a single point array.
- */
-function magAssemblePoints() {
-  const pts = [];
-  const seen = new Set();
-  function addPt(x, y) {
-    const key = (x << 16) | (y & 0xFFFF);
-    if (seen.has(key) && pts.length > 0) return; // skip consecutive duplicates
-    seen.clear(); seen.add(key);
-    pts.push({ x, y });
-  }
-  for (const seg of magSegments) {
-    if (Array.isArray(seg)) {
-      for (const p of seg) addPt(Math.round(p.x), Math.round(p.y));
-    }
-  }
-  return pts;
-}
-
-/**
- * Build overlay path from all committed segments + live wire for display.
- */
-function magBuildPreviewPath() {
-  const p = new Path2D();
-  const pts = magAssemblePoints();
-  if (pts.length > 0) {
-    p.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) p.lineTo(pts[i].x, pts[i].y);
-  }
-  // Append live wire
-  if (magLivePath && magLivePath.length > 0) {
-    if (pts.length === 0) {
-      p.moveTo(Math.round(magLivePath[0].x), Math.round(magLivePath[0].y));
-    }
-    for (let i = (pts.length === 0 ? 1 : 0); i < magLivePath.length; i++) {
-      p.lineTo(Math.round(magLivePath[i].x), Math.round(magLivePath[i].y));
-    }
-  }
-  return p;
-}
-
-/**
- * Finish the magnetic lasso selection.
- * @param {boolean} traceToStart - If true, trace edges back to start.
- *                                 If false, close with straight line.
- */
-function finishMagneticLasso(traceToStart) {
-  if (magAnchors.length < 2 && magSegments.length === 0) { cancelMagneticLasso(); return; }
-  // Commit live wire as final segment
-  if (magLivePath && magLivePath.length > 1) {
-    magSegments.push(magLivePath);
-    magLivePath = null;
-  }
-  // Closing segment
-  if (traceToStart && magAnchors.length >= 2) {
-    const last = magAnchors[magAnchors.length - 1];
-    const first = magAnchors[0];
-    const width = getMagWidth();
-    const contrast = getMagContrast();
-    ensureEdgeMapCoverage(last.x, last.y, first.x, first.y, width);
-    const closingPath = computeLiveWire(
-      Math.round(last.x), Math.round(last.y),
-      Math.round(first.x), Math.round(first.y),
-      width, contrast
-    );
-    if (closingPath && closingPath.length > 1) {
-      magSegments.push(closingPath);
-    }
-  }
-  // Build final path
-  const allPts = magAssemblePoints();
-  if (allPts.length < 3) { cancelMagneticLasso(); return; }
-
-  const p = new Path2D();
-  p.moveTo(allPts[0].x, allPts[0].y);
-  for (let i = 1; i < allPts.length; i++) p.lineTo(allPts[i].x, allPts[i].y);
-  p.closePath();
-  commitNewSelection(p, { type: 'lasso', points: allPts });
-  resetMagneticState();
-  drawOverlay();
-}
-
-/**
- * Cancel the magnetic lasso without creating a selection.
- */
-function cancelMagneticLasso() {
-  resetMagneticState();
-  drawOverlay();
-}
-
-/**
- * Reset all magnetic lasso state variables.
- */
-function resetMagneticState() {
-  magAnchors = [];
-  magSegments = [];
-  magLivePath = null;
-  magEdgeMap = null;
-  magEdgeGx = null;
-  magEdgeGy = null;
-  magEdgeRegion = null;
-  magActive = false;
-  magFreehandMode = false;
-  magFreehandPoints = [];
-  isDrawingSelection = false;
-  drawingPreviewPath = null;
-}
-
-function constrainSelectBounds(startX, startY, endX, endY, shiftKey, altKey) {
-  let dx = endX - startX, dy = endY - startY;
-  if (shiftKey) {
-    const side = Math.max(Math.abs(dx), Math.abs(dy));
-    dx = Math.sign(dx) * side;
-    dy = Math.sign(dy) * side;
-  }
-  let sx, sy, sw, sh;
-  if (altKey) {
-    sw = Math.round(Math.abs(dx) * 2);
-    sh = Math.round(Math.abs(dy) * 2);
-    sx = Math.round(startX - Math.abs(dx));
-    sy = Math.round(startY - Math.abs(dy));
-  } else {
-    sx = Math.round(Math.min(startX, startX + dx));
-    sy = Math.round(Math.min(startY, startY + dy));
-    sw = Math.round(Math.abs(dx));
-    sh = Math.round(Math.abs(dy));
-  }
-  return { sx, sy, sw, sh };
-}
-
-function makeShapePath(shape, sx, sy, sw, sh) {
-  const p = new Path2D();
-  if (shape==='rect') p.rect(sx, sy, sw, sh);
-  else if (shape==='ellipse' && sw>0 && sh>0) p.ellipse(sx+sw/2, sy+sh/2, sw/2, sh/2, 0, 0, Math.PI*2);
-  return p;
-}
+// Tools that require rasterization before they can paint a text layer.
+const TEXT_RASTERIZE_TOOLS = new Set(['brush','pencil','eraser','fill','gradient','shape']);
+const TEXT_TOOL_DISPLAY_NAMES = { brush:'Brush', pencil:'Pencil', eraser:'Eraser', fill:'Fill', gradient:'Gradient', shape:'Shape' };
 
 function onMouseDown(e) {
   // Any new pointer gesture flushes pending nudge undo — the in-flight
@@ -1939,285 +928,29 @@ function onMouseDown(e) {
   if (_nudgePending) flushNudgeUndo();
   const pos = screenToCanvas(e.clientX, e.clientY); const px=pos.x, py=pos.y;
   isDrawing = true; drawStart = {x:px, y:py}; lastDraw = {x:px, y:py};
-  if (e.button===0 && currentTool==='shape') {
-    SnapEngine.beginSession({});
-    const _sp = SnapEngine.snapPoint({x:px, y:py}, {modifiers:e});
-    drawStart = {x:_sp.x, y:_sp.y}; lastDraw = {x:_sp.x, y:_sp.y};
-  }
-  if (gradActive && currentTool==='gradient') { if (px < 0 || py < 0 || px >= canvasW || py >= canvasH) { commitGradient(); isDrawing = false; return; } }
   // Pan shortcuts take precedence over any tool (including ruler) so the user can always
   // middle-click, space-drag, or alt-drag to pan.
   if (e.button===1 || (e.button===0 && currentTool==='pan') || (e.button===0 && e.altKey && !((pxTransformActive && currentTool==='move') || (transformSelActive && currentTool==='movesel') || (currentTool==='lasso' && lassoMode==='magnetic' && magActive))) || (e.button===0 && spaceDown)) {
     isFitMode=false; isPanning=true; isDrawing=false; panStart={x:e.clientX-panX, y:e.clientY-panY}; workspace.style.cursor='grabbing'; return;
   }
-  if (e.button===0 && currentTool==='ruler') {
-    const hit = rulerHitTest(e.clientX, e.clientY);
-    if (hit && hit.type === 'handle') {
-      SnapEngine.beginSession({});
-      rulerDrag = { mode: 'handle', which: hit.which };
-      workspace.style.cursor = 'grabbing';
-    } else if (hit && hit.type === 'line') {
-      SnapEngine.beginSession({});
-      rulerDrag = { mode: 'move', grabOffset: { dx: px - rulerState.x1, dy: py - rulerState.y1 } };
-      workspace.style.cursor = 'all-scroll';
-    } else {
-      // Click-off: clear existing, start fresh
-      if (rulerState.active) clearRuler();
-      SnapEngine.beginSession({});
-      const _p = snapRulerPoint({ x: px, y: py }, e, null);
-      rulerState.active = true;
-      rulerState.x1 = _p.x; rulerState.y1 = _p.y;
-      rulerState.x2 = _p.x; rulerState.y2 = _p.y;
-      rulerDrag = { mode: 'draw' };
-      workspace.style.cursor = 'crosshair';
-    }
-    drawUIOverlay();
-    updateRulerOptionsBar();
-    return;
-  }
-  if (e.button===0 && currentTool==='move') {
-    // Guide hit-test — allow selecting/dragging guides with move tool.
-    const _canCheckGuides = guidesVisible && guides.length > 0;
-    if (_canCheckGuides) {
-      const hitG = hitTestGuide(e.clientX, e.clientY);
-      if (hitG) {
-        selectedGuide = hitG;
-        draggingGuide = { guide: hitG, isNew: false };
-        isDrawing = false;
-        workspace.style.cursor = hitG.axis === 'v' ? 'ew-resize' : 'ns-resize';
-        SnapEngine.beginSession({ excludeGuides: true, excludeGuideId: hitG.id });
-        drawGuides();
-        drawOverlay();
-        updatePropertiesPanel();
-        return;
-      }
-    }
-    if (selectedGuide) { selectedGuide = null; drawGuides(); drawOverlay(); updatePropertiesPanel(); }
-
-    // ── Case 1: a pixel transform is already live ──
-    if (pxTransformActive && pxTransformData) {
-      const hit = hitTestPxTransform(px, py);
-      if (hit) {
-        // Click landed on a handle or inside the box → start a drag.
-        pxTransformHandle = hit;
-        pxTransformStartMouse = {x: px, y: py};
-        pxTransformOrigBounds = { ...pxTransformData.curBounds };
-        _moveTransformJustInitiated = false;
-        _moveDragAltDuplicate = !!(e.altKey && hit === 'move');
-        if (hit === 'rotate') {
-          // Rotation drag: pivot on the box center, remember the click's
-          // initial angle so subsequent mousemoves apply the delta.
-          const _b = pxTransformData.curBounds;
-          _rotateCenter = { x: _b.x + _b.w / 2, y: _b.y + _b.h / 2 };
-          _rotateStartAngle = Math.atan2(py - _rotateCenter.y, px - _rotateCenter.x);
-          pxTransformData.liveRotation = 0;
-          isDrawing = false;
-          return;
-        }
-        const _excl = new Set(); const _al = getActiveLayer(); if (_al) _excl.add(_al.id);
-        SnapEngine.beginSession({ excludeLayerIds: _excl, excludeSelection: true });
-        isDrawing = false;
-        return;
-      }
-      // Click landed outside the transform box → commit it (suggestion 9).
-      // Absorb the click: the user's gesture was "finish the transform",
-      // not "start a new one on whatever is beneath the click".
-      commitPixelTransform();
-      updateMoveDeselectButtonState();
+  // Smart-object guard: paint tools acting on a smart-object layer must rasterize
+  // first. Shape tool itself silently draws onto/creates shape layers, so it is
+  // exempt from the shape rasterize prompt below.
+  if (e.button === 0 && TEXT_RASTERIZE_TOOLS.has(currentTool)) {
+    const _l = getActiveLayer();
+    if (_l && _l.kind === 'text' && window.TextTool && window.TextTool.requireRasterize) {
       isDrawing = false;
+      window.TextTool.requireRasterize(_l, TEXT_TOOL_DISPLAY_NAMES[currentTool] || currentTool);
       return;
     }
-
-    // ── Case 2: a floating selection is live ──
-    if (floatingActive && floatingCanvas) {
-      isMovingPixels = true; isDrawing = false;
-      _floatingDragBaseOffset = { x: floatingOffset.x, y: floatingOffset.y };
-      _floatingDragStart = { x: px, y: py };
-      const _excl = new Set(); const _al = getActiveLayer(); if (_al) _excl.add(_al.id);
-      SnapEngine.beginSession({ excludeLayerIds: _excl, excludeSelection: true });
-      return;
-    }
-
-    // ── Case 3: nothing active — decide whether to initiate a new transform ──
-    const pick = pickMoveTarget(px, py);
-    if (!pick) {
-      // Empty click: nothing to move. Respect Q1b / Q5a.
+    if (_l && _l.kind === 'shape' && currentTool !== 'shape' && window.ShapeTool && window.ShapeTool.requireRasterize) {
       isDrawing = false;
+      window.ShapeTool.requireRasterize(_l, TEXT_TOOL_DISPLAY_NAMES[currentTool] || currentTool);
       return;
     }
-
-    // Auto-Select Layer may have targeted a different layer — switch.
-    if (pick.layerIndex !== activeLayerIndex) {
-      activeLayerIndex = pick.layerIndex;
-      selectedLayers = new Set([activeLayerIndex]);
-      updateLayerPanel();
-    }
-
-    // Create the transform. initPixelTransform() handles both the
-    // "selection present" and "bound all visible pixels" cases.
-    initPixelTransform(true);
-    if (!pxTransformActive || !pxTransformData) {
-      isDrawing = false;
-      return;
-    }
-
-    // Immediately enter a 'move' drag so the click-drag feels continuous.
-    pxTransformHandle = 'move';
-    pxTransformStartMouse = {x: px, y: py};
-    pxTransformOrigBounds = { ...pxTransformData.curBounds };
-    _moveTransformJustInitiated = true;
-    _moveDragAltDuplicate = !!e.altKey;
-    const _excl = new Set();
-    const _al = getActiveLayer();
-    if (_al) _excl.add(_al.id);
-    SnapEngine.beginSession({ excludeLayerIds: _excl, excludeSelection: true });
-    updateMoveDeselectButtonState();
-    compositeAll();
-    drawOverlay();
-    isDrawing = false;
-    return;
   }
-  if (e.button===0 && currentTool==='zoom') {
-    const r=workspace.getBoundingClientRect();
-    if(e.shiftKey) zoomTo(zoom/1.4, e.clientX-r.left, e.clientY-r.top); else zoomTo(zoom*1.4, e.clientX-r.left, e.clientY-r.top); return;
-  }
+  if (ToolRegistry.dispatch('mouseDown', e, {x: px, y: py})) return;
   const layer=getActiveLayer(); if(!layer||!layer.visible) return;
-  if (transformSelActive && (currentTool==='select'||currentTool==='lasso'||currentTool==='movesel'||currentTool==='wand')) {
-    const handle=getTransformHandle(px,py);
-    if (handle) {
-      transformHandleDrag=handle; transformOrigBounds=selection?JSON.parse(JSON.stringify(selection)):null; isDrawing=false;
-      _transformDragMoved = false;
-      SnapEngine.beginSession({ excludeSelection: true });
-      return;
-    }
-  }
-  if (currentTool==='movesel') { isDrawing=false; return; }
-  if (currentTool==='select') {
-    SnapEngine.beginSession({ excludeSelection: true });
-    const _sp = SnapEngine.snapPoint({x:px, y:py}, {modifiers:e});
-    drawStart = {x:_sp.x, y:_sp.y};
-    isDrawingSelection = true; drawingPreviewPath = null;
-    if (selectionMode==='new') { selection=null; selectionPath=null; }
-    return;
-  }
-  if (currentTool==='lasso') {
-    if (lassoMode==='free') { isDrawingSelection = true; drawingPreviewPath = null; if (selectionMode==='new') { selection=null; selectionPath=null; } lassoPoints = [{x:px, y:py}]; }
-    else if (lassoMode==='poly') {
-      if (polyPoints.length===0) { isDrawingSelection = true; if (selectionMode==='new') { selection=null; selectionPath=null; } }
-      if (polyPoints.length>0) { const first=polyPoints[0]; if (Math.hypot(px-first.x, py-first.y) < 10/zoom && polyPoints.length>2) { finishPolygonalLasso(); isDrawing=false; return; } }
-      let ppx = px, ppy = py;
-      if (e.shiftKey && polyPoints.length > 0) {
-        const anchor = polyPoints[polyPoints.length - 1];
-        const c = applyRulerShiftConstraint(anchor.x, anchor.y, px, py);
-        ppx = c.x; ppy = c.y;
-      }
-      polyPoints.push({x:ppx, y:ppy}); updatePolyPreviewPath(); isDrawing=false;
-    }
-    else if (lassoMode==='magnetic') {
-      // Alt+click while active = start freehand override
-      if (magActive && e.altKey) {
-        magFreehandMode = true;
-        magFreehandPoints = [{x:px, y:py}];
-        isDrawing = true;
-        return;
-      }
-      if (!magActive) {
-        // First click: start magnetic lasso session
-        magActive = true;
-        isDrawingSelection = true;
-        if (selectionMode==='new') { selection=null; selectionPath=null; }
-        const width = getMagWidth();
-        // Compute initial edge map
-        computeEdgeMap(
-          Math.floor(px - width * 4), Math.floor(py - width * 4),
-          Math.ceil(width * 8), Math.ceil(width * 8)
-        );
-        const snapped = snapToNearestEdge(px, py, width);
-        magAnchors = [snapped];
-        magSegments = [];
-        magLivePath = null;
-        drawMagneticOverlay();
-      } else {
-        // Subsequent click: place anchor or close
-        const first = magAnchors[0];
-        if (magAnchors.length > 2 && Math.hypot(px - first.x, py - first.y) < 10/zoom) {
-          // Close with edge trace to start
-          finishMagneticLasso(true);
-          isDrawing = false;
-          return;
-        }
-        // Place manual anchor
-        const width = getMagWidth();
-        const snapped = snapToNearestEdge(px, py, width);
-        if (magLivePath && magLivePath.length > 1) {
-          magSegments.push(magLivePath);
-        }
-        magAnchors.push(snapped);
-        magLivePath = null;
-        drawMagneticOverlay();
-      }
-      isDrawing = false;
-    }
-    return;
-  }
-  if (currentTool==='wand') {
-    const tolVal = parseInt(document.getElementById('wandTolerance').value); const tol = isNaN(tolVal) ? 32 : tolVal;
-    const contiguous = document.getElementById('wandContiguous').checked;
-    const result = magicWandSelect(px, py, tol, contiguous);
-    if (result) { const wandPath = contoursToPath(result.contours); const b = result.bounds; commitNewSelection(wandPath, { type: 'wand', contours: result.contours, x: b.x, y: b.y, w: b.w, h: b.h }); }
-    else if (selectionMode === 'new') { selection = null; selectionPath = null; }
-    drawOverlay(); isDrawing = false; return;
-  }
-  if (['brush','pencil','eraser'].includes(currentTool)) {
-    // Undo entry recorded on mouseUp after the stroke is committed to the layer.
-    const size=getDrawSize(); const hardness=currentTool==='pencil'?1:getDrawHardness(); const smoothness=currentTool==='pencil'?0:getDrawSmoothness(); const color=currentTool==='eraser'?'#ffffff':fgColor;
-    strokeBuffer=document.createElement('canvas'); strokeBuffer.width=canvasW; strokeBuffer.height=canvasH; strokeBufferCtx=strokeBuffer.getContext('2d');
-    if(currentTool==='pencil') strokeBufferCtx.imageSmoothingEnabled=false;
-    smoothInit(px,py); dabDistAccum = 0;
-    if(currentTool==='pencil') stampPencilDab(strokeBufferCtx,px,py,size,color);
-    else { renderBrushDab(strokeBufferCtx,px,py,size,hardness,color); dabDistAccum=0; }
-    compositeAllWithStrokeBuffer();
-  } else if (currentTool==='fill') {
-    const tolVal = parseInt(document.getElementById('fillTolerance').value); const tol = isNaN(tolVal) ? 128 : tolVal;
-    const opVal = parseInt(document.getElementById('fillOpacity').value); const opacity = (isNaN(opVal) ? 100 : opVal) / 100;
-    if(selectionPath){layer.ctx.save();layer.ctx.clip(selectionPath,selectionFillRule);floodFill(layer.ctx,px,py,fgColor,tol,opacity);layer.ctx.restore();}
-    else floodFill(layer.ctx,px,py,fgColor,tol,opacity);
-    SnapEngine.invalidateLayer(layer); compositeAll();
-    pushUndo('Fill');
-  } else if (currentTool==='text') {
-    const text=prompt('Enter text:'); if(text){const font=document.getElementById('textFont').value;const size=parseInt(document.getElementById('textSize').value)||24;layer.ctx.save();layer.ctx.globalAlpha=getToolOpacity();layer.ctx.font=`${size}px "${font}"`;layer.ctx.fillStyle=fgColor;layer.ctx.textBaseline='top';if(selectionPath)layer.ctx.clip(selectionPath,selectionFillRule);layer.ctx.fillText(text,px,py);layer.ctx.restore();SnapEngine.invalidateLayer(layer);compositeAll();pushUndo('Text');}
-  } else if (currentTool==='gradient') {
-    hideGradStopCtx();
-    if (gradActive) {
-      const hit = gradHitTest(px, py);
-      if (hit) {
-        if (hit.type === 'line') {
-          // Mid-gradient edit — not a history entry; flattened into the eventual commit.
-          const newColor = gradInterpolateColorAt(hit.t);
-          const insertIdx = gradStops.findIndex(s => s.t > hit.t);
-          const newStop = {t: hit.t, color: newColor, mid: 0.5};
-          if (insertIdx > 0) gradStops[insertIdx - 1].mid = 0.5;
-          gradStops.splice(insertIdx, 0, newStop);
-          gradDragging = {type: 'stop', index: insertIdx};
-          gradDragStartPos = {x: px, y: py}; gradStopAboutToDelete = false;
-          workspace.style.cursor = 'grabbing';
-          renderGradientToLayer(); drawOverlay(); isDrawing = false; return;
-        }
-        gradDragging = hit;
-        gradDragStartPos = (hit.type === 'stop') ? {x: px, y: py} : null;
-        gradStopAboutToDelete = false;
-        // Mid-gradient edit — not a history entry; flattened into the eventual commit.
-        if (hit.type === 'stop' && (hit.index === 0 || hit.index === gradStops.length - 1)) SnapEngine.beginSession({});
-        workspace.style.cursor = 'grabbing'; isDrawing = false; return;
-      }
-      isDrawing = false; return;
-    }
-    // Start of a new gradient editing session — entry recorded on commit only.
-    SnapEngine.beginSession({});
-    const _spg = SnapEngine.snapPoint({x:px, y:py}, {modifiers:e});
-    gradStops = [{t: 0, color: fgColor, mid: 0.5}, {t: 1, color: bgColor}];
-    gradP1 = {x: _spg.x, y: _spg.y}; gradP2 = {x: _spg.x, y: _spg.y}; gradDragging = 'creating'; gradSnapshot();
-  }
   updateStatus(e);
 }
 
@@ -2228,39 +961,7 @@ function onMouseMove(e) {
   rulerMouseX = e.clientX - wsRect.left;
   rulerMouseY = e.clientY - wsRect.top;
   if (rulersVisible) scheduleRulerDraw();
-  if (currentTool === 'ruler' && !isPanning) {
-    if (rulerDrag) {
-      if (rulerDrag.mode === 'draw' || rulerDrag.mode === 'handle') {
-        const which = rulerDrag.mode === 'draw' ? 2 : rulerDrag.which;
-        const anchor = which === 2
-          ? { x: rulerState.x1, y: rulerState.y1 }
-          : { x: rulerState.x2, y: rulerState.y2 };
-        const _p = snapRulerPoint({ x: px, y: py }, e, anchor);
-        if (which === 2) { rulerState.x2 = _p.x; rulerState.y2 = _p.y; }
-        else             { rulerState.x1 = _p.x; rulerState.y1 = _p.y; }
-        workspace.style.cursor = rulerDrag.mode === 'draw' ? 'crosshair' : 'grabbing';
-      } else if (rulerDrag.mode === 'move') {
-        // Raw new P1 from grab offset, snap it, then translate both endpoints by the same delta
-        const rawX = px - rulerDrag.grabOffset.dx;
-        const rawY = py - rulerDrag.grabOffset.dy;
-        const snapped = SnapEngine.snapPoint({ x: rawX, y: rawY }, { modifiers: e });
-        const newX1 = Math.round(snapped.x);
-        const newY1 = Math.round(snapped.y);
-        const dX = newX1 - rulerState.x1;
-        const dY = newY1 - rulerState.y1;
-        rulerState.x1 += dX; rulerState.y1 += dY;
-        rulerState.x2 += dX; rulerState.y2 += dY;
-        workspace.style.cursor = 'all-scroll';
-      }
-      drawUIOverlay();
-      updateRulerOptionsBar();
-      return;
-    } else {
-      const hit = rulerHitTest(e.clientX, e.clientY);
-      workspace.style.cursor = getRulerCursor(hit, false);
-      return;
-    }
-  }
+  if (ToolRegistry.dispatch('mouseMove', e, pos)) return;
   if (draggingGuide) {
     const gpos = screenToCanvas(e.clientX, e.clientY);
     const _axis = draggingGuide.guide.axis;
@@ -2273,412 +974,19 @@ function onMouseMove(e) {
     updatePropertiesPanel();
     return;
   }
-  // Guide hover cursor when using move tool
-  let _guideHovered = false;
-  if (currentTool === 'move' && guidesVisible && !isPanning && !isMovingPixels && !pxTransformHandle) {
-    const hg = hitTestGuide(e.clientX, e.clientY);
-    if (hg) { workspace.style.cursor = hg.axis === 'v' ? 'ew-resize' : 'ns-resize'; _guideHovered = true; }
-  }
   if(isPanning){panX=e.clientX-panStart.x;panY=e.clientY-panStart.y;updateTransform();return;}
-  if(pxTransformHandle === 'rotate' && pxTransformActive && pxTransformData && _rotateCenter){
-    const curAngle = Math.atan2(py - _rotateCenter.y, px - _rotateCenter.x);
-    let delta = curAngle - _rotateStartAngle;
-    // Sticky 45° snap when Snap-To is active. Rotation stays smooth
-    // outside a narrow ±5° magnetic window around each 45° mark, so the
-    // object "catches" at the increment as the user rotates past it
-    // without sacrificing continuous tracking elsewhere. Ctrl inverts
-    // the current snap state.
-    if (SnapEngine.isActive(e)) {
-      const step      = Math.PI / 4;   // 45° increments
-      const threshold = Math.PI / 36;  // ±5° magnetic window
-      const nearest = Math.round(delta / step) * step;
-      if (Math.abs(delta - nearest) < threshold) delta = nearest;
-    }
-    pxTransformData.liveRotation = delta;
-    scheduleCompositeAndOverlay();
-    return;
-  }
-  if(pxTransformHandle && pxTransformActive && pxTransformData){
-    pxTransformData.curBounds = computePxTransformBounds(pxTransformHandle, px, py, e.shiftKey, e.altKey);
-    const _b = pxTransformData.curBounds; const _h = pxTransformHandle;
-    const _cx = [], _cy = [];
-    if (_h === 'move' || /w/.test(_h)) _cx.push({val: _b.x});
-    if (_h === 'move' || /e/.test(_h)) _cx.push({val: _b.x + _b.w});
-    if (_h === 'move') _cx.push({val: _b.x + _b.w/2});
-    if (_h === 'move' || /n/.test(_h)) _cy.push({val: _b.y});
-    if (_h === 'move' || /s/.test(_h)) _cy.push({val: _b.y + _b.h});
-    if (_h === 'move') _cy.push({val: _b.y + _b.h/2});
-    const _snap = SnapEngine.snapBounds(_b, {candidatesX:_cx, candidatesY:_cy, modifiers:e});
-    if (_snap.dx || _snap.dy) {
-      if (_h === 'move') { _b.x += _snap.dx; _b.y += _snap.dy; }
-      else {
-        if (_snap.dx) {
-          if (/w/.test(_h)) { _b.x += _snap.dx; _b.w -= _snap.dx; }
-          else if (/e/.test(_h)) { _b.w += _snap.dx; }
-        }
-        if (_snap.dy) {
-          if (/n/.test(_h)) { _b.y += _snap.dy; _b.h -= _snap.dy; }
-          else if (/s/.test(_h)) { _b.h += _snap.dy; }
-        }
-      }
-    }
-    scheduleCompositeAndOverlay(); return;
-  }
-  if (currentTool === 'move' && pxTransformHandle === 'rotate') {
-    workspace.style.cursor = ROTATE_CURSOR;
-  }
-  else if(!_guideHovered && pxTransformActive && pxTransformData && currentTool==='move' && !pxTransformHandle){
-    const hit = hitTestPxTransform(px, py);
-    if (hit === 'rotate') {
-      workspace.style.cursor = ROTATE_CURSOR;
-    } else if (hit) {
-      const c = {nw:'nw-resize',n:'n-resize',ne:'ne-resize',w:'w-resize',e:'e-resize',sw:'sw-resize',s:'s-resize',se:'se-resize',move:'move'};
-      workspace.style.cursor = c[hit] || 'default';
-    } else {
-      workspace.style.cursor = 'default';
-    }
-  }
-  else if (!_guideHovered && currentTool === 'move' && !pxTransformActive && !floatingActive && !isPanning && !isMovingPixels) {
-    const _pick = pickMoveTarget(px, py);
-    workspace.style.cursor = _pick ? 'move' : 'default';
-  }
-  if(isMovingPixels&&floatingActive&&floatingCanvas){
-    if (!_floatingDragBaseOffset) { _floatingDragBaseOffset = { x: floatingOffset.x, y: floatingOffset.y }; _floatingDragStart = { x: drawStart.x, y: drawStart.y }; }
-    const _ux = _floatingDragBaseOffset.x + (px - _floatingDragStart.x);
-    const _uy = _floatingDragBaseOffset.y + (py - _floatingDragStart.y);
-    const _fb = { x: _ux, y: _uy, w: floatingCanvas.width, h: floatingCanvas.height };
-    const _snap = SnapEngine.snapBounds(_fb, {modifiers:e});
-    floatingOffset.x = _ux + _snap.dx;
-    floatingOffset.y = _uy + _snap.dy;
-    drawStart = {x:px, y:py};
-    scheduleCompositeAndOverlay(); return;
-  }
-  if(transformHandleDrag&&transformOrigBounds){
-    const dx=px-drawStart.x, dy=py-drawStart.y;
-    if (dx !== 0 || dy !== 0) _transformDragMoved = true;
-    // Shallow-clone the top-level object: applyTransformDelta either assigns
-    // fresh arrays (lasso .points / wand .contours via .map()) or writes
-    // primitives (rect x/y/w/h) on the clone, so transformOrigBounds stays
-    // untouched between frames. Deep-cloning was an O(n) hot-path cost for
-    // lasso/wand selections with many points.
-    selection={...transformOrigBounds};
-    applyTransformDelta(transformHandleDrag, dx, dy);
-    const _tb = getSelectionBounds();
-    if (_tb) {
-      const _h = transformHandleDrag;
-      const _cx = [], _cy = [];
-      if (_h === 'move' || /w/.test(_h)) _cx.push({val: _tb.x});
-      if (_h === 'move' || /e/.test(_h)) _cx.push({val: _tb.x + _tb.w});
-      if (_h === 'move') _cx.push({val: _tb.x + _tb.w/2});
-      if (_h === 'move' || /n/.test(_h)) _cy.push({val: _tb.y});
-      if (_h === 'move' || /s/.test(_h)) _cy.push({val: _tb.y + _tb.h});
-      if (_h === 'move') _cy.push({val: _tb.y + _tb.h/2});
-      const _snap = SnapEngine.snapBounds(_tb, {candidatesX:_cx, candidatesY:_cy, modifiers:e});
-      if (_snap.dx || _snap.dy) {
-        selection={...transformOrigBounds};
-        applyTransformDelta(transformHandleDrag, dx + _snap.dx, dy + _snap.dy);
-      }
-    }
-    return;
-  }
-  if(transformSelActive&&(currentTool==='select'||currentTool==='lasso'||currentTool==='movesel'||currentTool==='wand')&&!isDrawing){ const h=getTransformHandle(px,py); const _fallback = (currentTool==='movesel') ? 'default' : 'crosshair'; if(h){const c={nw:'nw-resize',n:'n-resize',ne:'ne-resize',w:'w-resize',e:'e-resize',sw:'sw-resize',s:'s-resize',se:'se-resize',move:'move'};workspace.style.cursor=c[h]||_fallback;} else workspace.style.cursor=_fallback; }
-  if(currentTool==='lasso'&&lassoMode==='poly'&&polyPoints.length>0&&!isDrawing){
-    let cpx=px, cpy=py;
-    if(e.shiftKey){ const anchor=polyPoints[polyPoints.length-1]; const c=applyRulerShiftConstraint(anchor.x,anchor.y,px,py); cpx=c.x; cpy=c.y; }
-    updatePolyPreviewPath(cpx,cpy); return;
-  }
-  if(currentTool==='lasso'&&lassoMode==='magnetic'&&magActive){
-    // Alt-drag freehand override
-    if(magFreehandMode&&isDrawing){
-      magFreehandPoints.push({x:px, y:py});
-      // Build preview from committed + freehand
-      prepareOverlay();
-      if(selectionMode!=='new'&&selectionPath) drawAntsOnPath(overlayCtx, selectionPath);
-      const p=magBuildPreviewPath();
-      // Append freehand points to preview
-      for(const fp of magFreehandPoints) p.lineTo(Math.round(fp.x), Math.round(fp.y));
-      drawAntsOnPath(overlayCtx, p);
-      overlayCtx.save(); overlayCtx.fillStyle='#fff'; overlayCtx.strokeStyle='#000'; overlayCtx.lineWidth=1;
-      for(const a of magAnchors){const sp=c2s(a.x,a.y); overlayCtx.beginPath();overlayCtx.arc(sp.x,sp.y,3,0,Math.PI*2);overlayCtx.fill();overlayCtx.stroke();}
-      overlayCtx.restore();
-      return;
-    }
-    // Throttle to 60fps
-    const now=performance.now();
-    if(now-magLastPathTime<16) return;
-    magLastPathTime=now;
-    const width=getMagWidth();
-    const contrast=getMagContrast();
-    const frequency=getMagFrequency();
-    const lastAnchor=magAnchors[magAnchors.length-1];
-    // Ensure edge map covers region
-    ensureEdgeMapCoverage(lastAnchor.x, lastAnchor.y, Math.round(px), Math.round(py), width);
-    // Compute live-wire
-    magLivePath=computeLiveWire(
-      Math.round(lastAnchor.x), Math.round(lastAnchor.y),
-      Math.round(px), Math.round(py),
-      width, contrast
-    );
-    // Auto-anchor check
-    checkAutoAnchor(px, py, frequency, width);
-    // Redraw overlay
-    drawMagneticOverlay();
-    return;
-  }
-  if(currentTool==='gradient'&&gradDragging){
-    if(gradDragging==='creating') { const _spg=SnapEngine.snapPoint({x:px,y:py},{modifiers:e}); gradP2={x:_spg.x, y:_spg.y}; }
-    else if(gradDragging.type==='stop'){
-      const idx = gradDragging.index;
-      const isEndpoint = (idx === 0 || idx === gradStops.length - 1);
-      if (isEndpoint) {
-        const _spg=SnapEngine.snapPoint({x:px,y:py},{modifiers:e});
-        if (idx === 0) gradP1 = {x: _spg.x, y: _spg.y};
-        else gradP2 = {x: _spg.x, y: _spg.y};
-      } else {
-        const newT = gradProjectT(px, py);
-        const minT = gradStops[idx - 1].t + 0.001;
-        const maxT = gradStops[idx + 1].t - 0.001;
-        gradStops[idx].t = Math.max(minT, Math.min(maxT, newT));
-        const pd = gradPerpDist(px, py);
-        gradStopAboutToDelete = pd > 30 / zoom;
-      }
-    } else if(gradDragging.type==='mid'){
-      const idx = gradDragging.index;
-      const s0 = gradStops[idx], s1 = gradStops[idx + 1];
-      const dx=gradP2.x-gradP1.x, dy=gradP2.y-gradP1.y; const len2=dx*dx+dy*dy;
-      if(len2>0){
-        const t=((px-gradP1.x)*dx+(py-gradP1.y)*dy)/len2;
-        const segLen = s1.t - s0.t;
-        if (segLen > 0.001) { s0.mid = Math.max(0.01, Math.min(0.99, (t - s0.t) / segLen)); }
-      }
-    }
-    renderGradientToLayer(); drawOverlay(); return;
-  }
-  if(currentTool==='gradient'&&gradActive&&!gradDragging){
-    const hit=gradHitTest(px,py);
-    const prevHover = gradHoverElement;
-    gradHoverElement = hit;
-    if (hit) {
-      if (hit.type === 'stop') workspace.style.cursor = 'grab';
-      else if (hit.type === 'mid') workspace.style.cursor = 'ew-resize';
-      else if (hit.type === 'line') workspace.style.cursor = 'copy';
-    } else { workspace.style.cursor = 'crosshair'; }
-    if (JSON.stringify(hit) !== JSON.stringify(prevHover)) drawOverlay();
-  }
-  if(!isDrawing) return;
-  const layer=getActiveLayer(); if(!layer||!layer.visible) return;
-  if(currentTool==='select'&&isDrawingSelection){
-    const _sp=SnapEngine.snapPoint({x:px,y:py},{modifiers:e});
-    const {sx,sy,sw,sh}=constrainSelectBounds(drawStart.x,drawStart.y,_sp.x,_sp.y,e.shiftKey,e.altKey);
-    if(sw>0&&sh>0) drawingPreviewPath=makeShapePath(selectShape, sx, sy, sw, sh); drawOverlay(); return;
-  }
-  if(currentTool==='lasso'&&lassoMode==='free'&&isDrawingSelection){
-    lassoPoints.push({x:px, y:py}); const p=new Path2D();
-    p.moveTo(Math.round(lassoPoints[0].x), Math.round(lassoPoints[0].y));
-    for(let i=1;i<lassoPoints.length;i++) p.lineTo(Math.round(lassoPoints[i].x), Math.round(lassoPoints[i].y));
-    drawingPreviewPath = p; drawOverlay(); return;
-  }
-  if(['brush','pencil','eraser'].includes(currentTool)&&strokeBuffer){
-    const size=getDrawSize(); const hardness=currentTool==='pencil'?1:getDrawHardness();
-    const smoothness=currentTool==='pencil'?0:getDrawSmoothness(); const color=currentTool==='eraser'?'#ffffff':fgColor;
-    const sp=smoothStep(px,py,smoothness);
-    if(currentTool==='pencil') stampPencilLine(strokeBufferCtx,lastDraw.x,lastDraw.y,sp.x,sp.y,size,color);
-    else stampBrushSegment(strokeBufferCtx,lastDraw.x,lastDraw.y,sp.x,sp.y,size,hardness,color);
-    scheduleStrokeComposite(); lastDraw={x:sp.x,y:sp.y};
-  } else if(currentTool==='shape'){ const _sps=SnapEngine.snapPoint({x:px,y:py},{modifiers:e}); prepareOverlay(); overlayCtx.save(); const _dpr=window.devicePixelRatio||1; overlayCtx.setTransform(_dpr*zoom,0,0,_dpr*zoom,panX*_dpr,panY*_dpr); drawShapePreview(overlayCtx,drawStart.x,drawStart.y,_sps.x,_sps.y); overlayCtx.restore(); SnapEngine.drawIndicators(overlayCtx); }
 }
 
-function updatePolyPreviewPath(cursorX, cursorY) {
-  if(polyPoints.length===0) return;
-  const p=new Path2D();
-  p.moveTo(Math.round(polyPoints[0].x), Math.round(polyPoints[0].y));
-  for(let i=1;i<polyPoints.length;i++) p.lineTo(Math.round(polyPoints[i].x), Math.round(polyPoints[i].y));
-  if(cursorX!==undefined) p.lineTo(Math.round(cursorX), Math.round(cursorY));
-  drawingPreviewPath = p;
-  prepareOverlay();
-  if(selectionMode!=='new'&&selectionPath) drawAntsOnPath(overlayCtx, selectionPath);
-  drawAntsOnPath(overlayCtx, p);
-}
 
 function onMouseUp(e) {
   // Guide drag finalization is handled by the document-level mouseup listener
   // to support drags that leave the workspace. Skip here to avoid double-handling.
   if (draggingGuide) return;
-  if (currentTool === 'ruler' && rulerDrag) {
-    // Zero-length click-off draw → clear
-    if (rulerDrag.mode === 'draw' &&
-        rulerState.x1 === rulerState.x2 &&
-        rulerState.y1 === rulerState.y2) {
-      clearRuler();
-    } else {
-      rulerDrag = null;
-      SnapEngine.endSession();
-      drawUIOverlay();
-    }
-    rulerDrag = null;
-    isDrawing = false;
-    // Refresh cursor based on final hover state
-    const hit = rulerHitTest(e.clientX, e.clientY);
-    workspace.style.cursor = getRulerCursor(hit, false);
-    return;
-  }
-  if(pxTransformHandle === 'rotate'){
-    // Rotation drag ends: accumulate the live delta into the persistent
-    // totalRotation. srcCanvas and layer pixels are NOT mutated — the
-    // transform remains a non-destructive smart object until an explicit
-    // commit (Ctrl+D, Enter, Deselect button, double-click, Esc, tool
-    // switch, etc.).
-    const _d = pxTransformData;
-    pxTransformHandle = null; pxTransformStartMouse = null; pxTransformOrigBounds = null;
-    _rotateCenter = null; _rotateStartAngle = 0;
-    if (_d) {
-      _d.totalRotation = (_d.totalRotation || 0) + (_d.liveRotation || 0);
-      _d.liveRotation = 0;
-    }
-    SnapEngine.endSession();
-    updatePropertiesPanel();
-    compositeAll(); drawOverlay();
-    return;
-  }
-  if(pxTransformHandle){
-    // Smart-object Free Transform: move/resize drags just update the
-    // session state (curBounds). srcCanvas and layer pixels are NOT
-    // mutated. The transform lives on as a floating overlay until the
-    // user explicitly commits it (Ctrl+D, Enter, Deselect button,
-    // double-click inside the box, Esc, tool switch, etc.).
-    const _handle = pxTransformHandle;
-    const _orig = pxTransformOrigBounds;
-    const _d = pxTransformData;
-    const _moved = !!(_d && _orig && (
-      _orig.x !== _d.curBounds.x || _orig.y !== _d.curBounds.y ||
-      _orig.w !== _d.curBounds.w || _orig.h !== _d.curBounds.h));
-    // Alt-drag duplicate: stamp the original pixels at srcBounds so a copy
-    // is left behind, then continue the session with the moved original.
-    // Only legitimate when the user actually moved and there is no pending
-    // rotation (we don't bake rotations on a non-commit path).
-    const _altDup = _moveDragAltDuplicate && _handle === 'move' && _moved
-                    && _d && !_d.totalRotation && !_d.liveRotation;
-    _moveDragAltDuplicate = false;
-    pxTransformHandle=null;pxTransformStartMouse=null;pxTransformOrigBounds=null;
-    SnapEngine.endSession();
-    if (_altDup && _d) {
-      const layer = getActiveLayer();
-      if (layer) {
-        const sb = _d.srcBounds;
-        layer.ctx.drawImage(_d.srcCanvas, 0, 0, _d.srcCanvas.width, _d.srcCanvas.height, sb.x, sb.y, sb.w, sb.h);
-        SnapEngine.invalidateLayer(layer);
-      }
-      // The deposited duplicate is a destructive edit, so it needs its own
-      // history entry. The moving copy stays as a live transform overlay.
-      pushUndo('Duplicate');
-    }
-    updatePropertiesPanel();
-    compositeAll(); drawOverlay();
-    return;
-  }
-  if(transformHandleDrag){
-    // Zero-distance clicks on handles (no mousemove between down and up)
-    // must not push a spurious 'Move Selection' undo entry.
-    const _moved = _transformDragMoved;
-    _transformDragMoved = false;
-    transformHandleDrag=null;transformOrigBounds=null;
-    SnapEngine.endSession(); drawOverlay();
-    if (_moved) pushUndo('Move Selection');
-    return;
-  }
+  if (ToolRegistry.dispatch('mouseUp', e, null)) return;
   if(isPanning){isPanning=false;workspace.style.cursor=getToolCursor();return;}
-  if(isMovingPixels){
-    isMovingPixels=false; _floatingDragBaseOffset=null; _floatingDragStart=null;
-    SnapEngine.endSession(); drawOverlay();
-    pushUndo('Move');
-    return;
-  }
-  if(currentTool==='gradient'&&gradDragging&&gradDragging!=='creating'){
-    if (gradDragging.type === 'stop' && gradStopAboutToDelete) {
-      const idx = gradDragging.index;
-      if (idx > 0 && idx < gradStops.length - 1) {
-        gradStops.splice(idx, 1);
-      }
-      gradStopAboutToDelete = false;
-    }
-    gradDragging=null; gradDragStartPos=null; gradStopAboutToDelete=false;
-    workspace.style.cursor='crosshair'; SnapEngine.endSession(); renderGradientToLayer(); drawOverlay(); return;
-  }
-  // Magnetic lasso: freehand override release
-  if(currentTool==='lasso'&&lassoMode==='magnetic'&&magFreehandMode&&isDrawing){
-    isDrawing=false;
-    // Commit freehand points as a segment
-    if(magFreehandPoints.length>1){
-      magSegments.push(magFreehandPoints.slice());
-      const lastFH=magFreehandPoints[magFreehandPoints.length-1];
-      magAnchors.push({x:Math.round(lastFH.x), y:Math.round(lastFH.y)});
-    }
-    magFreehandMode=false;
-    magFreehandPoints=[];
-    magLivePath=null;
-    drawMagneticOverlay();
-    return;
-  }
-  // Magnetic lasso is click-based; ignore normal mouseup while active
-  if(currentTool==='lasso'&&lassoMode==='magnetic'&&magActive){ isDrawing=false; return; }
   if(!isDrawing) return; isDrawing=false;
-  const pos=screenToCanvas(e.clientX||0,e.clientY||0); const px=pos.x,py=pos.y; const layer=getActiveLayer();
-  if(currentTool==='select'&&isDrawingSelection){
-    isDrawingSelection=false; drawingPreviewPath=null;
-    const _spu=SnapEngine.snapPoint({x:px,y:py},{modifiers:e});
-    const {sx,sy,sw,sh}=constrainSelectBounds(drawStart.x,drawStart.y,_spu.x,_spu.y,e.shiftKey,e.altKey);
-    if(sw>1&&sh>1){ const p=makeShapePath(selectShape,sx,sy,sw,sh); commitNewSelection(p, {type:selectShape, x:sx, y:sy, w:sw, h:sh}); }
-    SnapEngine.endSession(); drawOverlay(); return;
-  }
-  if(currentTool==='lasso'&&lassoMode==='free'&&isDrawingSelection){
-    isDrawingSelection=false; drawingPreviewPath=null;
-    if(lassoPoints.length>2){
-      const p=new Path2D(); p.moveTo(Math.round(lassoPoints[0].x),Math.round(lassoPoints[0].y));
-      for(let i=1;i<lassoPoints.length;i++) p.lineTo(Math.round(lassoPoints[i].x),Math.round(lassoPoints[i].y)); p.closePath();
-      commitNewSelection(p, {type:'lasso', points:lassoPoints.map(pt=>({x:Math.round(pt.x),y:Math.round(pt.y)}))}); lassoPoints=[];
-    }
-    drawOverlay(); return;
-  }
-  if(['brush','pencil','eraser'].includes(currentTool)&&strokeBuffer&&layer){
-    const opacity=getDrawOpacity(); layer.ctx.save();
-    if(selectionPath) layer.ctx.clip(selectionPath, selectionFillRule);
-    if(currentTool==='eraser') layer.ctx.globalCompositeOperation='destination-out';
-    layer.ctx.globalAlpha=opacity; layer.ctx.drawImage(strokeBuffer,0,0); layer.ctx.restore();
-    strokeBuffer=null; strokeBufferCtx=null; SnapEngine.invalidateLayer(layer); compositeAll();
-    pushUndo(currentTool.charAt(0).toUpperCase()+currentTool.slice(1));
-    return;
-  }
-  if(currentTool==='gradient'&&gradDragging){
-    if(gradDragging==='creating'){
-      const dist=Math.hypot(gradP2.x-gradP1.x, gradP2.y-gradP1.y);
-      if(dist<3){ gradRestore(); compositeAll(); gradP1=null; gradP2=null; gradStops=[]; gradDragging=null; gradBaseSnapshot=null; SnapEngine.endSession(); drawOverlay(); return; }
-      gradActive=true; renderGradientToLayer();
-    }
-    gradDragging=null; gradDragStartPos=null; gradStopAboutToDelete=false;
-    workspace.style.cursor='crosshair'; SnapEngine.endSession(); drawOverlay(); return;
-  }
-  if(currentTool==='shape'&&layer){ const _spu=SnapEngine.snapPoint({x:px,y:py},{modifiers:e}); drawShapeOnLayer(layer.ctx,drawStart.x,drawStart.y,_spu.x,_spu.y);SnapEngine.invalidateLayer(layer);compositeAll(); pushUndo('Shape'); }
   SnapEngine.endSession();
   drawOverlay();
-}
-
-function drawShapePreview(ctx, x1, y1, x2, y2) {
-  const fillMode = document.getElementById('shapeFillMode').value; const sw = parseInt(document.getElementById('shapeStrokeWidth').value) || 2;
-  ctx.save(); ctx.strokeStyle = fgColor; ctx.fillStyle = fgColor; ctx.lineWidth = sw; ctx.globalAlpha = getToolOpacity();
-  if (shapeType === 'rect') { const x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.abs(x2 - x1), h = Math.abs(y2 - y1); if (fillMode === 'fill' || fillMode === 'both') ctx.fillRect(x, y, w, h); if (fillMode === 'stroke' || fillMode === 'both') ctx.strokeRect(x, y, w, h); }
-  else if (shapeType === 'ellipse') { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); if (fillMode === 'fill' || fillMode === 'both') ctx.fill(); if (fillMode === 'stroke' || fillMode === 'both') ctx.stroke(); }
-  else if (shapeType === 'line') { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineCap = 'round'; ctx.stroke(); }
-  ctx.restore();
-}
-
-function drawShapeOnLayer(ctx, x1, y1, x2, y2) {
-  const fillMode = document.getElementById('shapeFillMode').value; const sw = parseInt(document.getElementById('shapeStrokeWidth').value) || 2;
-  ctx.save(); ctx.strokeStyle = fgColor; ctx.fillStyle = fgColor; ctx.lineWidth = sw; ctx.globalAlpha = getToolOpacity();
-  if (selectionPath) ctx.clip(selectionPath, selectionFillRule);
-  if (shapeType === 'rect') { const x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.abs(x2 - x1), h = Math.abs(y2 - y1); if (fillMode === 'fill' || fillMode === 'both') ctx.fillRect(x, y, w, h); if (fillMode === 'stroke' || fillMode === 'both') ctx.strokeRect(x, y, w, h); }
-  else if (shapeType === 'ellipse') { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); if (fillMode === 'fill' || fillMode === 'both') ctx.fill(); if (fillMode === 'stroke' || fillMode === 'both') ctx.stroke(); }
-  else if (shapeType === 'line') { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineCap = 'round'; ctx.stroke(); }
-  ctx.restore();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -2879,6 +1187,13 @@ window.addEventListener('message', function(e) {
       if (overlay) overlay.remove();
       return;
     }
+    // Shape fill/stroke pickers are independent of the main fgColor —
+    // ShapeTool's own listener will apply the hex; we just close the iframe.
+    if (window._shAwaitingColor) {
+      const overlay = document.getElementById('cpIframeOverlay');
+      if (overlay) overlay.remove();
+      return;
+    }
     const rgb = hexToRgb(hex.replace('#',''));
     if (rgb) { const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b); if(hsv.s>0&&hsv.v>0) cpH=hsv.h; cpS=hsv.s; cpV=hsv.v; }
     if (gradColorPickerMode && gradActive && gradColorTarget !== null) {
@@ -3033,6 +1348,9 @@ function applyFilterDirect(type) {
 }
 
 function openFilter(type) {
+  // Brightness/Contrast and Hue/Saturation use the live floating adjustment
+  // panel instead of the old preview-window modal.
+  if (type === 'brightness' || type === 'hsl') { openAdjustmentPanel(type); return; }
   closeAllMenus(); currentFilterType = type;
   const layer = getActiveLayer(); if (!layer) return;
   const titleEl = document.getElementById('filterTitle'); const controlsEl = document.getElementById('filterControls');
@@ -3043,13 +1361,28 @@ function openFilter(type) {
   const pctx = previewCanvas.getContext('2d'); pctx.drawImage(layer.canvas, 0, 0, pw, ph);
   filterPreviewSrc = pctx.getImageData(0, 0, pw, ph);
   controlsEl.innerHTML = '';
-  if (type === 'brightness') { titleEl.textContent = 'Brightness / Contrast'; controlsEl.innerHTML = sliderRow('Brightness', 'filterBrightness', -100, 100, 0) + sliderRow('Contrast', 'filterContrast', -100, 100, 0); }
-  else if (type === 'hsl') { titleEl.textContent = 'Hue / Saturation'; controlsEl.innerHTML = sliderRow('Hue', 'filterHue', -180, 180, 0) + sliderRow('Saturation', 'filterSaturation', -100, 100, 0) + sliderRow('Lightness', 'filterLightness', -100, 100, 0); }
-  else if (type === 'blur') { titleEl.textContent = 'Gaussian Blur'; controlsEl.innerHTML = sliderRow('Radius', 'filterBlurRadius', 0, 20, 3); }
+  if (type === 'blur') { titleEl.textContent = 'Gaussian Blur'; controlsEl.innerHTML = sliderRow('Radius', 'filterBlurRadius', 0, 20, 3); }
   else if (type === 'sharpen') { titleEl.textContent = 'Sharpen'; controlsEl.innerHTML = sliderRow('Amount', 'filterSharpenAmt', 0, 100, 50); }
   else if (type === 'invert') { applyFilterDirect('invert'); return; }
   else if (type === 'grayscale') { applyFilterDirect('grayscale'); return; }
-  controlsEl.querySelectorAll('.filter-slider').forEach(slider => { slider.addEventListener('input', () => { const valEl = slider.parentElement.querySelector('.filter-slider-value'); if (valEl) valEl.textContent = slider.value; updateFilterPreview(); }); slider.addEventListener('dblclick', () => { slider.value = slider.defaultValue; const valEl = slider.parentElement.querySelector('.filter-slider-value'); if (valEl) valEl.textContent = slider.defaultValue; updateFilterPreview(); }); });
+  controlsEl.querySelectorAll('.filter-slider').forEach(slider => {
+    const valEl = slider.parentElement.querySelector('.filter-slider-value');
+    slider.addEventListener('input', () => { if (valEl) valEl.value = slider.value; updateFilterPreview(); });
+    slider.addEventListener('dblclick', () => { slider.value = slider.defaultValue; if (valEl) valEl.value = slider.defaultValue; updateFilterPreview(); });
+    if (valEl) {
+      const sync = () => {
+        const min = parseFloat(slider.min), max = parseFloat(slider.max);
+        let v = parseFloat(valEl.value);
+        if (isNaN(v)) v = parseFloat(slider.value) || 0;
+        v = Math.max(min, Math.min(max, v));
+        valEl.value = v;
+        slider.value = v;
+        updateFilterPreview();
+      };
+      valEl.addEventListener('input', sync);
+      valEl.addEventListener('change', sync);
+    }
+  });
   controlsEl.querySelectorAll('.filter-slider-row').forEach(row => {
     const slider = row.querySelector('.filter-slider');
     if (!slider) return;
@@ -3063,7 +1396,7 @@ function openFilter(type) {
 }
 
 function sliderRow(label, id, min, max, val) {
-  return `<div class="filter-slider-row"><span class="filter-slider-label">${label}</span><input type="range" class="filter-slider" id="${id}" min="${min}" max="${max}" value="${val}"><span class="filter-slider-value">${val}</span></div>`;
+  return `<div class="filter-slider-row"><span class="filter-slider-label">${label}</span><input type="range" class="filter-slider" id="${id}" min="${min}" max="${max}" value="${val}"><input type="number" class="filter-slider-value" id="${id}Num" min="${min}" max="${max}" value="${val}"></div>`;
 }
 
 function updateFilterPreview() {
@@ -3108,6 +1441,305 @@ function applyFilter() {
   SnapEngine.invalidateLayer(layer); compositeAll(); closeModal('filterModal');
   pushUndo('Filter');
 }
+
+/* ═══════════════════════════════════════════════════════
+   LIVE ADJUSTMENT PANEL — Brightness/Contrast & Hue/Saturation
+   ─────────────────────────────────────────────────────────
+   Floating, draggable panel that updates the active layer in
+   real time as sliders move. OK commits + pushes undo;
+   Cancel restores the cached original pixel data.
+
+   Performance:
+   • Original layer pixels are snapshot once at open.
+   • Slider input is coalesced into a single requestAnimationFrame
+     pass — multiple input events per frame collapse to one render.
+   • Brightness/Contrast uses a 256-entry LUT (one lookup per
+     channel) instead of recomputing the formula per pixel.
+   • Scratch buffer + scratch canvas are reused across frames to
+     avoid per-frame allocation.
+   ═══════════════════════════════════════════════════════ */
+
+let _adjType = null;
+let _adjLayer = null;
+let _adjOriginalImageData = null;     // ImageData snapshot (for revert + per-frame source)
+let _adjOriginalBuffer = null;        // Uint8ClampedArray copy (read-only source)
+let _adjScratchBuffer = null;         // Reused per-frame working buffer
+let _adjScratchImageData = null;      // ImageData wrapping scratch buffer
+let _adjScratchCanvas = null;         // Reused for selection clipping
+let _adjScratchCtx = null;
+let _adjRafPending = false;
+let _adjDragInit = false;
+
+function openAdjustmentPanel(type) {
+  closeAllMenus();
+  const layer = getActiveLayer(); if (!layer) return;
+
+  // If a panel is already open, treat re-open as cancel-then-open so we
+  // don't leave the previous original data or canvas in a half-applied state.
+  if (_adjType) cancelAdjustment();
+
+  _adjType = type;
+  _adjLayer = layer;
+
+  // Snapshot the layer once. This is both the revert source and the per-frame
+  // input for filter recomputes — the live layer pixels are overwritten as
+  // the user drags, so we need a stable original to read from each frame.
+  _adjOriginalImageData = layer.ctx.getImageData(0, 0, canvasW, canvasH);
+  _adjOriginalBuffer = new Uint8ClampedArray(_adjOriginalImageData.data);
+
+  // Reusable scratch buffer matching the canvas size.
+  _adjScratchBuffer = new Uint8ClampedArray(_adjOriginalBuffer.length);
+  _adjScratchImageData = new ImageData(_adjScratchBuffer, canvasW, canvasH);
+
+  // Reusable scratch canvas for selection-clipped writes.
+  _adjScratchCanvas = document.createElement('canvas');
+  _adjScratchCanvas.width = canvasW;
+  _adjScratchCanvas.height = canvasH;
+  _adjScratchCtx = _adjScratchCanvas.getContext('2d');
+
+  const titleEl = document.getElementById('adjTitle');
+  const controlsEl = document.getElementById('adjControls');
+  if (type === 'brightness') {
+    titleEl.textContent = 'Brightness / Contrast';
+    controlsEl.innerHTML =
+      sliderRow('Brightness', 'filterBrightness', -100, 100, 0) +
+      sliderRow('Contrast',   'filterContrast',   -100, 100, 0);
+  } else if (type === 'hsl') {
+    titleEl.textContent = 'Hue / Saturation';
+    controlsEl.innerHTML =
+      sliderRow('Hue',        'filterHue',        -180, 180, 0) +
+      sliderRow('Saturation', 'filterSaturation', -100, 100, 0) +
+      sliderRow('Lightness',  'filterLightness',  -100, 100, 0);
+  }
+
+  // Wire sliders + numeric inputs (mirrors the modal-filter wiring).
+  controlsEl.querySelectorAll('.filter-slider').forEach(slider => {
+    const valEl = slider.parentElement.querySelector('.filter-slider-value');
+    slider.addEventListener('input', () => {
+      if (valEl) valEl.value = slider.value;
+      _scheduleAdjPreview();
+    });
+    slider.addEventListener('dblclick', () => {
+      slider.value = slider.defaultValue;
+      if (valEl) valEl.value = slider.defaultValue;
+      _scheduleAdjPreview();
+    });
+    if (valEl) {
+      const sync = () => {
+        const min = parseFloat(slider.min), max = parseFloat(slider.max);
+        let v = parseFloat(valEl.value);
+        if (isNaN(v)) v = parseFloat(slider.value) || 0;
+        v = Math.max(min, Math.min(max, v));
+        valEl.value = v;
+        slider.value = v;
+        _scheduleAdjPreview();
+      };
+      valEl.addEventListener('input', sync);
+      valEl.addEventListener('change', sync);
+    }
+  });
+  controlsEl.querySelectorAll('.filter-slider-row').forEach(row => {
+    const slider = row.querySelector('.filter-slider');
+    if (!slider) return;
+    row.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      slider.value = Math.max(parseInt(slider.min)||0, Math.min(parseInt(slider.max)||100, (parseInt(slider.value)||0) + wheelDelta(e)));
+      slider.dispatchEvent(new Event('input'));
+    }, { passive: false });
+  });
+
+  // Reset position to centered each open (transform-based centering until drag).
+  const panel = document.getElementById('adjustmentPanel');
+  panel.style.left = '';
+  panel.style.top = '';
+  panel.style.transform = '';
+  document.getElementById('adjOverlay').classList.add('show');
+
+  if (!_adjDragInit) { _initAdjPanelDrag(); _adjDragInit = true; }
+}
+
+function _scheduleAdjPreview() {
+  if (_adjRafPending) return;
+  _adjRafPending = true;
+  requestAnimationFrame(() => {
+    _adjRafPending = false;
+    _renderAdjPreview();
+  });
+}
+
+// Build a 256-entry LUT from the same brightness/contrast math used by
+// filterBrightnessContrast. Identical output, ~3× faster on large canvases.
+function _buildBCLut(brightness, contrast) {
+  const lut = new Uint8ClampedArray(256);
+  const b = brightness / 100;
+  const c = contrast * 2.55;
+  const cf = (259 * (c + 255)) / (255 * (259 - c));
+  for (let v = 0; v < 256; v++) {
+    let x = v;
+    if (b >= 0) x = x + (255 - x) * b; else x = x * (1 + b);
+    x = cf * (x - 128) + 128;
+    lut[v] = x;
+  }
+  return lut;
+}
+
+function _renderAdjPreview() {
+  if (!_adjLayer || !_adjOriginalImageData) return;
+  const layer = _adjLayer;
+  const src = _adjOriginalBuffer;
+  const dst = _adjScratchBuffer;
+  const len = src.length;
+
+  // Read slider values once.
+  let isIdentity = false;
+  if (_adjType === 'brightness') {
+    const bv = parseInt(document.getElementById('filterBrightness')?.value || 0);
+    const cv = parseInt(document.getElementById('filterContrast')?.value || 0);
+    if (bv === 0 && cv === 0) {
+      isIdentity = true;
+    } else {
+      const lut = _buildBCLut(bv, cv);
+      for (let i = 0; i < len; i += 4) {
+        const a = src[i + 3];
+        if (a === 0) {
+          dst[i] = 0; dst[i + 1] = 0; dst[i + 2] = 0; dst[i + 3] = 0;
+        } else {
+          dst[i]     = lut[src[i]];
+          dst[i + 1] = lut[src[i + 1]];
+          dst[i + 2] = lut[src[i + 2]];
+          dst[i + 3] = a;
+        }
+      }
+    }
+  } else if (_adjType === 'hsl') {
+    const h = parseInt(document.getElementById('filterHue')?.value || 0);
+    const s = parseInt(document.getElementById('filterSaturation')?.value || 0);
+    const l = parseInt(document.getElementById('filterLightness')?.value || 0);
+    if (h === 0 && s === 0 && l === 0) {
+      isIdentity = true;
+    } else {
+      // Copy original into scratch, then run the existing in-place HSL filter.
+      dst.set(src);
+      filterHSL(dst, h, s, l);
+    }
+  }
+
+  // Identity: just restore the original (no work needed, but selection-safe).
+  if (isIdentity) {
+    if (selectionPath) {
+      // Outside-selection pixels were never touched; full restore is fine.
+      layer.ctx.putImageData(_adjOriginalImageData, 0, 0);
+    } else {
+      layer.ctx.putImageData(_adjOriginalImageData, 0, 0);
+    }
+  } else if (selectionPath) {
+    // 1) Restore baseline so outside-selection pixels match original.
+    layer.ctx.putImageData(_adjOriginalImageData, 0, 0);
+    // 2) Stage filtered pixels on the scratch canvas.
+    _adjScratchCtx.putImageData(_adjScratchImageData, 0, 0);
+    // 3) Clip-overwrite only the selected region with the filtered result.
+    layer.ctx.save();
+    layer.ctx.clip(selectionPath, selectionFillRule);
+    layer.ctx.clearRect(0, 0, canvasW, canvasH);
+    layer.ctx.drawImage(_adjScratchCanvas, 0, 0);
+    layer.ctx.restore();
+  } else {
+    layer.ctx.putImageData(_adjScratchImageData, 0, 0);
+  }
+
+  SnapEngine.invalidateLayer(layer);
+  compositeAll();
+}
+
+function commitAdjustment() {
+  if (!_adjType) return;
+  // Make sure the latest slider state is rendered to the layer before commit.
+  // If there's a pending rAF, run it synchronously now so the committed pixels
+  // exactly reflect the visible state.
+  if (_adjRafPending) {
+    _adjRafPending = false;
+    _renderAdjPreview();
+  }
+  const layer = _adjLayer;
+  _closeAdjustmentPanel();
+  if (layer) {
+    SnapEngine.invalidateLayer(layer);
+    compositeAll();
+    pushUndo('Filter');
+  }
+}
+
+function cancelAdjustment() {
+  if (!_adjType) return;
+  // Cancel any pending render so it can't run after we restore.
+  _adjRafPending = false;
+  if (_adjLayer && _adjOriginalImageData) {
+    _adjLayer.ctx.putImageData(_adjOriginalImageData, 0, 0);
+    SnapEngine.invalidateLayer(_adjLayer);
+    compositeAll();
+  }
+  _closeAdjustmentPanel();
+}
+
+function _closeAdjustmentPanel() {
+  document.getElementById('adjOverlay').classList.remove('show');
+  _adjType = null;
+  _adjLayer = null;
+  _adjOriginalImageData = null;
+  _adjOriginalBuffer = null;
+  _adjScratchBuffer = null;
+  _adjScratchImageData = null;
+  _adjScratchCanvas = null;
+  _adjScratchCtx = null;
+}
+
+function _initAdjPanelDrag() {
+  const panel = document.getElementById('adjustmentPanel');
+  const titlebar = document.getElementById('adjTitlebar');
+  let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+  titlebar.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.adj-close')) return;
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    // Convert from transform-centered to absolute left/top so future writes
+    // to .style.left/.style.top move the panel directly.
+    const rect = panel.getBoundingClientRect();
+    panel.style.transform = 'none';
+    panel.style.left = rect.left + 'px';
+    panel.style.top = rect.top + 'px';
+    startLeft = rect.left;
+    startTop = rect.top;
+    titlebar.setPointerCapture(e.pointerId);
+  });
+  titlebar.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    let nl = startLeft + (e.clientX - startX);
+    let nt = startTop + (e.clientY - startY);
+    const maxL = window.innerWidth - panel.offsetWidth;
+    const maxT = window.innerHeight - panel.offsetHeight;
+    nl = Math.max(0, Math.min(nl, maxL));
+    nt = Math.max(0, Math.min(nt, maxT));
+    panel.style.left = nl + 'px';
+    panel.style.top = nt + 'px';
+  });
+  const stop = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    try { titlebar.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+  titlebar.addEventListener('pointerup', stop);
+  titlebar.addEventListener('pointercancel', stop);
+}
+
+// Esc cancels the open adjustment panel (mirrors Settings/PNG-export behavior).
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && _adjType) {
+    e.preventDefault();
+    e.stopPropagation();
+    cancelAdjustment();
+  }
+}, true);
 
 /* ═══════════════════════════════════════════════════════
    FILE I/O
@@ -3204,132 +1836,15 @@ function expandCanvasToFit(newW, newH) {
   SnapEngine.invalidateAllLayers();
 }
 
-/**
- * stampImageAsCommittedLayer — Inserts a full-resolution image as a new layer
- * at (originX, originY) and pushes a regular undo entry. No selection, no
- * Free Transform. Used by the multi-file batch drop where canvas is auto-
- * expanded to fit all incoming images anchored at top-left.
- */
-function stampImageAsCommittedLayer(srcCanvas, layerName, originX, originY) {
-  const layerCanvas = document.createElement('canvas');
-  layerCanvas.width = canvasW; layerCanvas.height = canvasH;
-  const layerCtx = layerCanvas.getContext('2d', { willReadFrequently: true });
-  layerCtx.drawImage(srcCanvas, originX, originY);
-  const layer = { id: layerIdCounter++, name: layerName, canvas: layerCanvas, ctx: layerCtx, visible: true, opacity: 1 };
-  const insertAt = Math.max(0, activeLayerIndex);
-  layers.splice(insertAt, 0, layer);
-  activeLayerIndex = layers.indexOf(layer);
-  selectedLayers = new Set([activeLayerIndex]);
-  SnapEngine.invalidateLayer(layer);
-  pushUndo(`Import "${layerName}"`);
-}
-
-function _decodeFileToCanvas(file) {
-  return new Promise((resolve, reject) => {
-    if (!RASTER_MIME_TYPES.has(file.type.toLowerCase())) { reject(new Error(`Unsupported format: ${file.type}`)); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-        const c = document.createElement('canvas'); c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0);
-        resolve(c);
-      };
-      img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
-      img.src = ev.target.result;
-    };
-    reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * Single-image import-as-layer.
- *  • Always commits any active transform / floating selection first.
- *  • If the image is bigger than the canvas in either dimension, prompts the
- *    user (Expand / Keep / Cancel).
- *      – Expand: canvas grows to fit (TL-anchored), image drops at (0,0),
- *        Free Transform engaged.
- *      – Keep: image is centered (clipped where it extends past canvas),
- *        Free Transform engaged.
- *  • If the image fits within the canvas, it is centered and Free Transform
- *    is engaged (per spec — every single-file add lands in transform mode).
- */
-async function importImageAsLayer(file) {
-  const srcCanvas = await _decodeFileToCanvas(file);
-  if (pxTransformActive) commitPixelTransform();
-  if (floatingActive) commitFloating();
-
-  const layerName = file.name.replace(/\.[^.]+$/, '');
-  const w = srcCanvas.width, h = srcCanvas.height;
-
-  if (w > canvasW || h > canvasH) {
-    const choice = await openImportSizeDialog(w, h);
-    if (choice === 'cancel') return;
-    if (choice === 'expand') {
-      expandCanvasToFit(w, h);
-      placeImageAsTransformLayer(srcCanvas, layerName, 0, 0);
-      zoomFit();
-      updateStatus();
-      return;
-    }
-  }
-
-  const px = Math.round((canvasW - w) / 2);
-  const py = Math.round((canvasH - h) / 2);
-  placeImageAsTransformLayer(srcCanvas, layerName, px, py);
-}
-
-async function importFilesAsLayers(files) {
-  const validFiles = Array.from(files).filter(f => RASTER_MIME_TYPES.has(f.type.toLowerCase()));
-  if (validFiles.length === 0) return;
-
-  if (validFiles.length === 1) {
-    try { await importImageAsLayer(validFiles[0]); }
-    catch (err) { console.warn('[Opsin] Import skipped:', err.message); }
-    return;
-  }
-
-  // Batch drop: decode everything first, expand canvas to fit the largest
-  // dimensions, then stamp each image at top-left as its own committed layer
-  // (no per-file prompt, no Free Transform — Paint.NET batch behavior).
-  if (pxTransformActive) commitPixelTransform();
-  if (floatingActive) commitFloating();
-
-  const decoded = [];
-  for (const f of validFiles) {
-    try { decoded.push({ name: f.name.replace(/\.[^.]+$/, ''), canvas: await _decodeFileToCanvas(f) }); }
-    catch (err) { console.warn('[Opsin] Import skipped:', err.message); }
-  }
-  if (decoded.length === 0) return;
-
-  let maxW = canvasW, maxH = canvasH;
-  for (const d of decoded) { if (d.canvas.width > maxW) maxW = d.canvas.width; if (d.canvas.height > maxH) maxH = d.canvas.height; }
-  if (maxW > canvasW || maxH > canvasH) {
-    expandCanvasToFit(maxW, maxH);
-    zoomFit();
-    updateStatus();
-  }
-  for (const d of decoded) {
-    stampImageAsCommittedLayer(d.canvas, d.name, 0, 0);
-  }
-  compositeAll();
-  updateLayerPanel();
-}
-
-function triggerImportLayer() { document.getElementById('importLayerInput').click(); }
-
 function saveImage(format) {
+  if (format === 'jpg') { saveJpg(); return; }
+  if (format === 'webp') { saveWebP(); return; }
   closeAllMenus();
   const exportCanvas = document.createElement('canvas'); exportCanvas.width = canvasW; exportCanvas.height = canvasH;
   const ectx = exportCanvas.getContext('2d');
-  if (format === 'jpg') { ectx.fillStyle = '#ffffff'; ectx.fillRect(0, 0, canvasW, canvasH); }
   for (let i = layers.length - 1; i >= 0; i--) { const l = layers[i]; if (!l.visible) continue; ectx.globalAlpha = l.opacity; ectx.drawImage(l.canvas, 0, 0); if (i === activeLayerIndex && floatingActive && floatingCanvas) ectx.drawImage(floatingCanvas, floatingOffset.x, floatingOffset.y); }
   ectx.globalAlpha = 1;
-  const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
-  const ext = format === 'jpg' ? '.jpg' : format === 'webp' ? '.webp' : '.png';
-  exportCanvas.toBlob(blob => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'image' + ext; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000); }, mimeType, 0.92);
+  exportCanvas.toBlob(blob => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'image.png'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000); }, 'image/png', 0.92);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3415,585 +1930,15 @@ function executeExport() {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-/* ── BMP Encoder ─────────────────────────────────────── */
-function encodeBMP(imageData, w, h, bitDepth) {
-  const channels = bitDepth === 32 ? 4 : 3;
-  const rowBytes = w * channels;
-  const rowPadding = (4 - (rowBytes % 4)) % 4;
-  const pixelDataSize = (rowBytes + rowPadding) * h;
+/* encodeBMP and encodeTIFF live in js/export/bmpExport.js and js/export/tifExport.js */
 
-  // 24-bit uses BITMAPINFOHEADER (40 bytes), 32-bit uses BITMAPV4HEADER (108 bytes)
-  const dibHeaderSize = bitDepth === 32 ? 108 : 40;
-  const headerSize = 14 + dibHeaderSize;
-  const fileSize = headerSize + pixelDataSize;
-  const buf = new ArrayBuffer(fileSize);
-  const view = new DataView(buf);
-  const d = imageData.data;
-
-  // ── BMP File Header (14 bytes) ──
-  view.setUint8(0, 0x42);  // 'B'
-  view.setUint8(1, 0x4D);  // 'M'
-  view.setUint32(2, fileSize, true);
-  view.setUint16(6, 0, true);  // reserved
-  view.setUint16(8, 0, true);  // reserved
-  view.setUint32(10, headerSize, true);  // pixel data offset
-
-  // ── DIB Header ──
-  view.setUint32(14, dibHeaderSize, true);  // header size
-  view.setInt32(18, w, true);               // width
-  view.setInt32(22, -h, true);              // height (negative = top-down)
-  view.setUint16(26, 1, true);             // color planes
-  view.setUint16(28, bitDepth, true);      // bits per pixel
-
-  if (bitDepth === 32) {
-    // BITMAPV4HEADER fields
-    view.setUint32(30, 3, true);              // compression: BI_BITFIELDS
-    view.setUint32(34, pixelDataSize, true);  // image size
-    view.setInt32(38, 2835, true);            // X pixels per meter (72 DPI)
-    view.setInt32(42, 2835, true);            // Y pixels per meter (72 DPI)
-    view.setUint32(46, 0, true);              // colors in table
-    view.setUint32(50, 0, true);              // important colors
-    // Channel masks: R, G, B, A
-    view.setUint32(54, 0x00FF0000, true);     // red mask
-    view.setUint32(58, 0x0000FF00, true);     // green mask
-    view.setUint32(62, 0x000000FF, true);     // blue mask
-    view.setUint32(66, 0xFF000000, true);     // alpha mask
-    // Color space: LCS_sRGB (0x73524742 = 'sRGB')
-    view.setUint32(70, 0x73524742, true);
-    // CIEXYZTRIPLE endpoints (36 bytes) + gamma values (12 bytes) = 48 bytes, all zero for sRGB
-    for (let i = 74; i < 122; i += 4) view.setUint32(i, 0, true);
-  } else {
-    // BITMAPINFOHEADER fields
-    view.setUint32(30, 0, true);              // compression: BI_RGB
-    view.setUint32(34, pixelDataSize, true);  // image size
-    view.setInt32(38, 2835, true);            // X pixels per meter (72 DPI)
-    view.setInt32(42, 2835, true);            // Y pixels per meter (72 DPI)
-    view.setUint32(46, 0, true);              // colors in table
-    view.setUint32(50, 0, true);              // important colors
-  }
-
-  // ── Pixel data (top-down via negative height) ──
-  let offset = headerSize;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const si = (y * w + x) * 4;
-      if (bitDepth === 32) {
-        // BGRA byte order
-        view.setUint8(offset++, d[si + 2]); // B
-        view.setUint8(offset++, d[si + 1]); // G
-        view.setUint8(offset++, d[si]);     // R
-        view.setUint8(offset++, d[si + 3]); // A
-      } else {
-        // BGR byte order
-        view.setUint8(offset++, d[si + 2]); // B
-        view.setUint8(offset++, d[si + 1]); // G
-        view.setUint8(offset++, d[si]);     // R
-      }
-    }
-    // Row padding to 4-byte boundary
-    for (let p = 0; p < rowPadding; p++) view.setUint8(offset++, 0);
-  }
-
-  return new Blob([buf], { type: 'image/bmp' });
-}
-
-/* ── TIFF Encoder (uncompressed, little-endian) ────── */
-function encodeTIFF(imageData, w, h, bitDepth) {
-  const channels = bitDepth === 32 ? 4 : 3;
-  const stripSize = w * h * channels;
-
-  // Tag counts and IFD layout
-  const tagCount = bitDepth === 32 ? 13 : 12;
-  const ifdOffset = 8;
-  const ifdSize = 2 + tagCount * 12 + 4;
-  let overflowOffset = ifdOffset + ifdSize;
-
-  // BitsPerSample overflow: 3 or 4 shorts
-  const bpsOffset = overflowOffset;
-  overflowOffset += channels * 2;
-  // XResolution rational (8 bytes)
-  const xResOffset = overflowOffset;
-  overflowOffset += 8;
-  // YResolution rational (8 bytes)
-  const yResOffset = overflowOffset;
-  overflowOffset += 8;
-
-  const stripOffset = overflowOffset;
-  const fileSize = stripOffset + stripSize;
-  const buf = new ArrayBuffer(fileSize);
-  const view = new DataView(buf);
-  const d = imageData.data;
-
-  // ── TIFF Header (8 bytes) ──
-  view.setUint8(0, 0x49); view.setUint8(1, 0x49); // 'II' little-endian
-  view.setUint16(2, 42, true);                      // magic
-  view.setUint32(4, ifdOffset, true);                // offset to first IFD
-
-  // ── IFD ──
-  let pos = ifdOffset;
-  view.setUint16(pos, tagCount, true); pos += 2;
-
-  function writeTag(tag, type, count, value) {
-    view.setUint16(pos, tag, true); pos += 2;
-    view.setUint16(pos, type, true); pos += 2;
-    view.setUint32(pos, count, true); pos += 4;
-    // Type sizes: 1=BYTE(1), 2=ASCII(1), 3=SHORT(2), 4=LONG(4), 5=RATIONAL(8)
-    if (type === 3 && count === 1) {
-      view.setUint16(pos, value, true); pos += 4; // value in low 2 bytes, pad
-    } else {
-      view.setUint32(pos, value, true); pos += 4;
-    }
-  }
-
-  // Tags must be in ascending order by tag ID
-  writeTag(256, 3, 1, w);                    // ImageWidth
-  writeTag(257, 3, 1, h);                    // ImageLength
-  writeTag(258, 3, channels, bpsOffset);     // BitsPerSample -> overflow
-  writeTag(259, 3, 1, 1);                    // Compression: None
-  writeTag(262, 3, 1, 2);                    // PhotometricInterpretation: RGB
-  writeTag(273, 4, 1, stripOffset);          // StripOffsets
-  writeTag(277, 3, 1, channels);             // SamplesPerPixel
-  writeTag(278, 3, 1, h);                    // RowsPerStrip: entire image
-  writeTag(279, 4, 1, stripSize);            // StripByteCounts
-  writeTag(282, 5, 1, xResOffset);           // XResolution -> overflow
-  writeTag(283, 5, 1, yResOffset);           // YResolution -> overflow
-  writeTag(296, 3, 1, 2);                    // ResolutionUnit: inch
-  if (bitDepth === 32) {
-    writeTag(338, 3, 1, 2);                  // ExtraSamples: unassociated alpha
-  }
-
-  // Next IFD offset: 0 (no more IFDs)
-  view.setUint32(pos, 0, true);
-
-  // ── Overflow data ──
-  // BitsPerSample values
-  for (let i = 0; i < channels; i++) view.setUint16(bpsOffset + i * 2, 8, true);
-  // XResolution: 72/1
-  view.setUint32(xResOffset, 72, true);
-  view.setUint32(xResOffset + 4, 1, true);
-  // YResolution: 72/1
-  view.setUint32(yResOffset, 72, true);
-  view.setUint32(yResOffset + 4, 1, true);
-
-  // ── Pixel data (uncompressed RGB or RGBA, top-to-bottom) ──
-  let offset = stripOffset;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const si = (y * w + x) * 4;
-      view.setUint8(offset++, d[si]);     // R
-      view.setUint8(offset++, d[si + 1]); // G
-      view.setUint8(offset++, d[si + 2]); // B
-      if (channels === 4) view.setUint8(offset++, d[si + 3]); // A
-    }
-  }
-
-  return new Blob([buf], { type: 'image/tiff' });
-}
-
-/* ═══════════════════════════════════════════════════════
-   EXPORT ICO — Multi-size .ico encoder with Lanczos-3
-   ═══════════════════════════════════════════════════════ */
-
-/* ── Lanczos-3 High-Quality Resampler ────────────────── */
-// Separable 2-pass Lanczos-3 windowed sinc filter operating in linear light.
-// Premultiplied alpha during interpolation for correct edge blending.
-function lanczos3Resample(srcData, srcW, srcH, dstW, dstH) {
-  const a = 3; // Lanczos kernel radius
-  function lanczosKernel(x) {
-    if (x === 0) return 1;
-    if (x >= a || x <= -a) return 0;
-    const px = Math.PI * x;
-    return (a * Math.sin(px) * Math.sin(px / a)) / (px * px);
-  }
-
-  // sRGB <-> linear conversion (matching existing helpers in gradient code)
-  function toLinear(c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
-  function toSrgb(c) { const v = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; return Math.max(0, Math.min(255, Math.round(v * 255))); }
-
-  const src = srcData.data;
-
-  // Pass 1: Horizontal resample (srcW -> dstW, height stays srcH)
-  const tmpW = dstW, tmpH = srcH;
-  const tmp = new Float64Array(tmpW * tmpH * 4);
-  const xRatio = srcW / dstW;
-  for (let y = 0; y < tmpH; y++) {
-    for (let x = 0; x < tmpW; x++) {
-      const center = (x + 0.5) * xRatio - 0.5;
-      const left = Math.ceil(center - a);
-      const right = Math.floor(center + a);
-      let r = 0, g = 0, b = 0, alpha = 0, wSum = 0;
-      for (let ix = left; ix <= right; ix++) {
-        const sx = Math.min(Math.max(ix, 0), srcW - 1);
-        const w = lanczosKernel(center - ix);
-        const si = (y * srcW + sx) * 4;
-        const aVal = src[si + 3] / 255;
-        const pa = aVal * w; // premultiplied weight
-        r += toLinear(src[si])     * pa;
-        g += toLinear(src[si + 1]) * pa;
-        b += toLinear(src[si + 2]) * pa;
-        alpha += aVal * w;
-        wSum += w;
-      }
-      const di = (y * tmpW + x) * 4;
-      if (alpha > 1e-6) {
-        tmp[di]     = r / alpha;
-        tmp[di + 1] = g / alpha;
-        tmp[di + 2] = b / alpha;
-        tmp[di + 3] = alpha / wSum;
-      }
-    }
-  }
-
-  // Pass 2: Vertical resample (tmpH -> dstH, width stays dstW)
-  const out = new Uint8ClampedArray(dstW * dstH * 4);
-  const yRatio = tmpH / dstH;
-  for (let x = 0; x < dstW; x++) {
-    for (let y = 0; y < dstH; y++) {
-      const center = (y + 0.5) * yRatio - 0.5;
-      const top = Math.ceil(center - a);
-      const bottom = Math.floor(center + a);
-      let r = 0, g = 0, b = 0, alpha = 0, wSum = 0;
-      for (let iy = top; iy <= bottom; iy++) {
-        const sy = Math.min(Math.max(iy, 0), tmpH - 1);
-        const w = lanczosKernel(center - iy);
-        const si = (sy * tmpW + x) * 4;
-        const aVal = tmp[si + 3];
-        const pa = aVal * w;
-        r += tmp[si]     * pa;
-        g += tmp[si + 1] * pa;
-        b += tmp[si + 2] * pa;
-        alpha += aVal * w;
-        wSum += w;
-      }
-      const di = (y * dstW + x) * 4;
-      const fa = wSum > 1e-6 ? alpha / wSum : 0;
-      out[di + 3] = Math.max(0, Math.min(255, Math.round(fa * 255)));
-      if (alpha > 1e-6) {
-        out[di]     = toSrgb(r / alpha);
-        out[di + 1] = toSrgb(g / alpha);
-        out[di + 2] = toSrgb(b / alpha);
-      }
-    }
-  }
-  return new ImageData(out, dstW, dstH);
-}
-
-/* ── ICO Modal Controls ──────────────────────────────── */
-function openExportIcoModal() {
-  closeAllMenus();
-  // Remove any custom rows from a previous session
-  document.querySelectorAll('.ico-size-row.custom').forEach(r => r.remove());
-  deactivateIcoGhostRow();
-  resetIcoFormats();
-  const cbs = document.querySelectorAll('.ico-size-cb');
-  cbs.forEach(cb => { cb.checked = ICO_DEFAULT_SIZES.includes(parseInt(cb.value)); });
-  updateIcoSelectAll();
-  document.getElementById('exportIcoModal').classList.add('show');
-}
-
-function toggleIcoSelectAll() {
-  const all = document.getElementById('icoSelectAll').checked;
-  document.querySelectorAll('.ico-size-cb').forEach(cb => { cb.checked = all; });
-}
-
-function updateIcoSelectAll() {
-  const cbs = Array.from(document.querySelectorAll('.ico-size-cb'));
-  const checked = cbs.filter(cb => cb.checked).length;
-  const sa = document.getElementById('icoSelectAll');
-  sa.checked = checked === cbs.length;
-  sa.indeterminate = false;
-}
-
-/* ── ICO Per-Row Format Toggle ────────────────────────── */
-function setIcoRowFormat(row, fmt) {
-  row.dataset.fmt = fmt;
-  // Target the togglable format badge (has onclick), not the CUSTOM label badge
-  const badges = Array.from(row.querySelectorAll('.ico-format-badge'));
-  const badge = badges.find(b => b.getAttribute('onclick')) || badges.find(b => b.classList.contains('png') || b.classList.contains('bmp')) || badges[badges.length - 1];
-  badge.className = 'ico-format-badge ' + fmt;
-  badge.textContent = fmt.toUpperCase();
-  if (!badge.getAttribute('onclick')) {
-    badge.setAttribute('onclick', 'event.preventDefault();toggleIcoRowFormat(this)');
-  }
-}
-
-function toggleIcoRowFormat(badge) {
-  const row = badge.closest('.ico-size-row');
-  const current = row.dataset.fmt;
-  setIcoRowFormat(row, current === 'png' ? 'bmp' : 'png');
-  updateIcoMasterFmtLabel();
-}
-
-function cycleIcoMasterFormat() {
-  const btn = document.getElementById('icoMasterFmt');
-  // If currently mixed (user-defined), cycle starts at png
-  const current = btn.dataset.mode || 'auto';
-  const cycleFrom = (current === '' || current === 'mixed') ? 'mixed' : current;
-  const modes = ['auto', 'png', 'bmp'];
-  let next;
-  if (cycleFrom === 'mixed') next = 'png';
-  else next = modes[(modes.indexOf(current) + 1) % modes.length];
-  btn.dataset.mode = next;
-  btn.textContent = { auto: 'Default', png: 'PNG', bmp: 'BMP' }[next];
-  document.querySelectorAll('.ico-size-row').forEach(row => {
-    const size = parseInt(row.dataset.icoSize);
-    if (next === 'auto') setIcoRowFormat(row, size >= 256 ? 'png' : 'bmp');
-    else setIcoRowFormat(row, next);
-  });
-}
-
-function updateIcoMasterFmtLabel() {
-  const rows = Array.from(document.querySelectorAll('.ico-size-row'));
-  const allPng = rows.every(r => r.dataset.fmt === 'png');
-  const allBmp = rows.every(r => r.dataset.fmt === 'bmp');
-  const isAuto = rows.every(r => {
-    const s = parseInt(r.dataset.icoSize);
-    return (s >= 256 && r.dataset.fmt === 'png') || (s < 256 && r.dataset.fmt === 'bmp');
-  });
-  const btn = document.getElementById('icoMasterFmt');
-  if (allPng) { btn.dataset.mode = 'png'; btn.textContent = 'PNG'; }
-  else if (allBmp) { btn.dataset.mode = 'bmp'; btn.textContent = 'BMP'; }
-  else if (isAuto) { btn.dataset.mode = 'auto'; btn.textContent = 'Default'; }
-  else { btn.dataset.mode = 'mixed'; btn.textContent = 'Mixed'; }
-}
-
-function resetIcoFormats() {
-  document.querySelectorAll('.ico-size-row:not(.custom)').forEach(row => {
-    const size = parseInt(row.dataset.icoSize);
-    setIcoRowFormat(row, size >= 256 ? 'png' : 'bmp');
-  });
-  const btn = document.getElementById('icoMasterFmt');
-  btn.dataset.mode = 'auto';
-  btn.textContent = 'Default';
-}
-
-/* ── ICO Custom Size (Ghost Row) ─────────────────────── */
-let _icoGhostBlurTimer = null;
-
-function activateIcoGhostRow() {
-  document.getElementById('icoGhostRow').style.display = 'none';
-  const gi = document.getElementById('icoGhostInput');
-  gi.style.display = 'flex';
-  const inp = document.getElementById('icoCustomSizeInput');
-  inp.value = '';
-  inp.focus();
-}
-
-function deactivateIcoGhostRow() {
-  clearTimeout(_icoGhostBlurTimer);
-  document.getElementById('icoGhostInput').style.display = 'none';
-  document.getElementById('icoGhostRow').style.display = 'flex';
-}
-
-function addIcoCustomSize() {
-  clearTimeout(_icoGhostBlurTimer);
-  const inp = document.getElementById('icoCustomSizeInput');
-  const val = parseInt(inp.value);
-  if (!val || val < 1 || val > 512 || !Number.isInteger(val)) { inp.focus(); return; }
-  // Check for duplicates among all current size rows
-  const existing = Array.from(document.querySelectorAll('.ico-size-cb')).map(cb => parseInt(cb.value));
-  if (existing.includes(val)) { inp.value = ''; inp.focus(); return; }
-  // Build the custom row — default format follows master or auto rule
-  const row = document.createElement('label');
-  row.className = 'ico-size-row custom';
-  row.dataset.icoSize = val;
-  const masterMode = (document.getElementById('icoMasterFmt').dataset.mode || 'auto');
-  const fmt = masterMode === 'png' ? 'png' : masterMode === 'bmp' ? 'bmp' : (val >= 256 ? 'png' : 'bmp');
-  row.dataset.fmt = fmt;
-  row.innerHTML =
-    '<input type="checkbox" class="ico-size-cb" value="' + val + '" checked onchange="updateIcoSelectAll()">' +
-    '<span class="ico-check"></span>' +
-    '<span class="ico-size-label">' + val + ' x ' + val + '</span>' +
-    '<span class="ico-format-badge custom">CUSTOM</span>' +
-    '<span class="ico-format-badge ' + fmt + '" onclick="event.preventDefault();toggleIcoRowFormat(this)">' + fmt.toUpperCase() + '</span>' +
-    '<button class="ico-remove" onclick="event.preventDefault();removeIcoCustomSize(this)" title="Remove">&times;</button>';
-  // Insert sorted (descending) — find the first row with a smaller size
-  const list = document.querySelector('.ico-size-list');
-  const rows = Array.from(list.querySelectorAll('.ico-size-row'));
-  let inserted = false;
-  for (const r of rows) {
-    if (parseInt(r.dataset.icoSize) < val) {
-      list.insertBefore(row, r);
-      inserted = true;
-      break;
-    }
-  }
-  if (!inserted) {
-    // Smaller than all — insert before ghost row
-    list.insertBefore(row, document.getElementById('icoGhostRow'));
-  }
-  updateIcoSelectAll();
-  deactivateIcoGhostRow();
-}
-
-function removeIcoCustomSize(btn) {
-  btn.closest('.ico-size-row').remove();
-  updateIcoSelectAll();
-  updateIcoMasterFmtLabel();
-}
-
-// Wire up keyboard events for the custom size input
-document.getElementById('icoCustomSizeInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { e.preventDefault(); addIcoCustomSize(); }
-  else if (e.key === 'Escape') { deactivateIcoGhostRow(); }
-});
-document.getElementById('icoCustomSizeInput').addEventListener('blur', function() {
-  _icoGhostBlurTimer = setTimeout(deactivateIcoGhostRow, 150);
-});
-
-/* ── ICO Binary Encoder ──────────────────────────────── */
-// Encodes a BMP DIB (no file header) for embedding in ICO.
-// 32-bit BGRA, bottom-to-top rows, with AND mask.
-function encodeIcoDIB(imageData, size) {
-  const w = size, h = size;
-  const andRowBytes = Math.ceil(w / 8);
-  const andRowPad = (4 - (andRowBytes % 4)) % 4;
-  const andMaskSize = (andRowBytes + andRowPad) * h;
-  const pixelDataSize = w * h * 4;
-  const dibHeaderSize = 40;
-  const totalSize = dibHeaderSize + pixelDataSize + andMaskSize;
-  const buf = new ArrayBuffer(totalSize);
-  const view = new DataView(buf);
-  const d = imageData.data;
-
-  // BITMAPINFOHEADER (40 bytes)
-  view.setUint32(0, 40, true);          // biSize
-  view.setInt32(4, w, true);            // biWidth
-  view.setInt32(8, h * 2, true);        // biHeight (XOR + AND)
-  view.setUint16(12, 1, true);          // biPlanes
-  view.setUint16(14, 32, true);         // biBitCount
-  view.setUint32(16, 0, true);          // biCompression = BI_RGB
-  view.setUint32(20, pixelDataSize + andMaskSize, true); // biSizeImage
-  // biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant = 0
-
-  // Pixel data: BGRA, bottom-to-top
-  let offset = dibHeaderSize;
-  for (let y = h - 1; y >= 0; y--) {
-    for (let x = 0; x < w; x++) {
-      const si = (y * w + x) * 4;
-      view.setUint8(offset,     d[si + 2]); // B
-      view.setUint8(offset + 1, d[si + 1]); // G
-      view.setUint8(offset + 2, d[si]);     // R
-      view.setUint8(offset + 3, d[si + 3]); // A
-      offset += 4;
-    }
-  }
-
-  // AND mask: 1-bit per pixel, bottom-to-top
-  // With 32-bit BGRA the alpha channel carries transparency,
-  // so the AND mask is formally all-zero (opaque). Some legacy
-  // readers still consult it, so we set bits for fully-transparent pixels.
-  for (let y = h - 1; y >= 0; y--) {
-    for (let byteIdx = 0; byteIdx < andRowBytes; byteIdx++) {
-      let byte = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const px = byteIdx * 8 + bit;
-        if (px < w) {
-          const si = (y * w + px) * 4;
-          if (d[si + 3] === 0) byte |= (0x80 >> bit);
-        }
-      }
-      view.setUint8(offset, byte);
-      offset++;
-    }
-    for (let p = 0; p < andRowPad; p++) { view.setUint8(offset++, 0); }
-  }
-
-  return new Uint8Array(buf);
-}
-
-async function executeIcoExport() {
-  // Build a size->format map from the checked rows (read before closing modal)
-  const checkedRows = Array.from(document.querySelectorAll('.ico-size-row')).filter(r => r.querySelector('.ico-size-cb').checked);
-  const fmtMap = {};
-  checkedRows.forEach(r => { fmtMap[parseInt(r.dataset.icoSize)] = r.dataset.fmt || 'bmp'; });
-  const sizes = Object.keys(fmtMap).map(Number).sort((a, b) => b - a);
-  if (sizes.length === 0) return;
-  closeModal('exportIcoModal');
-
-  // Composite all visible layers
-  const exportCanvas = document.createElement('canvas');
-  exportCanvas.width = canvasW; exportCanvas.height = canvasH;
-  const ectx = exportCanvas.getContext('2d');
-  for (let i = layers.length - 1; i >= 0; i--) {
-    const l = layers[i]; if (!l.visible) continue;
-    ectx.globalAlpha = l.opacity;
-    ectx.drawImage(l.canvas, 0, 0);
-    if (i === activeLayerIndex && floatingActive && floatingCanvas)
-      ectx.drawImage(floatingCanvas, floatingOffset.x, floatingOffset.y);
-  }
-  ectx.globalAlpha = 1;
-  const srcData = ectx.getImageData(0, 0, canvasW, canvasH);
-
-  // Resample and encode each size
-  const imageEntries = []; // { size, data: Uint8Array }
-  for (const size of sizes) {
-    const resampled = (size === canvasW && size === canvasH)
-      ? srcData
-      : lanczos3Resample(srcData, canvasW, canvasH, size, size);
-
-    if (fmtMap[size] === 'png') {
-      // PNG-encode
-      const tmpCvs = document.createElement('canvas');
-      tmpCvs.width = size; tmpCvs.height = size;
-      tmpCvs.getContext('2d').putImageData(resampled, 0, 0);
-      const pngBlob = await new Promise(resolve => tmpCvs.toBlob(resolve, 'image/png'));
-      const pngBuf = await pngBlob.arrayBuffer();
-      imageEntries.push({ size, data: new Uint8Array(pngBuf) });
-    } else {
-      // BMP DIB
-      imageEntries.push({ size, data: encodeIcoDIB(resampled, size) });
-    }
-  }
-
-  // Assemble ICO file
-  const count = imageEntries.length;
-  const headerSize = 6;
-  const dirSize = count * 16;
-  let dataOffset = headerSize + dirSize;
-  const totalSize = dataOffset + imageEntries.reduce((s, e) => s + e.data.length, 0);
-  const buf = new ArrayBuffer(totalSize);
-  const view = new DataView(buf);
-
-  // ICONDIR header
-  view.setUint16(0, 0, true);       // reserved
-  view.setUint16(2, 1, true);       // type = ICO
-  view.setUint16(4, count, true);   // image count
-
-  // ICONDIRENTRY for each image
-  for (let i = 0; i < count; i++) {
-    const e = imageEntries[i];
-    const off = 6 + i * 16;
-    view.setUint8(off, e.size === 256 ? 0 : e.size);     // width (0 = 256)
-    view.setUint8(off + 1, e.size === 256 ? 0 : e.size); // height (0 = 256)
-    view.setUint8(off + 2, 0);      // color count
-    view.setUint8(off + 3, 0);      // reserved
-    view.setUint16(off + 4, 1, true);  // planes
-    view.setUint16(off + 6, 32, true); // bit count
-    view.setUint32(off + 8, e.data.length, true);  // bytes in resource
-    view.setUint32(off + 12, dataOffset, true);     // offset to data
-    dataOffset += e.data.length;
-  }
-
-  // Image data
-  let writePos = headerSize + dirSize;
-  for (const e of imageEntries) {
-    new Uint8Array(buf, writePos, e.data.length).set(e.data);
-    writePos += e.data.length;
-  }
-
-  const blob = new Blob([buf], { type: 'image/x-icon' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'image.ico'; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
+/* ICO export logic lives in js/export/icoExport.js */
 
 /* ═══════════════════════════════════════════════════════
    MENUS
    ═══════════════════════════════════════════════════════ */
 
-function closeAllMenus() { document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('show')); document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('open')); openMenuId = null; if (window.IEM && window.IEM.applyFileMenuState) window.IEM.applyFileMenuState(); }
+function closeAllMenus() { document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('show')); document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('open')); document.querySelectorAll('.menu-has-submenu').forEach(el => el.classList.remove('submenu-open')); if (window._clearMenuSubmenuTimer) window._clearMenuSubmenuTimer(); openMenuId = null; if (window.IEM && window.IEM.applyFileMenuState) window.IEM.applyFileMenuState(); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
 /* ═══════════════════════════════════════════════════════
@@ -4166,432 +2111,6 @@ function updateStatus(e) {
    BRUSH CURSOR PREVIEW
    ═══════════════════════════════════════════════════════ */
 
-function updateBrushCursor(e) {
-  if (!['brush','pencil','eraser'].includes(currentTool) || spaceDown || isPanning) { brushCursorEl.style.display = 'none'; return; }
-  const size = getDrawSize(); const screenSize = size * zoom;
-  if (currentTool === 'pencil') {
-    if (screenSize < 1) { brushCursorEl.style.display = 'none'; workspace.style.cursor = 'crosshair'; return; }
-    workspace.style.cursor = 'none'; brushCursorEl.className = 'pencil-cursor'; brushCursorEl.style.display = 'block';
-    const dispSize = Math.max(2, screenSize); brushCursorEl.style.width = dispSize + 'px'; brushCursorEl.style.height = dispSize + 'px';
-    brushCursorEl.style.background = fgColor; brushCursorEl.style.opacity = '0.7';
-    brushCursorEl.style.transform = `translate(${e.clientX - dispSize/2}px, ${e.clientY - dispSize/2}px)`;
-  } else {
-    // Cursor radius reflects the 50%-alpha falloff boundary of the dab, so
-    // softening the brush visibly shrinks the ring to match where ink lands.
-    const hardness = getDrawHardness();
-    const effScreenSize = screenSize * (0.5 + 0.5 * hardness);
-    if (effScreenSize < 4) { brushCursorEl.style.display = 'none'; workspace.style.cursor = 'crosshair'; return; }
-    workspace.style.cursor = 'none'; brushCursorEl.className = ''; brushCursorEl.style.display = 'block';
-    brushCursorEl.style.background = 'transparent'; brushCursorEl.style.opacity = '1';
-    brushCursorEl.style.width = effScreenSize + 'px'; brushCursorEl.style.height = effScreenSize + 'px';
-    brushCursorEl.style.transform = `translate(${e.clientX - effScreenSize/2}px, ${e.clientY - effScreenSize/2}px)`;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════
-   COPY / CUT / PASTE — Floating Selection System
-   ═══════════════════════════════════════════════════════ */
-
-function showPasteFlash() {
-  if (!selectionPath) return;
-  let flashAlpha = 0.35; const flashPath = selectionPath;
-  const ox = floatingActive ? floatingOffset.x : 0; const oy = floatingActive ? floatingOffset.y : 0;
-  function flashFrame() {
-    flashAlpha -= 0.035; if (flashAlpha <= 0) { drawOverlay(); return; }
-    drawOverlay();
-    const offsetPath = new Path2D();
-    offsetPath.addPath(flashPath, new DOMMatrix([1, 0, 0, 1, ox, oy]));
-    const sp = pathToScreen(offsetPath);
-    overlayCtx.save(); overlayCtx.globalAlpha = flashAlpha;
-    overlayCtx.fillStyle = '#ffffff'; overlayCtx.fill(sp);
-    overlayCtx.strokeStyle = 'rgba(0,0,0,0.25)'; overlayCtx.lineWidth = 2; overlayCtx.stroke(sp);
-    overlayCtx.globalAlpha = 1; overlayCtx.restore(); requestAnimationFrame(flashFrame);
-  }
-  requestAnimationFrame(flashFrame);
-}
-
-/**
- * scanCanvasBounds — Single tight scan over the alpha channel returning the
- * non-transparent bounding box, or null if the canvas is fully transparent.
- * Replaces the in-place loops that doCopy/doPaste/writeToSystemClipboard each
- * used to run on the same buffer. One pass, no allocations beyond the
- * unavoidable getImageData call.
- */
-function scanCanvasBounds(canvas) {
-  const w = canvas.width, h = canvas.height;
-  if (w === 0 || h === 0) return null;
-  const data = canvas.getContext('2d').getImageData(0, 0, w, h).data;
-  let minX = w, minY = h, maxX = -1, maxY = -1;
-  for (let y = 0; y < h; y++) {
-    const row = y * w;
-    for (let x = 0; x < w; x++) {
-      if (data[(row + x) * 4 + 3] > 0) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-  if (maxX < minX) return null;
-  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
-}
-
-/**
- * hashCanvasContent — Fast 32-bit FNV-1a-style hash mixing dimensions plus
- * up to 64 RGBA samples spread across the buffer. Used purely as a
- * "did this image come from us?" probe by the system-clipboard paste path
- * to detect an internal copy round-trip and preserve origin in that case.
- * Collisions are harmless: a false-positive only causes an external image
- * to inherit the previous internal-clipboard origin, a near-impossible
- * coincidence given that we also gate on exact width/height match.
- */
-function hashCanvasContent(canvas) {
-  const w = canvas.width, h = canvas.height;
-  if (w === 0 || h === 0) return 0;
-  const data = canvas.getContext('2d').getImageData(0, 0, w, h).data;
-  let hash = 0x811c9dc5;
-  // Mix dimensions first so different sizes hash differently even when
-  // sampled bytes happen to coincide.
-  hash = ((hash ^ (w & 0xff)) * 0x01000193) >>> 0;
-  hash = ((hash ^ ((w >>> 8) & 0xff)) * 0x01000193) >>> 0;
-  hash = ((hash ^ (h & 0xff)) * 0x01000193) >>> 0;
-  hash = ((hash ^ ((h >>> 8) & 0xff)) * 0x01000193) >>> 0;
-  const totalPx = w * h;
-  const sampleCount = Math.min(64, totalPx);
-  for (let i = 0; i < sampleCount; i++) {
-    // Spread sample positions evenly across the buffer.
-    const px = Math.floor(((i + 0.5) / sampleCount) * totalPx);
-    const idx = px * 4;
-    hash = ((hash ^ data[idx])     * 0x01000193) >>> 0;
-    hash = ((hash ^ data[idx + 1]) * 0x01000193) >>> 0;
-    hash = ((hash ^ data[idx + 2]) * 0x01000193) >>> 0;
-    hash = ((hash ^ data[idx + 3]) * 0x01000193) >>> 0;
-  }
-  return hash;
-}
-
-/**
- * pasteCanvasInternal — Single canonical paste finalizer used by every entry
- * point (internal Ctrl+V via doPaste and the system-clipboard paste listener).
- *
- * Sequence:
- *   1. Commit any active pixel transform / floating selection so the paste
- *      lands cleanly on top of the user's prior committed work.
- *   2. Clamp the requested origin: if it would put the entire pasted image
- *      off-canvas (e.g. user shrank the doc between Copy and Paste), fall
- *      back to a centered origin.
- *   3. Stamp pixels onto the active layer and invalidate the snap cache.
- *   4. Build a rect selection wrapping the paste, switch to the Move tool,
- *      composite, and run the paste-flash animation.
- *   5. Push exactly one 'Paste' undo entry with the pxTransform-restore
- *      flag set, then enter Free Transform so the user can immediately
- *      reposition / scale. On undo this entry fully reverts; on redo it
- *      reapplies and re-engages Free Transform (Phase 9 contract).
- */
-function pasteCanvasInternal(srcCanvas, originX, originY) {
-  closeAllMenus();
-  if (!srcCanvas || !srcCanvas.width || !srcCanvas.height) return;
-  if (pxTransformActive) commitPixelTransform();
-  if (floatingActive) commitFloating();
-  const layer = getActiveLayer();
-  if (!layer) return;
-
-  const w = srcCanvas.width, h = srcCanvas.height;
-  let px = Math.round(originX), py = Math.round(originY);
-  // If the saved origin would put the entire paste off-canvas, center it
-  // instead so the user can always see what they pasted.
-  if (px + w <= 0 || py + h <= 0 || px >= canvasW || py >= canvasH) {
-    px = Math.round((canvasW - w) / 2);
-    py = Math.round((canvasH - h) / 2);
-  }
-
-  layer.ctx.drawImage(srcCanvas, px, py);
-  SnapEngine.invalidateLayer(layer);
-
-  selection = { type: 'rect', x: px, y: py, w, h };
-  selectionFillRule = 'nonzero';
-  selectionPath = new Path2D();
-  selectionPath.rect(px, py, w, h);
-
-  // Push the Paste undo BEFORE engaging the smart-object transform.
-  // The history snapshot freezes the pristine stamped pixels (clipped at
-  // canvas bounds); the live session then carries the FULL srcCanvas in
-  // pxTransformData so off-canvas pixels survive drag/resize until commit.
-  _pxTransformWasActiveForPush = true;
-  pushUndo('Paste');
-
-  engageSmartObjectTransform(srcCanvas, px, py);
-  selectTool('move');
-  compositeAll();
-  drawOverlay();
-  showPasteFlash();
-}
-
-function doCopy() {
-  closeAllMenus();
-  const layer = getActiveLayer();
-  if (!layer) return;
-
-  // Compose source pixels onto a canvas-sized scratch so the selection
-  // clip lines up with layer coordinates, then trim to a tight crop.
-  const scratch = document.createElement('canvas');
-  scratch.width = canvasW; scratch.height = canvasH;
-  const sctx = scratch.getContext('2d');
-  if (floatingActive && floatingCanvas) {
-    sctx.drawImage(floatingCanvas, floatingOffset.x, floatingOffset.y);
-  } else if (selectionPath && selection) {
-    sctx.save();
-    sctx.clip(selectionPath, selectionFillRule);
-    sctx.drawImage(layer.canvas, 0, 0);
-    sctx.restore();
-  } else {
-    sctx.drawImage(layer.canvas, 0, 0);
-  }
-
-  const b = scanCanvasBounds(scratch);
-  if (!b) return; // nothing visible to copy — leave existing clipboard intact
-
-  const trimmed = document.createElement('canvas');
-  trimmed.width = b.w; trimmed.height = b.h;
-  trimmed.getContext('2d').drawImage(scratch, b.x, b.y, b.w, b.h, 0, 0, b.w, b.h);
-
-  clipboardCanvas = trimmed;
-  clipboardOrigin = { x: b.x, y: b.y };
-  clipboardSignature = hashCanvasContent(trimmed);
-
-  // Mirror to the OS clipboard for external-app interop. Silent no-op on
-  // file:// (Clipboard API requires a secure context).
-  writeToSystemClipboard(trimmed);
-}
-
-/**
- * writeToSystemClipboard — Writes srcCanvas as a PNG blob to the OS clipboard.
- * The caller is responsible for trimming; doCopy already hands us a tight
- * crop, so this is a thin pass-through with the necessary user-activation
- * dance: pass a Promise<Blob> to ClipboardItem so navigator.clipboard.write()
- * itself executes synchronously within the keydown/click activation window
- * while the blob resolves asynchronously after that point (per spec).
- *
- * Silently no-ops on file:// (no secure context, ClipboardItem undefined) or
- * if the browser denies permission, preserving the internal clipboard as a
- * fallback for in-app paste.
- */
-function writeToSystemClipboard(srcCanvas) {
-  if (!navigator.clipboard || !navigator.clipboard.write) return;
-  if (typeof ClipboardItem === 'undefined') return;
-  try {
-    const blobPromise = new Promise(resolve => srcCanvas.toBlob(resolve, 'image/png'));
-    navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]).catch(() => {});
-  } catch (e) { /* secure context unavailable or permission denied */ }
-}
-
-function doCut() {
-  closeAllMenus(); if (!selectionPath && !floatingActive) return; doCopy();
-  if (floatingActive) { floatingActive = false; floatingCanvas = null; floatingCtx = null; floatingOffset = {x:0, y:0}; }
-  else if (selectionPath) { const layer = getActiveLayer(); if (layer) { layer.ctx.save(); layer.ctx.clip(selectionPath, selectionFillRule); layer.ctx.clearRect(0, 0, canvasW, canvasH); layer.ctx.restore(); SnapEngine.invalidateLayer(layer); } }
-  compositeAll();
-  pushUndo('Cut');
-}
-
-/**
- * doPaste — Edit > Paste menu entry point and round-trip helper for the
- * paste-event listener. Photoshop-fidelity behavior:
- *
- *  1. Try to async-read the OS clipboard. If it has an image, decode it,
- *     hash-compare against our internal clipboard:
- *       - Match -> internal round-trip (use internal canvas + saved origin
- *         so the pixels land back where they came from).
- *       - No match -> external image (centered).
- *  2. If the OS clipboard read fails (file://, no permission, no image),
- *     fall back to the internal clipboard with its saved origin.
- *
- * Async because navigator.clipboard.read() is async; all callers fire-and-
- * forget. Note that Ctrl+V does NOT call doPaste — the keyboard handler
- * lets the browser fire a synchronous `paste` event which is faster and
- * doesn't require navigator.clipboard.read permission. doPaste is the
- * fallback for menu clicks and for the round-trip branch in the paste
- * listener (which calls it knowing we'll just use the internal clipboard).
- */
-async function doPaste() {
-  closeAllMenus();
-  if (navigator.clipboard && navigator.clipboard.read && typeof ClipboardItem !== 'undefined') {
-    try {
-      const items = await navigator.clipboard.read();
-      for (const item of items) {
-        const imageType = item.types.find(t => t.startsWith('image/'));
-        if (!imageType) continue;
-        const blob = await item.getType(imageType);
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        await new Promise((resolve) => {
-          img.onload = resolve;
-          img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-          img.src = url;
-        });
-        if (!img.naturalWidth) { URL.revokeObjectURL(url); break; }
-        const w = img.naturalWidth, h = img.naturalHeight;
-        const tc = document.createElement('canvas');
-        tc.width = w; tc.height = h;
-        tc.getContext('2d').drawImage(img, 0, 0);
-        URL.revokeObjectURL(url);
-        if (clipboardCanvas &&
-            clipboardCanvas.width === w &&
-            clipboardCanvas.height === h &&
-            hashCanvasContent(tc) === clipboardSignature) {
-          // Internal round-trip — preserve origin.
-          pasteCanvasWithSizeCheck(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
-        } else {
-          // External image — center it.
-          pasteCanvasWithSizeCheck(tc, Math.round((canvasW - w) / 2), Math.round((canvasH - h) / 2));
-        }
-        return;
-      }
-    } catch (e) { /* permission denied / no secure context — fall through */ }
-  }
-  // Fall back to internal clipboard.
-  if (clipboardCanvas) {
-    pasteCanvasWithSizeCheck(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
-  }
-}
-
-/**
- * pasteCanvasWithSizeCheck — Paste entry-point that gates oversized images
- * through the Image-Larger-Than-Canvas chooser. Both internal (Ctrl+V round-
- * trip) and external (clipboard / drag-drop) paste paths route through here
- * so the prompt fires consistently.
- *
- *  • Expand → grow canvas to fit (TL anchor) and stamp the image at (0,0).
- *  • Keep   → stamp at the requested origin (clipped where it extends past
- *             the canvas — same as the prior paste behavior).
- *  • Cancel → no-op.
- */
-async function pasteCanvasWithSizeCheck(srcCanvas, originX, originY) {
-  if (!srcCanvas || !srcCanvas.width || !srcCanvas.height) return;
-  const w = srcCanvas.width, h = srcCanvas.height;
-  if (w > canvasW || h > canvasH) {
-    const choice = await openImportSizeDialog(w, h);
-    if (choice === 'cancel') return;
-    if (choice === 'expand') {
-      expandCanvasToFit(w, h);
-      zoomFit();
-      updateStatus();
-      pasteCanvasInternal(srcCanvas, 0, 0);
-      return;
-    }
-  }
-  pasteCanvasInternal(srcCanvas, originX, originY);
-}
-
-/**
- * Paste event listener — Unified handler for Ctrl+V and browser context-menu
- * paste. Bridges three sources:
- *
- *  1. System clipboard with image data, MATCHING our internal clipboard
- *     (Opsin Copy -> OS clipboard -> Opsin Paste round-trip). Detected by
- *     comparing dimensions and a fast content hash. Routed to
- *     pasteCanvasInternal with the internal canvas + saved origin so the
- *     pixels land back where they came from. Without this branch the
- *     round-trip would re-center the pasted pixels and lose their position.
- *
- *  2. System clipboard with image data from an external source. Routed to
- *     pasteCanvasInternal with a centered origin (no internal origin to
- *     preserve). Works on both file:// and HTTPS because it reads from the
- *     synchronous clipboardData rather than the async Clipboard API.
- *
- *  3. No system-clipboard image, but internal clipboardCanvas exists. Falls
- *     through to doPaste() (covers file:// where the OS clipboard write was
- *     suppressed but the user just performed an internal Copy).
- *
- * Text inputs / textareas / contenteditable are excluded so normal text
- * paste in the UI stays unaffected.
- */
-document.addEventListener('paste', (e) => {
-  const tgt = e.target;
-  if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) return;
-
-  const items = e.clipboardData && e.clipboardData.items;
-  if (items) {
-    for (const item of items) {
-      if (!item.type || !item.type.startsWith('image/')) continue;
-      const blob = item.getAsFile();
-      if (!blob) continue;
-      e.preventDefault();
-      const url = URL.createObjectURL(blob);
-      const img = new Image();
-      img.onload = () => {
-        const w = img.naturalWidth || img.width;
-        const h = img.naturalHeight || img.height;
-        const tc = document.createElement('canvas');
-        tc.width = w; tc.height = h;
-        tc.getContext('2d').drawImage(img, 0, 0);
-        // Round-trip detection: identical dimensions + matching content hash
-        // means this image just came from our own doCopy. Use the internal
-        // canvas + saved origin so the pasted pixels land back where they
-        // came from. Direct call (not via doPaste) to skip the redundant
-        // navigator.clipboard.read round-trip.
-        if (clipboardCanvas &&
-            clipboardCanvas.width === w &&
-            clipboardCanvas.height === h &&
-            hashCanvasContent(tc) === clipboardSignature) {
-          pasteCanvasWithSizeCheck(clipboardCanvas, clipboardOrigin.x, clipboardOrigin.y);
-        } else {
-          // External image — drop it centered.
-          pasteCanvasWithSizeCheck(tc, Math.round((canvasW - w) / 2), Math.round((canvasH - h) / 2));
-        }
-        URL.revokeObjectURL(url);
-      };
-      img.onerror = () => URL.revokeObjectURL(url);
-      img.src = url;
-      return;
-    }
-  }
-  // No system-clipboard image — fall back to internal clipboard.
-  if (clipboardCanvas) { e.preventDefault(); doPaste(); }
-});
-
-/* ═══════════════════════════════════════════════════════
-   IMAGE RESIZE
-   ═══════════════════════════════════════════════════════ */
-
-let resizeAspect = 1;
-function openResizeDialog() { closeAllMenus(); document.getElementById('resizeW').value = canvasW; document.getElementById('resizeH').value = canvasH; resizeAspect = canvasW / canvasH; document.getElementById('resizeImageModal').classList.add('show'); }
-document.getElementById('resizeW').addEventListener('input', function() { if (document.getElementById('resizeConstrain').checked) document.getElementById('resizeH').value = Math.round(this.value / resizeAspect); });
-document.getElementById('resizeH').addEventListener('input', function() { if (document.getElementById('resizeConstrain').checked) document.getElementById('resizeW').value = Math.round(this.value * resizeAspect); });
-
-function applyResizeImage() {
-  const newW = parseInt(document.getElementById('resizeW').value) || canvasW; const newH = parseInt(document.getElementById('resizeH').value) || canvasH;
-  if (newW === canvasW && newH === canvasH) { closeModal('resizeImageModal'); return; }
-  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.drawImage(l.canvas, 0, 0, canvasW, canvasH, 0, 0, newW, newH); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d', { willReadFrequently: true }); l.ctx.drawImage(temp, 0, 0); });
-  canvasW = newW; canvasH = newH; compositeCanvas.width = newW; compositeCanvas.height = newH; overlayCanvas.width = newW; overlayCanvas.height = newH;
-  canvasWrapper.style.width = newW + 'px'; canvasWrapper.style.height = newH + 'px'; checkerPattern = null;
-  clearSelection(); zoomFit(); compositeAll(); updateLayerPanel(); updateStatus(); closeModal('resizeImageModal');
-  pushUndo('Resize');
-}
-
-/* ═══════════════════════════════════════════════════════
-   CANVAS SIZE
-   ═══════════════════════════════════════════════════════ */
-
-let canvasAnchor = 'mc';
-function openCanvasSizeDialog() { closeAllMenus(); document.getElementById('canvasSizeW').value = canvasW; document.getElementById('canvasSizeH').value = canvasH; canvasAnchor = 'mc'; document.querySelectorAll('.anchor-btn').forEach(b => b.classList.toggle('active', b.dataset.anchor === 'mc')); document.getElementById('canvasSizeModal').classList.add('show'); }
-document.querySelectorAll('.anchor-btn').forEach(btn => { btn.addEventListener('click', () => { canvasAnchor = btn.dataset.anchor; document.querySelectorAll('.anchor-btn').forEach(b => b.classList.toggle('active', b.dataset.anchor === canvasAnchor)); }); });
-
-function applyCanvasSize() {
-  const newW = parseInt(document.getElementById('canvasSizeW').value) || canvasW; const newH = parseInt(document.getElementById('canvasSizeH').value) || canvasH;
-  if (newW === canvasW && newH === canvasH) { closeModal('canvasSizeModal'); return; }
-  let ox = 0, oy = 0;
-  if (canvasAnchor.includes('c')) ox = Math.round((newW - canvasW) / 2);
-  if (canvasAnchor.includes('r')) ox = newW - canvasW;
-  if (canvasAnchor.includes('m') && !canvasAnchor.includes('l') && !canvasAnchor.includes('r')) ox = Math.round((newW - canvasW) / 2);
-  if (canvasAnchor[0] === 'm') oy = Math.round((newH - canvasH) / 2);
-  if (canvasAnchor[0] === 'b') oy = newH - canvasH;
-  layers.forEach(l => { const temp = document.createElement('canvas'); temp.width = newW; temp.height = newH; const tctx = temp.getContext('2d'); tctx.drawImage(l.canvas, ox, oy); l.canvas.width = newW; l.canvas.height = newH; l.ctx = l.canvas.getContext('2d', { willReadFrequently: true }); l.ctx.drawImage(temp, 0, 0); });
-  canvasW = newW; canvasH = newH; compositeCanvas.width = newW; compositeCanvas.height = newH; overlayCanvas.width = newW; overlayCanvas.height = newH;
-  canvasWrapper.style.width = newW + 'px'; canvasWrapper.style.height = newH + 'px'; checkerPattern = null;
-  clearSelection(); zoomFit(); compositeAll(); updateLayerPanel(); updateStatus(); closeModal('canvasSizeModal');
-  pushUndo('Canvas Size');
-}
 
 /* ═══════════════════════════════════════════════════════
    FLIP & ROTATE
@@ -4645,6 +2164,35 @@ function updatePropertiesPanel() {
   const propsInputs = [wIn, hIn, xIn, yIn];
   const userIsEditing = propsInputs.includes(focused);
 
+  // Direct Selection — only x/y are editable, everything else greyed out.
+  if (currentTool === 'directselect') {
+    const rotIn = document.getElementById('propRotation');
+    const flipH = document.getElementById('propFlipH');
+    const flipV = document.getElementById('propFlipV');
+    const alignDots = document.querySelectorAll('.props-align-btn');
+    let dsPos = null;
+    if (window.DirectSelection && window.DirectSelection.getSingleAnchorPos) {
+      dsPos = window.DirectSelection.getSingleAnchorPos();
+    }
+    if (dsPos) {
+      if (focused !== xIn) xIn.value = Math.round(dsPos.x);
+      if (focused !== yIn) yIn.value = Math.round(dsPos.y);
+      xIn.disabled = false; yIn.disabled = false;
+    } else {
+      xIn.value = ''; yIn.value = '';
+      xIn.disabled = true; yIn.disabled = true;
+    }
+    wIn.value = ''; hIn.value = '';
+    wIn.disabled = true; hIn.disabled = true;
+    lockBtn.disabled = true;
+    if (rotIn) { rotIn.disabled = true; rotIn.value = 0; }
+    if (flipH) flipH.disabled = true;
+    if (flipV) flipV.disabled = true;
+    alignDots.forEach(d => d.disabled = true);
+    _propsUpdating = false;
+    return;
+  }
+
   // Guide selected — show position only
   if (selectedGuide && currentTool === 'move') {
     const rotIn = document.getElementById('propRotation');
@@ -4673,15 +2221,46 @@ function updatePropertiesPanel() {
 
   let bounds = null;
   let editable = false;
+  let shapeRotation = null;        // numeric deg, single-shape only
+  let shapeBoundsActive = false;   // shape tool driving these fields
 
-  if (currentTool === 'move') {
-    if (pxTransformActive && pxTransformData) {
-      const cb = pxTransformData.curBounds;
-      bounds = { x: Math.round(cb.x), y: Math.round(cb.y), w: Math.round(cb.w), h: Math.round(cb.h) };
+  if (currentTool === 'shape' && window.ShapeTool && window.ShapeTool.getSelectedBounds) {
+    const sb = window.ShapeTool.getSelectedBounds();
+    if (sb) {
+      bounds = { x: Math.round(sb.x), y: Math.round(sb.y), w: Math.round(sb.w), h: Math.round(sb.h) };
       editable = true;
-    } else if (floatingActive && floatingCanvas) {
-      bounds = { x: Math.round(floatingOffset.x), y: Math.round(floatingOffset.y), w: floatingCanvas.width, h: floatingCanvas.height };
-      editable = true;
+      shapeBoundsActive = true;
+      if (sb.rotation != null) shapeRotation = Math.round(sb.rotation * 100) / 100;
+    }
+  } else if (currentTool === 'move') {
+    // Move tool driving a shape layer — same panel surface as Shape tool.
+    let _shapeBoundsHandled = false;
+    if (window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool()
+        && window.ShapeTool.getSelectedBounds) {
+      const sb = window.ShapeTool.getSelectedBounds();
+      if (sb) {
+        bounds = { x: Math.round(sb.x), y: Math.round(sb.y), w: Math.round(sb.w), h: Math.round(sb.h) };
+        editable = true;
+        shapeBoundsActive = true;
+        if (sb.rotation != null) shapeRotation = Math.round(sb.rotation * 100) / 100;
+        _shapeBoundsHandled = true;
+      }
+    }
+    if (!_shapeBoundsHandled) {
+      if (window.TextTool && window.TextTool.isActive && window.TextTool.isActive()) {
+        const _tm = window.TextTool.getActiveModel && window.TextTool.getActiveModel();
+        if (_tm) {
+          bounds = { x: Math.round(_tm.boxX), y: Math.round(_tm.boxY), w: Math.round(_tm.boxW), h: Math.round(_tm.boxH) };
+          editable = true;
+        }
+      } else if (pxTransformActive && pxTransformData) {
+        const cb = pxTransformData.curBounds;
+        bounds = { x: Math.round(cb.x), y: Math.round(cb.y), w: Math.round(cb.w), h: Math.round(cb.h) };
+        editable = true;
+      } else if (floatingActive && floatingCanvas) {
+        bounds = { x: Math.round(floatingOffset.x), y: Math.round(floatingOffset.y), w: floatingCanvas.width, h: floatingCanvas.height };
+        editable = true;
+      }
     }
   } else if (currentTool === 'movesel') {
     if (selection) {
@@ -4707,6 +2286,8 @@ function updatePropertiesPanel() {
 
   // Determine if transform actions (rotate/flip/align) are available
   const transformable = editable && !(currentTool === 'move' && floatingActive && !pxTransformActive);
+  // Shape tool: rotation editable only for single-shape selection (and not lines).
+  const shapeRotEditable = shapeBoundsActive && shapeRotation != null;
 
   if (bounds) {
     if (!userIsEditing) {
@@ -4739,11 +2320,16 @@ function updatePropertiesPanel() {
 
   // Rotation, flip, align controls
   if (rotIn) {
-    rotIn.disabled = !transformable;
-    if (!transformable && focused !== rotIn) rotIn.value = 0;
+    if (shapeBoundsActive) {
+      rotIn.disabled = !shapeRotEditable;
+      if (focused !== rotIn) rotIn.value = shapeRotEditable ? shapeRotation : 0;
+    } else {
+      rotIn.disabled = !transformable;
+      if (!transformable && focused !== rotIn) rotIn.value = 0;
+    }
   }
-  if (flipH) flipH.disabled = !transformable;
-  if (flipV) flipV.disabled = !transformable;
+  if (flipH) flipH.disabled = shapeBoundsActive ? !editable : !transformable;
+  if (flipV) flipV.disabled = shapeBoundsActive ? !editable : !transformable;
   alignDots.forEach(d => d.disabled = !editable);
 
   _propsUpdating = false;
@@ -4765,6 +2351,49 @@ function initPropertiesPanel() {
     if (selectedGuide && currentTool === 'move') {
       if (selectedGuide.axis === 'v' && field === 'x') { selectedGuide.pos = val; drawGuides(); }
       else if (selectedGuide.axis === 'h' && field === 'y') { selectedGuide.pos = val; drawGuides(); }
+      return;
+    }
+
+    // Direct Selection — x/y only, drive the single selected anchor.
+    if (currentTool === 'directselect'
+        && window.DirectSelection && window.DirectSelection.setSingleAnchorField) {
+      if (field === 'x' || field === 'y') window.DirectSelection.setSingleAnchorField(field, val);
+      return;
+    }
+
+    // Shape tool — drive the selected shape (or group) directly.
+    if (currentTool === 'shape' && window.ShapeTool && window.ShapeTool.setSelectedBoundsField) {
+      window.ShapeTool.setSelectedBoundsField(field, val);
+      return;
+    }
+
+    // Move tool driving a shape layer — same surface as Shape tool.
+    if (currentTool === 'move'
+        && window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool()
+        && window.ShapeTool.setSelectedBoundsField) {
+      window.ShapeTool.setSelectedBoundsField(field, val);
+      return;
+    }
+
+    if (currentTool === 'move' && window.TextTool && window.TextTool.isActive && window.TextTool.isActive()) {
+      if (field === 'x' || field === 'y') {
+        const _tm = window.TextTool.getActiveModel && window.TextTool.getActiveModel();
+        if (_tm) {
+          const nx = field === 'x' ? val : Math.round(_tm.boxX);
+          const ny = field === 'y' ? val : Math.round(_tm.boxY);
+          window.TextTool.setPosition(nx, ny);
+          if (typeof pushUndo === 'function') pushUndo('Move Text');
+          if (window.TextTool.bumpBaseline) window.TextTool.bumpBaseline();
+        }
+      } else if (field === 'w' && window.TextTool.setBoxWidth) {
+        window.TextTool.setBoxWidth(val);
+        if (typeof pushUndo === 'function') pushUndo('Resize Text');
+        if (window.TextTool.bumpBaseline) window.TextTool.bumpBaseline();
+      } else if (field === 'h' && window.TextTool.setBoxHeight) {
+        window.TextTool.setBoxHeight(val);
+        if (typeof pushUndo === 'function') pushUndo('Resize Text');
+        if (window.TextTool.bumpBaseline) window.TextTool.bumpBaseline();
+      }
       return;
     }
 
@@ -4849,23 +2478,46 @@ function initPropertiesPanel() {
   // Rotation input
   const rotIn = document.getElementById('propRotation');
   rotIn.addEventListener('change', () => {
-    const angle = parseInt(rotIn.value);
+    const angle = parseFloat(rotIn.value);
+    if (currentTool === 'shape' && window.ShapeTool && window.ShapeTool.setSelectedBoundsField) {
+      if (isNaN(angle)) { rotIn.value = 0; return; }
+      window.ShapeTool.setSelectedBoundsField('rotation', angle);
+      return;
+    }
+    if (currentTool === 'move'
+        && window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool()
+        && window.ShapeTool.setSelectedBoundsField) {
+      if (isNaN(angle)) { rotIn.value = 0; return; }
+      window.ShapeTool.setSelectedBoundsField('rotation', angle);
+      return;
+    }
     if (isNaN(angle) || angle === 0) { rotIn.value = 0; return; }
     if (currentTool === 'move' && pxTransformActive && pxTransformData) {
       propsRotatePixelTransform(angle);
     } else if (currentTool === 'movesel' && selection) {
       propsRotateSelection(angle);
     }
-    rotIn.value = 0;
+    // Keep the typed angle visible in the field while the transform session
+    // is still live; updatePropertiesPanel() resets to 0 on commit/cancel
+    // (when transformable becomes false).
   });
   rotIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') rotIn.blur(); });
 
   // Flip buttons
+  function _moveOnShape() {
+    return currentTool === 'move'
+      && window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool();
+  }
+
   document.getElementById('propFlipH').addEventListener('click', () => {
+    if (currentTool === 'shape' && window.ShapeTool && window.ShapeTool.flipSelected) { window.ShapeTool.flipSelected('h'); return; }
+    if (_moveOnShape() && window.ShapeTool.flipSelected) { window.ShapeTool.flipSelected('h'); return; }
     if (currentTool === 'move' && pxTransformActive) propsFlipPixelTransform('h');
     else if (currentTool === 'movesel' && selection) propsFlipSelection('h');
   });
   document.getElementById('propFlipV').addEventListener('click', () => {
+    if (currentTool === 'shape' && window.ShapeTool && window.ShapeTool.flipSelected) { window.ShapeTool.flipSelected('v'); return; }
+    if (_moveOnShape() && window.ShapeTool.flipSelected) { window.ShapeTool.flipSelected('v'); return; }
     if (currentTool === 'move' && pxTransformActive) propsFlipPixelTransform('v');
     else if (currentTool === 'movesel' && selection) propsFlipSelection('v');
   });
@@ -4874,6 +2526,8 @@ function initPropertiesPanel() {
   document.querySelectorAll('.props-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const align = btn.dataset.align;
+      if (currentTool === 'shape' && window.ShapeTool && window.ShapeTool.alignSelectedToCanvas) { window.ShapeTool.alignSelectedToCanvas(align); return; }
+      if (_moveOnShape() && window.ShapeTool.alignSelectedToCanvas) { window.ShapeTool.alignSelectedToCanvas(align); return; }
       if (currentTool === 'move' && pxTransformActive) propsAlignPixelTransform(align);
       else if (currentTool === 'move' && floatingActive) propsAlignFloating(align);
       else if (currentTool === 'movesel' && selection) propsAlignSelection(align);

@@ -2,12 +2,12 @@
 
 /* ═══════════════════════════════════════════════════════
    KEYBOARD SHORTCUTS
-   Loaded after toolbar.js; all referenced globals are
+   Loaded after tools/toolbar.js; all referenced globals are
    defined before first keydown fires.
    ═══════════════════════════════════════════════════════ */
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
   const k = e.key.toLowerCase(); const ctrl = e.ctrlKey || e.metaKey;
   // Arrow-key nudge: Move tool / Pixel Transform / Floating Selection.
   // Plain arrow = 1 px, Shift+arrow = 10 px. Handled before any other

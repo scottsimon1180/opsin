@@ -59,6 +59,15 @@ align-top
 
 /*
 =======================================
+anchor-point
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><path d="M22.93,10.1h0S1.54,1.1,1.54,1.1c-0.28-0.12-0.55.16-0.44.44l9,21.39" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/></g></svg>
+
+
+/*
+=======================================
 arrow-horizontal
 =======================================
 */
@@ -91,6 +100,24 @@ color-swap
 */
 
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
+
+
+/*
+=======================================
+copy-svg
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0.24219 0.21875 22.4766 27.17965" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><path d="M21.72 4.26L21.72 18.42C21.72 20.44 20.7 21.46 18.7 21.46L18.08 21.46L18.08 15.18C18.08 13.96 17.88 13.06 16.83 11.99L11.25 6.34C10.08 5.14 9.28 4.91 8.05 4.91L6.13 4.91L6.13 4.26C6.13 2.23 7.14 1.22 9.14 1.22L18.7 1.22C20.7 1.22 21.72 2.23 21.72 4.26ZM11.53 3.23C11.13 3.23 10.93 3.49 10.93 3.78L10.93 3.98C10.93 4.27 11.13 4.53 11.53 4.53L16.31 4.53C16.73 4.53 16.91 4.27 16.91 3.98L16.91 3.78C16.91 3.49 16.73 3.23 16.31 3.23Z" fill="currentColor" stroke="none"/><path d="M1.24 23.36C1.24 25.38 2.26 26.4 4.26 26.4L13.82 26.4C15.82 26.4 16.83 25.38 16.83 23.36L16.83 15.18L9.85 15.18C8.63 15.18 8.05 14.59 8.05 13.38L8.05 6.16L4.26 6.16C2.27 6.16 1.24 7.19 1.24 9.2ZM9.87 13.93L16.64 13.93C16.55 13.59 16.33 13.26 15.94 12.86L10.37 7.21C9.98 6.81 9.64 6.54 9.3 6.45L9.3 13.36C9.3 13.74 9.48 13.93 9.87 13.93Z" fill="currentColor" stroke="none"/></g></svg>
+
+
+/*
+=======================================
+direct-select
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><path d="M18.02,13.05L6.34,1.46c-0.15-0.15-0.4-0.04-0.41 0.17l0.24,16.45c0,0.14 0.16 0.22 0.30 0.15l4.56-4.75c0.08-0.08 0.18-0.13 0.29-0.12h6.59c0.15-0.05 0.2-0.21 0.1-0.31h0Z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5" fill="currentColor"/></g><rect x="12.17" y="13.11" width="2.22" height="9.49" transform="translate(-6.42 7.5) rotate(-25.64)" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5" fill="currentColor"/></svg>
 
 
 /*
@@ -364,6 +391,42 @@ settings-gear
 
 /*
 =======================================
+pen
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="24" height="24" style="width: 362px; height: 362px; transition: none;"><g id="ink-wrapper" transform="translate(-1.176, -1.1734) scale(1.0763, 1.0763)"><g id="Layer_4"><g><rect x="14.34" y="16.91" width="7.46" height="2.32" rx="1.16" ry="1.16" transform="translate(-7.48 18.07) rotate(-45)" fill="currentColor" stroke="none"/><path d="M14.94,7.34L4.94,3.05c-0.43-0.18-0.91-0.11-1.280.17l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L3.22,3.66c-0.280.37-0.350.85-0.17,1.28l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/></g></g></g></svg>
+
+
+/*
+=======================================
+pen-edit-cursor
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><g id="Layer_4"><g><rect x="11.39" y="13.96" width="7.46" height="2.32" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="currentColor" stroke="none"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/></g></g></g></svg>
+
+
+/*
+=======================================
+pen-add-cursor
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><g id="Layer_4"><g><rect x="11.39" y="13.96" width="7.46" height="2.32" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="currentColor" stroke="none"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/><line x1="19.07" y1="16.2" x2="23.36" y2="16.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="21.21" y1="18.34" x2="21.21" y2="14.05" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></g></g></g></svg>
+
+
+/*
+=======================================
+pen-minus-cursor
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><g id="Layer_4"><g><rect x="11.39" y="13.96" width="7.46" height="2.32" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="currentColor" stroke="none"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/><line x1="19.07" y1="16.2" x2="23.36" y2="16.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></g></g></g></svg>
+
+
+/*
+=======================================
 shape
 =======================================
 */
@@ -422,7 +485,7 @@ chain-linked
 =======================================
 */
 
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" width="24" height="24" style="transition: none;"><g id="ink-wrapper"><path d="M10 13a5 5 0 0 0 7.540.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M14 11a5 5 0 0 0-7.54-0.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 15.71 21.64" width="15.71" height="21.64" style="transition: none;"><g id="ink-wrapper"><path d="M2.19 19.64L11.52 19.64C12.92 19.64 13.71 18.83 13.71 17.33L13.71 10.22C13.71 8.73 12.92 7.91 11.52 7.91L2.19 7.91C0.78 7.91 0 8.73 0 10.22L0 17.33C0 18.83 0.78 19.64 2.19 19.64ZM1.79 8.58L3.16 8.58L3.16 5.38C3.16 2.78 4.81 1.3 6.85 1.3C8.89 1.3 10.55 2.78 10.55 5.38L10.55 8.58L11.93 8.58L11.93 5.55C11.93 1.91 9.55 0 6.85 0C4.16 0 1.79 1.91 1.79 5.55Z" fill="currentColor" stroke="none"/></g></svg>
 
 
 
@@ -432,7 +495,7 @@ chain-unlinked
 =======================================
 */
 
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 23.98" fill="none" width="24" height="23.98" style="width: 362.302px; height: 362px; transition: none;"><g id="ink-wrapper" transform="translate(0.1906, 0.1807) scale(0.9841, 0.9841)"><path d="M10 13a5 5 0 0 0 7.540.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M14 11a5 5 0 0 0-7.54-0.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="4" y1="4" x2="20" y2="20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 22.88 21.625" width="22.88" height="21.63" style="transition: none;"><g id="ink-wrapper"><path d="M2.19 19.63L11.52 19.63C12.92 19.63 13.71 18.82 13.71 17.32L13.71 10.21C13.71 8.71 12.92 7.91 11.52 7.91L2.19 7.91C0.78 7.91 0 8.71 0 10.21L0 17.32C0 18.82 0.78 19.63 2.19 19.63ZM10.75 8.57L12.12 8.57L12.12 5.38C12.12 2.78 13.77 1.3 15.81 1.3C17.86 1.3 19.52 2.78 19.52 5.38L19.52 7.61C19.52 8.11 19.82 8.37 20.2 8.37C20.57 8.37 20.88 8.13 20.88 7.61L20.88 5.54C20.88 1.91 18.52 0 15.81 0C13.12 0 10.75 1.91 10.75 5.54Z" fill="currentColor" stroke="none"/></g></svg>
 
 
 /*
@@ -454,6 +517,276 @@ flip-vertical
 
 
 
+/*
+=======================================
+alert-triangle
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+
+
+/*
+=======================================
+canvas-expand
+=======================================
+*/
+
+<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="3" width="34" height="34" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2.5" opacity="0.55"/><rect x="11.5" y="11.5" width="17" height="17" rx="1.5" fill="currentColor" opacity="0.14" stroke="currentColor" stroke-width="1.4"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M8.5 8.5 L5 5"/><polyline points="5,9 5,5 9,5"/><path d="M31.5 8.5 L35 5"/><polyline points="31,5 35,5 35,9"/><path d="M8.5 31.5 L5 35"/><polyline points="9,35 5,35 5,31"/><path d="M31.5 31.5 L35 35"/><polyline points="35,31 35,35 31,35"/></g></svg>
+
+
+/*
+=======================================
+canvas-keep
+=======================================
+*/
+
+<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="9.5" y="14.5" width="21" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.5"/><rect x="6.5" y="7.5" width="22" height="18" rx="1.5" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.4"/><g stroke="currentColor" stroke-width="1.2"><rect x="5" y="6" width="3" height="3" rx="0.5" fill="var(--surface)"/><rect x="27" y="6" width="3" height="3" rx="0.5" fill="var(--surface)"/><rect x="5" y="24" width="3" height="3" rx="0.5" fill="var(--surface)"/><rect x="27" y="24" width="3" height="3" rx="0.5" fill="var(--surface)"/></g></svg>
+
+
+/*
+=======================================
+eyedropper-cursor
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M14.31,7.57l2.11,2.11l-4.29,4.29c-1.47,1.47-3.1,2.78-4.85,3.9L4.09,19.9l2.03-3.18c1.12-1.75,2.43-3.38,3.9-4.85L14.31,7.57M14.31,6.26l-4.95,4.95c-1.52,1.52-2.87,3.2-4.02,5.01l-3.2,5.01v0.62h0.62l5.01-3.2c1.81-1.16,3.49-2.5,5.01-4.02l4.95-4.95L14.31,6.26L14.31,6.26zM21.94,4.16c-0.22-1.04-1.05-1.87-2.09-2.09c-0.93-0.19-1.79,0.09-2.41,0.64l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.37-0.37-0.9-0.57-1.48-0.48c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.37,0.37,0.9,0.57,1.48,0.48c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0C21.85,5.95,22.13,5.09,21.94,4.16zM19.27,2.94c0.13,0,0.26,0.01,0.39,0.04c0.68,0.14,1.23,0.69,1.37,1.37c0.12,0.58-0.03,1.16-0.42,1.6l-0.05,0.06l-0.02,0.02l-1.95,1.95l-0.66,0.66l0.66,0.66l0.37,0.37c0.18,0.18,0.26,0.43,0.22,0.68c-0.05,0.32-0.32,0.59-0.64,0.64C18.49,11,18.44,11,18.4,11c-0.21,0-0.4-0.08-0.55-0.23l-4.64-4.64C13.04,5.96,12.96,5.71,13,5.46c0.05-0.32,0.32-0.59,0.64-0.64c0.04-0.01,0.09-0.01,0.13-0.01c0.21,0,0.4,0.08,0.55,0.23l0.4,0.4l0.66,0.66l0.66-0.66l1.95-1.95l0.09-0.08C18.4,3.11,18.83,2.94,19.27,2.94M19.27,2.01c-0.7,0-1.34,0.27-1.82,0.7l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.31-0.31-0.74-0.5-1.21-0.5c-0.09,0-0.18,0.01-0.27,0.02c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.31,0.31,0.74,0.5,1.21,0.5c0.09,0,0.18-0.01,0.27-0.02c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0c0.55-0.62,0.83-1.48,0.64-2.41c-0.22-1.04-1.05-1.87-2.09-2.09C19.65,2.03,19.46,2.01,19.27,2.01L19.27,2.01zM2.65,21.92l0.11-0.07l-0.62-0.62l-0.07,0.11C1.83,21.72,2.27,22.16,2.65,21.92z" fill="#f2f2f7" stroke="black" stroke-width="0.5"/></svg>
+
+
+/*
+=======================================
+grid-2x2
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+
+
+/*
+=======================================
+image-landscape
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+
+
+/*
+=======================================
+no-color
+=======================================
+*/
+
+<svg viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="#e84d4d" stroke-width="1.6"/></svg>
+
+
+/*
+=======================================
+pen-add-cursor-bw
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 27" width="27" height="27"><g><rect x="11.39" y="13.96" width="7.46" height="2.32" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="black" stroke="white" stroke-width="0.6"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4h-0.01Z" fill="black" stroke="white" stroke-width="0.6"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="white" stroke-width="2.6" stroke-linecap="round"/><line x1="22.99" y1="16.34" x2="22.99" y2="12.05" stroke="white" stroke-width="2.6" stroke-linecap="round"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="black" stroke-width="1.3" stroke-linecap="round"/><line x1="22.99" y1="16.34" x2="22.99" y2="12.05" stroke="black" stroke-width="1.3" stroke-linecap="round"/></g></svg>
+
+
+/*
+=======================================
+pen-anchor-cursor-bw
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><g><path d="M22.93,10.1h0S1.54,1.1,1.54,1.1c-0.28-0.12-0.55.16-0.44.44l9,21.39" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M22.93,10.1h0S1.54,1.1,1.54,1.1c-0.28-0.12-0.55.16-0.44.44l9,21.39" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+
+
+/*
+=======================================
+pen-close-cursor
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22" stroke="black" stroke-width="1"/><line x1="2" y1="12" x2="22" y2="12" stroke="black" stroke-width="1"/><circle cx="18" cy="6" r="3.6" fill="none" stroke="black" stroke-width="1.4"/></svg>
+
+
+/*
+=======================================
+pen-edit-cursor-bw
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><g><rect x="11.39" y="13.96" width="7.46" height="2.32" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="black" stroke="white" stroke-width="0.6"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="black" stroke="white" stroke-width="0.6"/></g></svg>
+
+
+/*
+=======================================
+pen-minus-cursor-bw
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 27" width="27" height="27"><g><rect x="11.39" y="13.96" width="7.46" height="2.32" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="black" stroke="white" stroke-width="0.6"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4h-0.01Z" fill="black" stroke="white" stroke-width="0.6"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="white" stroke-width="2.6" stroke-linecap="round"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="black" stroke-width="1.3" stroke-linecap="round"/></g></svg>
+
+
+/*
+=======================================
+plus-small
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+
+
+/*
+=======================================
+rotate-cursor
+=======================================
+*/
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16 A10 10 0 1 1 16 26" stroke="#000" stroke-width="4"/><path d="M2 13 L6 16 L9 12" stroke="#000" stroke-width="4"/><path d="M20 26 L16 26 L18 22" stroke="#000" stroke-width="4"/><path d="M6 16 A10 10 0 1 1 16 26" stroke="#fff" stroke-width="2"/><path d="M2 13 L6 16 L9 12" stroke="#fff" stroke-width="2"/><path d="M20 26 L16 26 L18 22" stroke="#fff" stroke-width="2"/></g></svg>
+
+
+/*
+=======================================
+stroke-align-center
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="6" width="12" height="12"/><rect x="3" y="3" width="18" height="18" stroke-dasharray="2 2" opacity="0.45"/></svg>
+
+
+/*
+=======================================
+stroke-align-inner
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16"/><rect x="7" y="7" width="10" height="10" stroke-dasharray="2 2" opacity="0.45"/></svg>
+
+
+/*
+=======================================
+stroke-align-outer
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="2.5" width="19" height="19"/><rect x="7" y="7" width="10" height="10" stroke-dasharray="2 2" opacity="0.45"/></svg>
+
+
+/*
+=======================================
+stroke-cap-butt
+=======================================
+*/
+
+<svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="6" fill="currentColor"/></svg>
+
+
+/*
+=======================================
+stroke-cap-round
+=======================================
+*/
+
+<svg viewBox="0 0 24 24"><rect x="6" y="9" width="12" height="6" rx="3" fill="currentColor"/></svg>
+
+
+/*
+=======================================
+stroke-cap-square
+=======================================
+*/
+
+<svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" fill="currentColor"/></svg>
+
+
+/*
+=======================================
+stroke-join-bevel
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="bevel"><path d="M5 19 L12 5 L19 19"/></svg>
+
+
+/*
+=======================================
+stroke-join-miter
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="miter"><path d="M5 19 L12 5 L19 19"/></svg>
+
+
+/*
+=======================================
+stroke-join-round
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M5 19 L12 5 L19 19"/></svg>
+
+
+/*
+=======================================
+swap-horizontal-small
+=======================================
+*/
+
+<svg viewBox="0 0 14 14"><path d="M3 5 L1 7 L3 9 M1 7 L9 7 M11 9 L13 7 L11 5 M13 7 L5 7" stroke="currentColor" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
+
+/*
+=======================================
+text-align-center
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="2.2"/><rect x="3" y="10" width="18" height="2.2"/><rect x="6.5" y="15" width="11" height="2.2"/><rect x="4" y="20" width="16" height="2.2"/></svg>
+
+
+/*
+=======================================
+text-align-justify
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="2.2"/><rect x="3" y="10" width="18" height="2.2"/><rect x="3" y="15" width="18" height="2.2"/><rect x="3" y="20" width="18" height="2.2"/></svg>
+
+
+/*
+=======================================
+text-align-left
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="14" height="2.2"/><rect x="3" y="10" width="18" height="2.2"/><rect x="3" y="15" width="11" height="2.2"/><rect x="3" y="20" width="16" height="2.2"/></svg>
+
+
+/*
+=======================================
+text-align-right
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="14" height="2.2"/><rect x="3" y="10" width="18" height="2.2"/><rect x="10" y="15" width="11" height="2.2"/><rect x="5" y="20" width="16" height="2.2"/></svg>
+
+
+/*
+=======================================
+theme-check
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+
+
+/*
+=======================================
+trash-outline
+=======================================
+*/
+
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+
+
 `; // DO NOT REMOVE THIS CLOSING BACKTICK!
 
 
@@ -465,6 +798,7 @@ flip-vertical
 // =========================================================================
 (() => {
     const masterSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const rawIconSvgMap = Object.create(null);
     
     // Instead of display: none, use absolute positioning to hide it from the visual layout
     // but keep it in the DOM tree so that WebKit browsers parse the symbols properly.
@@ -487,6 +821,7 @@ flip-vertical
         const parsedSvg = tempDiv.querySelector('svg');
         
         if (parsedSvg) {
+            rawIconSvgMap[iconName] = parsedSvg.outerHTML;
             const symbol = document.createElementNS("http://www.w3.org/2000/svg", "symbol");
             symbol.id = 'icon-' + iconName;
             
@@ -495,6 +830,26 @@ flip-vertical
             } else {
                 symbol.setAttribute('viewBox', '0 0 24 24'); // Fallback if missing
             }
+
+            [
+                'fill',
+                'fill-rule',
+                'clip-rule',
+                'stroke',
+                'stroke-width',
+                'stroke-linecap',
+                'stroke-linejoin',
+                'stroke-miterlimit',
+                'stroke-dasharray',
+                'stroke-dashoffset',
+                'opacity',
+                'fill-opacity',
+                'stroke-opacity'
+            ].forEach((attr) => {
+                if (parsedSvg.hasAttribute(attr)) {
+                    symbol.setAttribute(attr, parsedSvg.getAttribute(attr));
+                }
+            });
             
             // Move all internal paths/groups over to the symbol
             while (parsedSvg.firstChild) {
@@ -505,6 +860,11 @@ flip-vertical
     }
     
     document.body.insertAdjacentElement('afterbegin', masterSvg);
+    window.OpsinLinkedIcons = {
+        getRawSvg(iconName) {
+            return rawIconSvgMap[iconName] || '';
+        }
+    };
 })();
 
 

@@ -57,6 +57,10 @@ let isDrawing = false;
 let drawStart = {x:0,y:0};
 let lastDraw = {x:0,y:0};
 
+// Selection drawing state
+let isDrawingSelection = false;
+let drawingPreviewPath = null;
+
 // Gradient state — editable multi-stop
 let gradActive = false;
 let gradP1 = null, gradP2 = null;

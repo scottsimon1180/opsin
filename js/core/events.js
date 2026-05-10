@@ -34,6 +34,31 @@ workspace.addEventListener('contextmenu', function(e) {
       return;
     }
   }
+  // Shape tool: suppress browser menu over a hit shape so the in-app
+  // arrange/duplicate/delete menu can show. (Shape tool's own mouseDown
+  // handler creates the menu; we only need to swallow the default.)
+  if (currentTool === 'shape' && window.ShapeTool) {
+    const pos = screenToCanvas(e.clientX, e.clientY);
+    // Cheap probe: if any shape on any visible shape layer contains the
+    // pointer, suppress the default menu.
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (!l || !l.visible || l.kind !== 'shape' || !l.shapeModel) continue;
+      const arr = l.shapeModel.shapes;
+      for (let j = arr.length - 1; j >= 0; j--) {
+        const s = arr[j];
+        const bbox = s.type === 'line'
+          ? { x: Math.min(s.p1.x, s.p2.x) - 4, y: Math.min(s.p1.y, s.p2.y) - 4,
+              w: Math.abs(s.p2.x - s.p1.x) + 8, h: Math.abs(s.p2.y - s.p1.y) + 8 }
+          : { x: s.x - 4, y: s.y - 4, w: s.w + 8, h: s.h + 8 };
+        if (pos.x >= bbox.x && pos.x <= bbox.x + bbox.w &&
+            pos.y >= bbox.y && pos.y <= bbox.y + bbox.h) {
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+  }
 });
 document.addEventListener('mousedown', function(e) {
   const menu = document.getElementById('gradStopCtx');
@@ -82,12 +107,71 @@ workspace.addEventListener('drop', async (e) => { e.preventDefault(); _dragCount
 // ── Menu bar event routing ────────────────────────────────────────────────────
 
 let openMenuId = null;
+let _submenuCloseTimer = null;
+const SUBMENU_CLOSE_DELAY = 400;
+
+function _clearMenuSubmenuTimer() {
+  if (_submenuCloseTimer !== null) { clearTimeout(_submenuCloseTimer); _submenuCloseTimer = null; }
+}
+window._clearMenuSubmenuTimer = _clearMenuSubmenuTimer;
+
+function _scheduleSubmenuClose(parent) {
+  _clearMenuSubmenuTimer();
+  _submenuCloseTimer = setTimeout(() => { parent.classList.remove('submenu-open'); _submenuCloseTimer = null; }, SUBMENU_CLOSE_DELAY);
+}
+
+// Tabs: click toggles the dropdown; hover only switches when a *different*
+// menu is already open. Mouseleave never closes — the user must click another
+// tab, click outside, or click the same tab again to dismiss.
 document.querySelectorAll('.menu-item').forEach(item => {
-  item.addEventListener('click', function(e) { e.stopPropagation(); const menuId = 'menu-' + this.dataset.menu; if (openMenuId === menuId) { closeAllMenus(); return; } closeAllMenus(); document.getElementById(menuId).classList.add('show'); this.classList.add('open'); openMenuId = menuId; });
-  item.addEventListener('mouseenter', function() { if (openMenuId) { closeAllMenus(); const menuId = 'menu-' + this.dataset.menu; document.getElementById(menuId).classList.add('show'); this.classList.add('open'); openMenuId = menuId; } });
-  item.addEventListener('mouseleave', function(e) { if (openMenuId && (!e.relatedTarget || !e.relatedTarget.closest('.menu-item'))) closeAllMenus(); });
+  item.addEventListener('click', function(e) {
+    e.stopPropagation();
+    // Clicks from inside the dropdown bubble up here — ignore them so that
+    // a menu-action closing the menu doesn't cause the tab to reopen it.
+    if (e.target.closest('.menu-dropdown')) return;
+    const menuId = 'menu-' + this.dataset.menu;
+    if (openMenuId === menuId) { closeAllMenus(); return; }
+    closeAllMenus();
+    document.getElementById(menuId).classList.add('show');
+    this.classList.add('open');
+    openMenuId = menuId;
+  });
+  item.addEventListener('mouseenter', function() {
+    const menuId = 'menu-' + this.dataset.menu;
+    if (openMenuId && openMenuId !== menuId) {
+      closeAllMenus();
+      document.getElementById(menuId).classList.add('show');
+      this.classList.add('open');
+      openMenuId = menuId;
+    }
+  });
 });
-document.querySelectorAll('.menu-action:not(.menu-has-submenu)').forEach(btn => { btn.addEventListener('click', () => closeAllMenus()); });
+
+// Submenus: open instantly on hover; close after a grace period so diagonal
+// movement toward the submenu panel and accidental slips don't dismiss it.
+// The submenu sits as a DOM child of its parent row, so moving directly between
+// them does not fire mouseleave on the parent — the timer only kicks in when
+// the cursor genuinely leaves both the row and the panel.
+document.querySelectorAll('.menu-has-submenu').forEach(parent => {
+  const submenu = parent.querySelector('.menu-submenu');
+  parent.addEventListener('mouseenter', () => {
+    _clearMenuSubmenuTimer();
+    document.querySelectorAll('.menu-has-submenu.submenu-open').forEach(el => { if (el !== parent) el.classList.remove('submenu-open'); });
+    parent.classList.add('submenu-open');
+  });
+  parent.addEventListener('mouseleave', () => _scheduleSubmenuClose(parent));
+  if (submenu) {
+    submenu.addEventListener('mouseenter', _clearMenuSubmenuTimer);
+    submenu.addEventListener('mouseleave', (e) => {
+      if (parent.contains(e.relatedTarget)) return;
+      _scheduleSubmenuClose(parent);
+    });
+  }
+});
+
+document.querySelectorAll('.menu-action:not(.menu-has-submenu)').forEach(btn => {
+  btn.addEventListener('click', () => closeAllMenus());
+});
 document.addEventListener('click', (e) => { if (openMenuId && !e.target.closest('.menu-item')) closeAllMenus(); });
 document.querySelectorAll('.modal-overlay').forEach(modal => { if (modal.id === 'settingsModal') return; modal.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); }); });
 
@@ -96,12 +180,12 @@ document.querySelectorAll('.modal-overlay').forEach(modal => { if (modal.id === 
    ═══════════════════════════════════════════════════════ */
 
 let spaceDown = false;
-document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !spaceDown && !e.target.matches('input,select,textarea')) { spaceDown = true; workspace.style.cursor = 'grab'; e.preventDefault(); } });
+document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !spaceDown && !e.target.matches('input,select,textarea') && !e.target.isContentEditable) { spaceDown = true; workspace.style.cursor = 'grab'; e.preventDefault(); } });
 document.addEventListener('keyup', (e) => { if (e.code === 'Space') { spaceDown = false; workspace.style.cursor = getToolCursor(); } });
 
 // ── Brush cursor routing ──────────────────────────────────────────────────────
 
-workspace.addEventListener('mousemove', updateBrushCursor);
+workspace.addEventListener('mousemove', (e) => updateBrushCursor(e));
 workspace.addEventListener('mouseleave', () => { brushCursorEl.style.display = 'none'; rulerMouseX = -1; rulerMouseY = -1; if (rulersVisible) drawRulers(); });
 
 // ── Window resize ─────────────────────────────────────────────────────────────
