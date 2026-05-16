@@ -1,140 +1,133 @@
 "use strict";
 
-/* Live status-bar performance monitor.
-   Browsers do not expose OS-wide CPU/GPU/RAM usage to file:// pages, so these
-   values are lightweight, browser-safe estimates of Opsin/page pressure. */
+/* Status-bar telemetry renderer.
+   Opsin is a static browser app, so this file does not collect OS metrics by
+   itself. Dedicated integration modules, such as telemetryHelper.js, supply
+   normalized metric objects through OpsinSystemMonitor.setProvider().
+
+   Current provider shape:
+   {
+     online: true,
+     cpuPercent: 12.4,
+     gpuPercent: 6.1,
+     ramPercent: 48.2,
+     ramUsedGb: 7.8,
+     ramTotalGb: 16.0
+   }
+
+   The shape leaves room for future telemetry such as VRAM, FPS, temperatures,
+   JS heap, and undo-memory usage without changing the status-bar UI contract. */
 (function () {
-  const UPDATE_MS = 1000;
-  const FRAME_TARGET_MS = 1000 / 60;
-  const BYTES_PER_PIXEL = 4;
-  const GIB = 1024 * 1024 * 1024;
+  const UPDATE_MS = 500;
+  const OFFLINE_TITLE = "Telemetry helper offline. Start opsin_helper.py to enable live CPU/GPU/RAM metrics.";
+  const ONLINE_TITLE = "Live CPU/GPU/RAM metrics supplied by the Opsin localhost telemetry helper.";
 
   let statusEl = null;
   let intervalId = 0;
-  let rafId = 0;
-  let lastTick = 0;
-  let lastFrameTs = 0;
-  let longTaskMs = 0;
-  let frameCount = 0;
-  let slowFrameCount = 0;
-  let frameLagMs = 0;
-  let cpuPercent = 0;
-  let gpuPercent = 0;
-  let observer = null;
+  let provider = null;
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }
 
-  function smooth(previous, next) {
-    return previous * 0.65 + next * 0.35;
+  function toFiniteNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return isFinite(number) ? number : null;
   }
 
-  function addCanvasBytes(canvas, seen) {
-    if (!canvas || !canvas.width || !canvas.height || seen.has(canvas)) return 0;
-    seen.add(canvas);
-    return canvas.width * canvas.height * BYTES_PER_PIXEL;
+  function toPercent(value) {
+    const number = toFiniteNumber(value);
+    return number === null ? null : clamp(number, 0, 100);
   }
 
-  function estimateCanvasBytes() {
-    const seen = new Set();
-    let bytes = 0;
-
-    if (typeof layers !== "undefined" && Array.isArray(layers)) {
-      for (const layer of layers) {
-        if (layer && layer.canvas) bytes += addCanvasBytes(layer.canvas, seen);
-      }
-    }
-
-    if (typeof compositeCanvas !== "undefined") bytes += addCanvasBytes(compositeCanvas, seen);
-    if (typeof overlayCanvas !== "undefined") bytes += addCanvasBytes(overlayCanvas, seen);
-    if (typeof guideOverlay !== "undefined") bytes += addCanvasBytes(guideOverlay, seen);
-    if (typeof uiOverlay !== "undefined") bytes += addCanvasBytes(uiOverlay, seen);
-    if (typeof selectionMask !== "undefined") bytes += addCanvasBytes(selectionMask, seen);
-    if (typeof rulerH !== "undefined") bytes += addCanvasBytes(rulerH, seen);
-    if (typeof rulerV !== "undefined") bytes += addCanvasBytes(rulerV, seen);
-
-    return bytes;
+  function toGb(value) {
+    const number = toFiniteNumber(value);
+    return number === null || number < 0 ? null : number;
   }
 
-  function getHistoryBytes() {
-    try {
-      if (typeof History !== "undefined" && History && typeof History.getMemoryUsage === "function") {
-        const usage = History.getMemoryUsage();
-        return usage && typeof usage.totalBytes === "number" ? usage.totalBytes : 0;
-      }
-    } catch (err) {
-      return 0;
-    }
-    return 0;
-  }
-
-  function getRamBytes() {
-    const canvasBytes = estimateCanvasBytes();
-    const historyBytes = getHistoryBytes();
-    const memory = performance && performance.memory;
-    const heapBytes = memory && typeof memory.usedJSHeapSize === "number" ? memory.usedJSHeapSize : 0;
-
-    return heapBytes ? heapBytes + canvasBytes : canvasBytes + historyBytes;
-  }
-
-  function formatRam(bytes) {
-    if (!bytes || !isFinite(bytes)) return "--";
-    return (bytes / GIB).toFixed(1) + "GB";
-  }
-
-  function trackFrames(ts) {
-    if (lastFrameTs) {
-      const delta = ts - lastFrameTs;
-      frameCount++;
-      if (delta > FRAME_TARGET_MS * 1.5) slowFrameCount++;
-      frameLagMs += Math.max(0, delta - FRAME_TARGET_MS);
-    }
-    lastFrameTs = ts;
-    rafId = requestAnimationFrame(trackFrames);
-  }
-
-  function startLongTaskObserver() {
-    if (observer || typeof PerformanceObserver === "undefined") return;
+  function readProviderMetrics() {
+    const source = provider || window.OpsinNativeSystemMetrics;
+    if (!source) return null;
 
     try {
-      observer = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          longTaskMs += entry.duration || 0;
-        }
-      });
-      observer.observe({ entryTypes: ["longtask"] });
+      const metrics = typeof source === "function" ? source() : source;
+      if (!metrics || metrics.online === false) return null;
+
+      const cpuPercent = toPercent(metrics.cpuPercent !== undefined ? metrics.cpuPercent : metrics.cpu);
+      const gpuPercent = toPercent(metrics.gpuPercent !== undefined ? metrics.gpuPercent : metrics.gpu);
+      const ramPercent = toPercent(metrics.ramPercent !== undefined ? metrics.ramPercent : metrics.ram);
+      const ramUsedGb = toGb(metrics.ramUsedGb !== undefined ? metrics.ramUsedGb : metrics.ramGb);
+      const ramTotalGb = toGb(metrics.ramTotalGb !== undefined ? metrics.ramTotalGb : metrics.ramTotalGB);
+
+      if (
+        cpuPercent === null &&
+        gpuPercent === null &&
+        ramPercent === null &&
+        ramUsedGb === null &&
+        ramTotalGb === null
+      ) {
+        return null;
+      }
+
+      return {
+        cpuPercent: cpuPercent,
+        gpuPercent: gpuPercent,
+        ramPercent: ramPercent,
+        ramUsedGb: ramUsedGb,
+        ramTotalGb: ramTotalGb
+      };
     } catch (err) {
-      observer = null;
+      return null;
     }
+  }
+
+  function formatPercent(value) {
+    if (value === null) return "-%";
+    const rounded = Math.round(value * 10) / 10;
+    return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)) + "%";
+  }
+
+  function formatGb(value) {
+    if (value === null) return "-- GB";
+    return value.toFixed(1) + " GB";
+  }
+
+  function formatRam(metrics) {
+    return metrics.ramUsedGb !== null ? formatGb(metrics.ramUsedGb) : "- GB";
+  }
+
+  function renderOffline() {
+    if (!statusEl) return;
+    statusEl.innerHTML =
+      '<span class="status-system-monitor__metric status-system-monitor__metric--cpu">CPU--%</span>' +
+      '<span class="status-system-monitor__sep">|</span>' +
+      '<span class="status-system-monitor__metric status-system-monitor__metric--gpu">GPU--%</span>' +
+      '<span class="status-system-monitor__sep">|</span>' +
+      '<span class="status-system-monitor__metric status-system-monitor__metric--ram">RAM-- GB</span>';
+    statusEl.title = OFFLINE_TITLE;
+  }
+
+  function renderStatus(metrics) {
+    if (!statusEl) return;
+    statusEl.innerHTML =
+      '<span class="status-system-monitor__metric status-system-monitor__metric--cpu">CPU-' + formatPercent(metrics.cpuPercent) + "</span>" +
+      '<span class="status-system-monitor__sep">|</span>' +
+      '<span class="status-system-monitor__metric status-system-monitor__metric--gpu">GPU-' + formatPercent(metrics.gpuPercent) + "</span>" +
+      '<span class="status-system-monitor__sep">|</span>' +
+      '<span class="status-system-monitor__metric status-system-monitor__metric--ram">RAM-' + formatRam(metrics) + "</span>";
+    statusEl.title = ONLINE_TITLE;
   }
 
   function updateStatus() {
     if (!statusEl) return;
 
-    const now = performance.now();
-    const elapsed = lastTick ? now - lastTick : UPDATE_MS;
-    const driftMs = Math.max(0, elapsed - UPDATE_MS);
-    lastTick = now;
-
-    const longTaskLoad = clamp((longTaskMs / UPDATE_MS) * 100, 0, 100);
-    const driftLoad = clamp((driftMs / UPDATE_MS) * 100, 0, 100);
-    const frameBudget = frameCount * FRAME_TARGET_MS;
-    const lagLoad = frameBudget ? (frameLagMs / frameBudget) * 100 : 0;
-    const slowFrameLoad = frameCount ? (slowFrameCount / frameCount) * 100 : 0;
-
-    cpuPercent = smooth(cpuPercent, Math.max(longTaskLoad, driftLoad));
-    gpuPercent = smooth(gpuPercent, clamp(Math.max(lagLoad, slowFrameLoad), 0, 100));
-
-    statusEl.textContent =
-      "CPU " + Math.round(cpuPercent) + "% | " +
-      "GPU " + Math.round(gpuPercent) + "% | " +
-      "RAM " + formatRam(getRamBytes());
-
-    longTaskMs = 0;
-    frameCount = 0;
-    slowFrameCount = 0;
-    frameLagMs = 0;
+    const metrics = readProviderMetrics();
+    if (metrics) {
+      renderStatus(metrics);
+    } else {
+      renderOffline();
+    }
   }
 
   function startSystemMonitor() {
@@ -142,26 +135,33 @@
     statusEl = document.getElementById("statusSystemMonitor");
     if (!statusEl) return;
 
-    startLongTaskObserver();
-    lastTick = performance.now();
     updateStatus();
     intervalId = setInterval(updateStatus, UPDATE_MS);
-    rafId = requestAnimationFrame(trackFrames);
   }
 
   function stopSystemMonitor() {
     if (intervalId) clearInterval(intervalId);
-    if (rafId) cancelAnimationFrame(rafId);
-    if (observer) observer.disconnect();
     intervalId = 0;
-    rafId = 0;
-    observer = null;
+  }
+
+  function setProvider(nextProvider) {
+    provider = nextProvider || null;
+    updateStatus();
   }
 
   window.OpsinSystemMonitor = {
     start: startSystemMonitor,
-    stop: stopSystemMonitor
+    stop: stopSystemMonitor,
+    update: updateStatus,
+    setProvider: setProvider
   };
 
-  window.addEventListener("load", startSystemMonitor);
+  window.addEventListener("load", function() {
+    if (localStorage.getItem("opsin_perf_enabled") !== "false") {
+      startSystemMonitor();
+    } else {
+      var el = document.getElementById("statusSystemMonitor");
+      if (el) el.hidden = true;
+    }
+  });
 })();

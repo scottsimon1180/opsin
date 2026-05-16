@@ -15,6 +15,58 @@ const drawSettings = {
   pencil: { size: 1, opacity: 100 }
 };
 
+const GROUPED_TOOL_META = {
+  brush:     { buttonId: 'brushToolBtn', iconId: 'brushToolIcon', icon: 'brush',           title: 'Brush (B)',              indicatorId: 'optBrushVariantBrush' },
+  pencil:    { buttonId: 'brushToolBtn', iconId: 'brushToolIcon', icon: 'pencil',          title: 'Pencil (P)',             indicatorId: 'optBrushVariantPencil' }
+};
+
+function _setGroupedToolbarButton(meta, toolName) {
+  if (!meta) return;
+  const btn = document.getElementById(meta.buttonId);
+  const icon = document.getElementById(meta.iconId);
+  if (btn) {
+    btn.dataset.tool = toolName;
+    btn.title = meta.title;
+  }
+  if (icon) icon.setAttribute('href', '#icon-' + meta.icon);
+}
+
+function _setGroupedIndicatorState(activeId, ids) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', id === activeId);
+  });
+}
+
+function _syncBrushGroupUi(toolName) {
+  const meta = GROUPED_TOOL_META[toolName] || GROUPED_TOOL_META.brush;
+  _setGroupedToolbarButton(meta, toolName);
+  _setGroupedIndicatorState(meta.indicatorId, ['optBrushVariantBrush', 'optBrushVariantPencil']);
+}
+
+function _syncGroupedToolUi(name) {
+  if (name === 'brush' || name === 'pencil') {
+    _syncBrushGroupUi(name);
+  }
+}
+
+function _getPenToolbarVariant() {
+  return (window.PenTool && window.PenTool.getVariant) ? window.PenTool.getVariant() : 'pen';
+}
+
+function _isToolbarButtonActive(btn, activeTool) {
+  const toolName = btn.dataset.tool;
+  if (toolName === 'anchor') return activeTool === 'pen' && _getPenToolbarVariant() === 'anchor';
+  if (toolName === 'pen') return activeTool === 'pen' && _getPenToolbarVariant() !== 'anchor';
+  return toolName === activeTool;
+}
+
+function syncToolbarActiveState(activeTool) {
+  document.querySelectorAll('.tool-btn').forEach(btn => {
+    btn.classList.toggle('active', _isToolbarButtonActive(btn, activeTool));
+  });
+}
+
 /* ═══════════════════════════════════════════════════════
    TOOL SYSTEM
    ═══════════════════════════════════════════════════════ */
@@ -25,6 +77,13 @@ function updateMoveDeselectButtonState() {
   const active = !!(pxTransformActive || floatingActive);
   btn.disabled = !active;
   btn.classList.toggle('opt-action-btn-armed', active);
+}
+
+function updateCropToSelectionButtonState() {
+  const hasSelection = !!(selection && selectionPath);
+  document.querySelectorAll('.opt-crop-selection-btn').forEach(btn => {
+    btn.disabled = !hasSelection;
+  });
 }
 
 function getToolCursor() {
@@ -61,9 +120,10 @@ function selectTool(name) {
   currentTool = name;
   transformSelActive = (name === 'movesel');
   if (panelEyedropperActive) togglePanelEyedropper();
-  document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === name));
+  _syncGroupedToolUi(name);
+  syncToolbarActiveState(name);
 
-  const allOpts = ['opt-move','opt-direct-select','opt-draw-size','opt-draw-soft','opt-draw-opacity','opt-draw-smooth','opt-pencil-size','opt-pencil-opacity','opt-opacity','opt-fill-mode','opt-stroke-width','opt-shape-fill','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-pen-mode','opt-pen-fill','opt-pen-width','opt-text-font','opt-text-size','opt-text-fill','opt-text-format','opt-gradient-opacity','opt-fill-opacity','opt-fill-tolerance','opt-sel-mode','opt-wand-tolerance','opt-wand-contiguous','opt-mag-width','opt-mag-contrast','opt-mag-frequency','opt-ruler'];
+  const allOpts = ['opt-move','opt-direct-select','opt-draw-size','opt-draw-soft','opt-draw-opacity','opt-draw-smooth','opt-pencil-size','opt-pencil-opacity','opt-opacity','opt-fill-mode','opt-stroke-width','opt-shape-fill','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-pen-mode','opt-pen-fill','opt-pen-width','opt-text-font','opt-text-size','opt-text-fill','opt-text-format','opt-gradient-opacity','opt-fill-opacity','opt-fill-tolerance','opt-sel-mode','opt-crop-selection','opt-wand-tolerance','opt-wand-contiguous','opt-mag-width','opt-mag-contrast','opt-mag-frequency','opt-ruler'];
   allOpts.forEach(id => { const _el = document.getElementById(id); if (_el) _el.classList.add('hidden'); });
   // Also collapse the text-tool format popover when switching tools.
   const _txp = document.getElementById('txFormatPopover');
@@ -74,17 +134,18 @@ function selectTool(name) {
   const _tiSel = document.getElementById('toolIndicatorSelect');
   const _tiL = document.getElementById('toolIndicatorLasso');
   const _tiSh = document.getElementById('toolIndicatorShape');
-  const _tiP = document.getElementById('toolIndicatorPen');
+  const _tiB = document.getElementById('toolIndicatorBrush');
   _tiS.classList.add('hidden'); _tiSel.classList.add('hidden');
   _tiL.classList.add('hidden'); _tiSh.classList.add('hidden');
-  if (_tiP) _tiP.classList.add('hidden');
+  if (_tiB) _tiB.classList.add('hidden');
   if (name === 'select') { _tiSel.classList.remove('hidden'); }
   else if (name === 'lasso') { _tiL.classList.remove('hidden'); }
+  else if (name === 'brush' || name === 'pencil') { if (_tiB) _tiB.classList.remove('hidden'); }
   else if (name === 'shape') { _tiSh.classList.remove('hidden'); }
-  else if (name === 'pen' && _tiP) { _tiP.classList.remove('hidden'); }
   else {
     _tiS.classList.remove('hidden');
-    const _tiMap = {move:'move',movesel:'move-selection',pan:'pan',brush:'brush',pencil:'pencil',eraser:'eraser',fill:'fill',gradient:'gradient',text:'text',pen:'pen',wand:'magic-wand',ruler:'ruler-tool',eyedropper:'eyedropper'};
+    const _tiMap = {move:'move',movesel:'move-selection',pan:'pan',pen:'pen',pathselect:'select-object',directselect:'direct-select',eraser:'eraser',fill:'fill',gradient:'gradient',text:'text',wand:'magic-wand',ruler:'ruler-tool',eyedropper:'eyedropper'};
+    if (name === 'pen' && _getPenToolbarVariant() === 'anchor') _tiMap.pen = 'anchor-point';
     document.getElementById('toolIndicatorIcon').setAttribute('href','#icon-'+(_tiMap[name]||'move'));
   }
 
@@ -94,14 +155,23 @@ function selectTool(name) {
   drawOverlay();
 
   const shapeNames = {rect:'Rectangle',ellipse:'Ellipse',line:'Line'};
-  const toolNames = {move:'Move',movesel:'Move Selection',pan:'Pan',select:'Select',lasso:'Lasso',wand:'Magic Wand',ruler:'Ruler',eyedropper:'Eyedropper',brush:'Brush',pencil:'Pencil',eraser:'Eraser',fill:'Fill',gradient:'Gradient',text:'Text',pen:'Pen',shape:shapeNames[shapeType]||'Shape',zoom:'Zoom'};
+  const toolNames = {move:'Move',movesel:'Move Selection',pan:'Pan',select:'Select',lasso:'Lasso',wand:'Magic Wand',ruler:'Ruler',eyedropper:'Eyedropper',brush:'Brush',pencil:'Pencil',eraser:'Eraser',fill:'Fill',gradient:'Gradient',text:'Text',pen:'Pen',pathselect:'Selection',directselect:'Direct Selection',shape:shapeNames[shapeType]||'Shape',zoom:'Zoom'};
   document.getElementById('statusTool').textContent = toolNames[name] || name;
 
   ToolRegistry.activate(name);
+  updateCropToSelectionButtonState();
 }
 
 document.querySelectorAll('.tool-btn').forEach(btn => {
-  btn.addEventListener('click', () => selectTool(btn.dataset.tool));
+  btn.addEventListener('click', () => {
+    const toolName = btn.dataset.tool;
+    if (!toolName) return;
+    if (toolName === 'pen' || toolName === 'anchor') {
+      selectPenToolbarTool(toolName);
+      return;
+    }
+    selectTool(toolName);
+  });
 });
 
 /* ═══════════════════════════════════════════════════════
@@ -210,6 +280,25 @@ function setMoveAutoSelectLayer(on) {
   if (cb) cb.checked = moveAutoSelectLayer;
 }
 
+function selectBrushGroupTool(toolName) {
+  if (!['brush', 'pencil'].includes(toolName)) return;
+  selectTool(toolName);
+}
+
+function selectPenToolbarTool(toolName) {
+  if (toolName === 'directselect') {
+    selectTool('directselect');
+    return;
+  }
+  if (toolName === 'select') {
+    selectTool('pathselect');
+    return;
+  }
+  if (toolName !== 'pen' && toolName !== 'anchor') return;
+  setPenVariant(toolName);
+  if (currentTool !== 'pen') selectTool('pen');
+}
+
 function deselectMove() {
   if (pxTransformActive) {
     commitPixelTransform();
@@ -221,19 +310,20 @@ function deselectMove() {
   drawOverlay();
 }
 
-// Called when the active layer changes while Move tool is active.
-// Switches between shape options bar and normal move options bar.
+// Called when the active layer changes. The Move tool keeps its plain
+// options bar regardless of layer kind; the Selection tool re-binds its
+// shape session to whatever the new active layer is.
 function updateMoveToolOptionsBar() {
-  if (typeof currentTool === 'undefined' || currentTool !== 'move') return;
-  const _layer = (typeof layers !== 'undefined' && typeof activeLayerIndex !== 'undefined')
-    ? layers[activeLayerIndex] : null;
-  if (_layer && _layer.kind === 'shape' && window.ShapeTool && window.ShapeTool.openForMoveTool) {
-    document.getElementById('opt-move').classList.add('hidden');
-    window.ShapeTool.openForMoveTool(_layer);
-  } else {
-    if (window.ShapeTool && window.ShapeTool.closeForMoveTool) window.ShapeTool.closeForMoveTool();
+  if (typeof currentTool === 'undefined') return;
+  if (currentTool === 'move') {
     document.getElementById('opt-move').classList.remove('hidden');
     updateMoveDeselectButtonState();
+    return;
+  }
+  if (currentTool === 'pathselect' && window.ShapeTool && window.ShapeTool.openForSelectTool) {
+    const _layer = (typeof layers !== 'undefined' && typeof activeLayerIndex !== 'undefined')
+      ? layers[activeLayerIndex] : null;
+    window.ShapeTool.openForSelectTool(_layer && _layer.kind === 'shape' ? _layer : null);
   }
 }
 
@@ -286,12 +376,13 @@ function setShapeType(type) {
 
 function setPenVariant(variant) {
   if (variant !== 'pen' && variant !== 'anchor') return;
-  const penBtn    = document.getElementById('optPenVariantPen');
-  const anchorBtn = document.getElementById('optPenVariantAnchor');
-  if (penBtn)    penBtn.classList.toggle('active',    variant === 'pen');
-  if (anchorBtn) anchorBtn.classList.toggle('active', variant === 'anchor');
-  document.getElementById('statusTool').textContent = (variant === 'anchor') ? 'Anchor Point' : 'Pen';
   if (window.PenTool && window.PenTool.setVariant) window.PenTool.setVariant(variant);
+  if (typeof currentTool !== 'undefined') syncToolbarActiveState(currentTool);
+  if (typeof currentTool !== 'undefined' && currentTool === 'pen') {
+    const icon = document.getElementById('toolIndicatorIcon');
+    if (icon) icon.setAttribute('href', variant === 'anchor' ? '#icon-anchor-point' : '#icon-pen');
+  }
+  document.getElementById('statusTool').textContent = (variant === 'anchor') ? 'Anchor Point' : 'Pen';
 }
 
 /* ═══════════════════════════════════════════════════════

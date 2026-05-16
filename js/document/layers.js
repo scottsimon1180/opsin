@@ -224,6 +224,57 @@ function mergeLayers() {
   pushUndo('Merge Layers');
 }
 
+// Merge 2+ selected shape layers into a single vector shape layer, keeping
+// the result editable. The merged layer takes the z-position and name of the
+// bottom-most selected layer. Each source layer's opacity is baked into its
+// paths' alpha so the merge is visually lossless. Shapes are concatenated
+// bottom-layer-first so the existing front-to-back stacking is preserved.
+function mergeShapeLayers() {
+  const sel = [...selectedLayers].sort((a, b) => a - b);
+  if (sel.length < 2) return;
+  if (!sel.every(i => layers[i] && layers[i].kind === 'shape')) return;
+
+  const combined = [];
+  let nextId = 1;
+  // Lower index = higher in the stack, so the bottom-most selected layer is
+  // sel[last]. Walk bottom → top so earlier-painted shapes stay behind.
+  for (let k = sel.length - 1; k >= 0; k--) {
+    const l = layers[sel[k]];
+    const lOp = (l.opacity == null) ? 1 : l.opacity;
+    const shapes = (l.shapeModel && l.shapeModel.shapes) || [];
+    for (const s of shapes) {
+      const cp = _cloneShape(s);
+      cp.id = nextId++;
+      cp.opacity = ((s.opacity == null) ? 1 : s.opacity) * lOp;
+      combined.push(cp);
+    }
+  }
+
+  const bottomName = layers[sel[sel.length - 1]].name;
+  const c = createLayerCanvas();
+  const mergedLayer = {
+    id: layerIdCounter++,
+    name: bottomName,
+    canvas: c,
+    ctx: c.getContext('2d', { willReadFrequently: true }),
+    visible: true,
+    opacity: 1,
+    kind: 'shape',
+    shapeModel: { nextId, selectedIds: new Set(), shapes: combined }
+  };
+  for (let i = sel.length - 1; i >= 0; i--) {
+    layers.splice(sel[i], 1);
+  }
+  const insertPos = sel[sel.length - 1] - (sel.length - 1);
+  layers.splice(insertPos, 0, mergedLayer);
+  activeLayerIndex = insertPos;
+  selectedLayers = new Set([insertPos]);
+  if (typeof renderShapeLayer === 'function') renderShapeLayer(mergedLayer);
+  compositeAll();
+  updateLayerPanel();
+  pushUndo('Merge SVGs');
+}
+
 function moveLayerUp() {
   if (activeLayerIndex <= 0) return;
   const before = _captureLayerRects();
@@ -618,9 +669,13 @@ function _showLayerContextMenu(e, layerIdx) {
   if (!menu) return;
   const layer = layers[layerIdx];
   if (!layer) return;
-  // Make the right-clicked layer the active one for any subsequent action.
+  // Make the right-clicked layer active. Preserve an existing multi-selection
+  // when the clicked layer is part of it so merge actions see the whole set;
+  // otherwise reduce the selection to just this layer.
+  if (!selectedLayers.has(layerIdx)) {
+    selectedLayers = new Set([layerIdx]);
+  }
   activeLayerIndex = layerIdx;
-  selectedLayers = new Set([layerIdx]);
   updateLayerPanel();
 
   const isText  = layer.kind === 'text';
@@ -632,6 +687,19 @@ function _showLayerContextMenu(e, layerIdx) {
   rasterizeBtn.textContent = isShape ? 'Rasterize Shape Layer' : (isText ? 'Rasterize Text Layer' : 'Rasterize Layer');
   editTextBtn.style.display = isSmart ? '' : 'none';
   editTextBtn.textContent  = isShape ? 'Edit Shapes' : 'Edit Text';
+
+  // Multi-select merge actions. All-SVG selection → vector "Merge SVGs";
+  // mixed SVG + raster → single "Rasterize & Merge" (delegates to the
+  // existing mergeLayers flow, which rasterizes smart layers then flattens).
+  const selLayers = [...selectedLayers].map(i => layers[i]).filter(Boolean);
+  const shapeCount = selLayers.filter(l => l.kind === 'shape').length;
+  const multi = selLayers.length >= 2;
+  const allShape   = multi && shapeCount === selLayers.length;
+  const mixedShape = multi && shapeCount >= 1 && shapeCount < selLayers.length;
+  const mergeSvgsBtn   = document.getElementById('layerCtxMergeSvgs');
+  const rasterMergeBtn = document.getElementById('layerCtxRasterizeMerge');
+  if (mergeSvgsBtn)   mergeSvgsBtn.style.display   = allShape   ? '' : 'none';
+  if (rasterMergeBtn) rasterMergeBtn.style.display = mixedShape ? '' : 'none';
 
   // Position. Clamp inside viewport.
   menu.hidden = false;
@@ -676,6 +744,8 @@ function _showLayerContextMenu(e, layerIdx) {
       window.ShapeTool.beginEdit(layer);
     }
   };
+  if (mergeSvgsBtn)   mergeSvgsBtn.onclick   = () => { close(); mergeShapeLayers(); };
+  if (rasterMergeBtn) rasterMergeBtn.onclick = () => { close(); mergeLayers(); };
 
   // Defer attaching the away-listener to the next frame so the
   // contextmenu's own mousedown doesn't immediately close the menu.

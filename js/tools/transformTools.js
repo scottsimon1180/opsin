@@ -4,22 +4,17 @@
 
 ToolRegistry.register('move', {
   activate() {
-    const _layer = (typeof layers !== 'undefined' && typeof activeLayerIndex !== 'undefined')
-      ? layers[activeLayerIndex] : null;
-    if (_layer && _layer.kind === 'shape' && window.ShapeTool && window.ShapeTool.openForMoveTool) {
-      window.ShapeTool.openForMoveTool(_layer);
-    } else {
-      document.getElementById('opt-move').classList.remove('hidden');
-    }
+    document.getElementById('opt-move').classList.remove('hidden');
+    document.getElementById('opt-crop-selection').classList.remove('hidden');
     workspace.style.cursor = 'default';
     if (selection && selectionPath && !pxTransformActive && !floatingActive) {
       initPixelTransform();
     }
     updateMoveDeselectButtonState();
+    updateCropToSelectionButtonState();
   },
 
   deactivate() {
-    if (window.ShapeTool && window.ShapeTool.closeForMoveTool) window.ShapeTool.closeForMoveTool();
     if (window.TextTool && window.TextTool.clearHover) window.TextTool.clearHover();
   },
 
@@ -59,11 +54,18 @@ ToolRegistry.register('move', {
       }
     }
 
-    // ── Shape layer delegation ──
-    if (window.ShapeTool && window.ShapeTool.handleMoveMouseDown) {
-      if (window.ShapeTool.handleMoveMouseDown(e, pos)) return true;
-      // If shape mode is active but no shape was hit, don't start a pixel transform.
-      if (window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool()) {
+    // ── Shape layer: move the whole layer as one object ──
+    // Vector layers stay editable, so translate the model rather than
+    // pixel-transforming the rendered raster (which would be overwritten
+    // on the next re-render). Per-path selection lives in the Selection
+    // tool now, not here.
+    {
+      const _al = (typeof layers !== 'undefined' && typeof activeLayerIndex !== 'undefined')
+        ? layers[activeLayerIndex] : null;
+      if (_al && _al.kind === 'shape') {
+        if (window.ShapeTool && window.ShapeTool.beginWholeLayerMove) {
+          window.ShapeTool.beginWholeLayerMove(_al, e);
+        }
         isDrawing = false;
         return true;
       }
@@ -291,6 +293,8 @@ ToolRegistry.register('movesel', {
   activate() {
     workspace.style.cursor = 'default';
     transformSelActive = true;
+    document.getElementById('opt-crop-selection').classList.remove('hidden');
+    updateCropToSelectionButtonState();
     drawOverlay();
   },
 

@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Linked SVG Icon Gallery</title>
+  <style>
+    :root {
+      --bg: #242428;
+      --ink: #8e8e93;
+      --panel: rgba(255, 255, 255, 0.045);
+      --panel-strong: rgba(255, 255, 255, 0.075);
+      --panel-soft: rgba(0, 0, 0, 0.18);
+      --border: rgba(142, 142, 147, 0.2);
+      --border-strong: rgba(142, 142, 147, 0.42);
+      --shadow: rgba(0, 0, 0, 0.35);
+      --danger: #ff453a;
+      --accent: #0a84ff;
+      --success: #30d158;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    body { overflow-x: hidden; }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    .page {
+      width: min(100%, 1800px);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: minmax(210px, 1fr) minmax(220px, 380px) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0 16px;
+      background: linear-gradient(to bottom, var(--bg) 75%, rgba(36, 36, 40, 0));
+      backdrop-filter: blur(18px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+
+    .meta {
+      margin-top: 4px;
+      font-size: 12px;
+      opacity: 0.76;
+    }
+
+    .search {
+      width: 100%;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0 14px;
+      outline: none;
+      background: var(--panel-soft);
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .search::placeholder { color: rgba(142, 142, 147, 0.62); }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0 13px;
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 12.5px;
+      transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+    }
+
+    .button:hover {
+      background: var(--panel-strong);
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+    }
+
+    .button.primary {
+      border-color: rgba(10, 132, 255, 0.52);
+      background: rgba(10, 132, 255, 0.18);
+    }
+
+    .button.danger {
+      border-color: rgba(255, 69, 58, 0.52);
+      background: rgba(255, 69, 58, 0.12);
+    }
+
+    .status {
+      display: none;
+      margin: 0 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.035);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .status.show { display: block; }
+    .status.success { border-color: rgba(48, 209, 88, 0.45); }
+    .status.warn { border-color: rgba(255, 159, 10, 0.45); }
+    .status.error { border-color: rgba(255, 69, 58, 0.55); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .icon-card {
+      min-width: 0;
+      height: 86px;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      place-items: center;
+      gap: 7px;
+      padding: 10px 7px 8px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--panel);
+      color: var(--ink);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+      cursor: pointer;
+      transition: background 130ms ease, border-color 130ms ease, transform 130ms ease;
+    }
+
+    .icon-card:hover,
+    .icon-card:focus-visible {
+      background: var(--panel-strong);
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .icon-wrap {
+      width: 100%;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+    }
+
+    .icon-wrap svg {
+      width: 30px !important;
+      height: 30px !important;
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      color: var(--ink);
+      fill: currentColor;
+      overflow: visible;
+    }
+
+    .icon-wrap svg * { transition: none !important; }
+
+    .icon-name {
+      width: 100%;
+      font-size: 10.5px;
+      line-height: 1.15;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: text;
+    }
+
+    .empty {
+      display: none;
+      margin-top: 48px;
+      text-align: center;
+      font-size: 14px;
+      opacity: 0.72;
+    }
+
+    body.no-results .empty { display: block; }
+    body.no-results .grid { display: none; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0, 0, 0, 0.54);
+      backdrop-filter: blur(18px);
+    }
+
+    body.modal-open { overflow: hidden; }
+    body.modal-open .modal-backdrop { display: grid; }
+
+    .modal {
+      width: min(960px, 100%);
+      max-height: min(820px, calc(100vh - 36px));
+      display: grid;
+      grid-template-rows: auto auto minmax(220px, 1fr) auto;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 22px;
+      background: #242428;
+      color: var(--ink);
+      box-shadow: 0 30px 90px var(--shadow);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-title {
+      min-width: 0;
+      margin: 0;
+      font-size: 17px;
+      font-weight: 650;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .modal-close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: var(--panel);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .editor-row {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 14px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .preview-box,
+    .name-box {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .preview-box {
+      min-height: 118px;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+    }
+
+    .preview-box svg {
+      width: 58px !important;
+      height: 58px !important;
+      color: var(--ink);
+      fill: currentColor;
+      overflow: visible;
+    }
+
+    .name-box {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      padding: 12px;
+    }
+
+    label {
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      opacity: 0.72;
+    }
+
+    .name-input {
+      width: 100%;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 10px;
+      outline: none;
+      background: rgba(0, 0, 0, 0.18);
+      font-size: 13px;
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.45;
+      opacity: 0.72;
+    }
+
+    .textarea-wrap {
+      display: grid;
+      min-height: 0;
+      padding: 0 18px 14px;
+    }
+
+    .svg-code {
+      width: 100%;
+      min-height: 280px;
+      resize: none;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 13px;
+      outline: none;
+      background: rgba(0, 0, 0, 0.22);
+      color: var(--ink);
+      font-family: "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      tab-size: 2;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-left,
+    .footer-right {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 200;
+      transform: translateX(-50%) translateY(20px);
+      max-width: min(680px, calc(100vw - 28px));
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(20, 20, 24, 0.92);
+      color: var(--ink);
+      box-shadow: 0 18px 50px var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 820px) {
+      .page { padding: 12px; }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        padding-top: 10px;
+      }
+
+      .actions { justify-content: flex-start; }
+
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+        gap: 8px;
+      }
+
+      .icon-card {
+        height: 78px;
+        border-radius: 12px;
+      }
+
+      .icon-wrap svg {
+        width: 27px !important;
+        height: 27px !important;
+      }
+
+      .icon-name { font-size: 9.8px; }
+
+      .editor-row { grid-template-columns: 1fr; }
+      .modal-footer { align-items: stretch; flex-direction: column; }
+      .footer-left,
+      .footer-right { justify-content: stretch; }
+      .modal-footer .button { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <h1>Linked SVG Icon Gallery</h1>
+        <div class="meta"><span id="visibleCount">0</span> / <span id="totalCount">0</span> SVGs from <code>linked_icons.js</code></div>
+      </div>
+      <input id="search" class="search" type="search" placeholder="Search SVG names…" autocomplete="off" spellcheck="false">
+      <div class="actions">
+        <button id="addIconButton" class="button" type="button">Add icon</button>
+        <button id="downloadButton" class="button primary" type="button">Download linked_icons.js</button>
+      </div>
+    </header>
+
+    <p id="status" class="status"></p>
+    <section id="grid" class="grid" aria-label="SVG icon gallery"></section>
+    <p class="empty">No SVG names match that search.</p>
+  </main>
+
+  <div id="modalBackdrop" class="modal-backdrop" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="modal-header">
+        <h2 id="modalTitle" class="modal-title">Edit SVG</h2>
+        <button id="closeModalButton" class="modal-close" type="button" aria-label="Close editor">×</button>
+      </header>
+
+      <div class="editor-row">
+        <div id="modalPreview" class="preview-box" aria-label="Current SVG preview"></div>
+        <div class="name-box">
+          <label for="iconNameInput">Icon name</label>
+          <input id="iconNameInput" class="name-input" type="text" spellcheck="false">
+          <p class="hint">The name is stored as the comment-block heading above the SVG in <code>linked_icons.js</code>. Paste replacement SVG code below, then save changes and download the updated file.</p>
+        </div>
+      </div>
+
+      <div class="textarea-wrap">
+        <label for="svgCodeInput">SVG code</label>
+        <textarea id="svgCodeInput" class="svg-code" spellcheck="false"></textarea>
+      </div>
+
+      <footer class="modal-footer">
+        <div class="footer-left">
+          <button id="deleteIconButton" class="button danger" type="button">Delete icon</button>
+        </div>
+        <div class="footer-right">
+          <button id="copySvgButton" class="button" type="button">Copy SVG</button>
+          <button id="saveIconButton" class="button primary" type="button">Save to gallery</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="./linked_icons.js"></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const SOURCE_FILE_NAME = "linked_icons.js";
+      const ICON_BLOCK_RE = /\/\*\s*=+\s*([^*\n\r]+?)\s*=+\s*\*\/\s*(<svg\b[\s\S]*?<\/svg>)/gi;
+
+      const grid = document.getElementById("grid");
+      const search = document.getElementById("search");
+      const status = document.getElementById("status");
+      const visibleCount = document.getElementById("visibleCount");
+      const totalCount = document.getElementById("totalCount");
+      const downloadButton = document.getElementById("downloadButton");
+      const addIconButton = document.getElementById("addIconButton");
+      const modalBackdrop = document.getElementById("modalBackdrop");
+      const modalTitle = document.getElementById("modalTitle");
+      const modalPreview = document.getElementById("modalPreview");
+      const iconNameInput = document.getElementById("iconNameInput");
+      const svgCodeInput = document.getElementById("svgCodeInput");
+      const closeModalButton = document.getElementById("closeModalButton");
+      const deleteIconButton = document.getElementById("deleteIconButton");
+      const copySvgButton = document.getElementById("copySvgButton");
+      const saveIconButton = document.getElementById("saveIconButton");
+      const toast = document.getElementById("toast");
+
+      let icons = [];
+      let activeIndex = -1;
+      let toastTimer = 0;
+
+      function setStatus(message, type = "warn") {
+        status.textContent = message;
+        status.className = `status show ${type}`;
+      }
+
+      function clearStatus() {
+        status.textContent = "";
+        status.className = "status";
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add("show");
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+      }
+
+      function normalize(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function parseIcons(rawData) {
+        const parsed = [];
+        const usedNames = new Map();
+        let match;
+
+        ICON_BLOCK_RE.lastIndex = 0;
+        while ((match = ICON_BLOCK_RE.exec(rawData)) !== null) {
+          const originalName = match[1].trim();
+          const svg = match[2].trim();
+          const count = usedNames.get(originalName) || 0;
+          usedNames.set(originalName, count + 1);
+
+          parsed.push({
+            name: count ? `${originalName}-${count + 1}` : originalName,
+            blockName: originalName,
+            svg,
+            id: `${originalName}-${parsed.length}`
+          });
+        }
+
+        return parsed;
+      }
+
+      function validateSvg(svgText) {
+        const text = String(svgText || "").trim();
+        if (!text) return { ok: false, message: "SVG code is empty." };
+        if (!/^<svg[\s>]/i.test(text)) return { ok: false, message: "SVG code must start with an <svg> element." };
+        if (!/<\/svg>\s*$/i.test(text)) return { ok: false, message: "SVG code must end with </svg>." };
+
+        const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+        const parseError = doc.querySelector("parsererror");
+        if (parseError) return { ok: false, message: "The SVG markup is not valid XML/SVG." };
+        if (!doc.documentElement || doc.documentElement.tagName.toLowerCase() !== "svg") {
+          return { ok: false, message: "The root element must be <svg>." };
+        }
+        return { ok: true, message: "" };
+      }
+
+      function buildSafeSvgNode(svgText) {
+        const validation = validateSvg(svgText);
+        if (!validation.ok) {
+          const fallback = document.createElement("div");
+          fallback.textContent = "Invalid";
+          fallback.style.fontSize = "11px";
+          fallback.style.opacity = "0.72";
+          return fallback;
+        }
+
+        const doc = new DOMParser().parseFromString(svgText.trim(), "image/svg+xml");
+        const svg = document.importNode(doc.documentElement, true);
+
+        svg.querySelectorAll("script, foreignObject").forEach(node => node.remove());
+        svg.querySelectorAll("*").forEach(node => {
+          for (const attr of Array.from(node.attributes)) {
+            if (/^on/i.test(attr.name)) node.removeAttribute(attr.name);
+          }
+        });
+
+        svg.removeAttribute("width");
+        svg.removeAttribute("height");
+        svg.removeAttribute("style");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        return svg;
+      }
+
+      function renderPreview(target, svgText) {
+        target.replaceChildren(buildSafeSvgNode(svgText));
+      }
+
+      function createCard(icon, index) {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "icon-card";
+        card.dataset.index = String(index);
+        card.setAttribute("aria-label", icon.name);
+
+        const iconWrap = document.createElement("div");
+        iconWrap.className = "icon-wrap";
+        renderPreview(iconWrap, icon.svg);
+
+        const label = document.createElement("div");
+        label.className = "icon-name";
+        label.title = icon.name;
+        label.textContent = icon.name;
+
+        card.append(iconWrap, label);
+        card.addEventListener("click", () => openEditor(index));
+        return card;
+      }
+
+      function renderGrid() {
+        const query = normalize(search.value);
+        grid.replaceChildren();
+
+        let visible = 0;
+        icons.forEach((icon, index) => {
+          const matches = !query || normalize(icon.name).includes(query) || normalize(icon.svg).includes(query);
+          if (!matches) return;
+          visible += 1;
+          grid.appendChild(createCard(icon, index));
+        });
+
+        visibleCount.textContent = String(visible);
+        totalCount.textContent = String(icons.length);
+        document.body.classList.toggle("no-results", visible === 0);
+      }
+
+      function openEditor(index) {
+        activeIndex = index;
+        const isNew = index === -1;
+        const icon = isNew ? { name: "new-icon", blockName: "new-icon", svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M12 3v18M3 12h18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg>" } : icons[index];
+
+        modalTitle.textContent = isNew ? "Add new SVG icon" : `Edit ${icon.name}`;
+        iconNameInput.value = icon.blockName || icon.name;
+        svgCodeInput.value = icon.svg;
+        deleteIconButton.hidden = isNew;
+        renderPreview(modalPreview, icon.svg);
+        document.body.classList.add("modal-open");
+        setTimeout(() => svgCodeInput.focus(), 0);
+      }
+
+      function closeEditor() {
+        document.body.classList.remove("modal-open");
+        activeIndex = -1;
+      }
+
+      function saveEditor() {
+        const name = iconNameInput.value.trim();
+        const svg = svgCodeInput.value.trim();
+
+        if (!name) {
+          showToast("Name cannot be empty.");
+          iconNameInput.focus();
+          return;
+        }
+
+        const validation = validateSvg(svg);
+        if (!validation.ok) {
+          showToast(validation.message);
+          svgCodeInput.focus();
+          return;
+        }
+
+        const nextIcon = { name, blockName: name, svg, id: `${name}-${Date.now()}` };
+        if (activeIndex === -1) {
+          icons.push(nextIcon);
+        } else {
+          icons[activeIndex] = { ...icons[activeIndex], ...nextIcon };
+        }
+
+        renderGrid();
+        closeEditor();
+        showToast("Saved in the gallery. Download linked_icons.js to write the change back to your project file.");
+      }
+
+      function deleteActiveIcon() {
+        if (activeIndex < 0) return;
+        const icon = icons[activeIndex];
+        const shouldDelete = confirm(`Delete "${icon.name}" from the generated linked_icons.js file?`);
+        if (!shouldDelete) return;
+        icons.splice(activeIndex, 1);
+        renderGrid();
+        closeEditor();
+        showToast("Icon deleted in the gallery. Download linked_icons.js to keep the deletion.");
+      }
+
+      function escapeTemplateLiteralContent(value) {
+        return String(value)
+          .replace(/\\/g, "\\\\")
+          .replace(/`/g, "\\`")
+          .replace(/\$\{/g, "\\${");
+      }
+
+      function serializeRawIconsData() {
+        return "\n" + icons.map(icon => {
+          return `/*\n=======================================\n${icon.blockName || icon.name}\n=======================================\n*/\n\n${icon.svg.trim()}\n`;
+        }).join("\n") + "\n";
+      }
+
+      function buildLinkedIconsFile() {
+        const data = escapeTemplateLiteralContent(serializeRawIconsData());
+        return `// To update UI icons, paste raw <svg>...</svg> code under the respective comment block.\n// This file is used by svg_icon_gallery_linked.html and can also be used by your app.\n// Add a new icon by duplicating a comment block and placing a new SVG under it.\n\nconst rawIconsData = \`${data}\`;\n`;
+      }
+
+      function downloadTextFile(filename, content) {
+        const blob = new Blob([content], { type: "text/javascript;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      async function saveOrDownloadLinkedIcons() {
+        const content = buildLinkedIconsFile();
+
+        if ("showSaveFilePicker" in window) {
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: SOURCE_FILE_NAME,
+              types: [{
+                description: "JavaScript file",
+                accept: { "text/javascript": [".js"] }
+              }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(content);
+            await writable.close();
+            showToast("Saved linked_icons.js. Refresh the gallery to reload from the file.");
+            return;
+          } catch (error) {
+            if (error && error.name === "AbortError") return;
+            console.warn(error);
+            showToast("Direct save failed, downloading the updated file instead.");
+          }
+        }
+
+        downloadTextFile(SOURCE_FILE_NAME, content);
+        showToast("Downloaded updated linked_icons.js. Replace your project file with this download.");
+      }
+
+      async function copyCurrentSvg() {
+        const text = svgCodeInput.value;
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast("SVG copied.");
+        } catch {
+          svgCodeInput.select();
+          document.execCommand("copy");
+          showToast("SVG copied.");
+        }
+      }
+
+      function load() {
+        clearStatus();
+
+        try {
+          if (typeof rawIconsData !== "string") {
+            throw new Error("rawIconsData was not found. Make sure linked_icons.js is beside this HTML file and loaded before the gallery script.");
+          }
+          icons = parseIcons(rawIconsData);
+          if (!icons.length) {
+            setStatus("linked_icons.js loaded, but no SVG comment blocks were found. Use the format: comment block name, then raw <svg>...</svg> code.", "warn");
+          }
+          renderGrid();
+        } catch (error) {
+          icons = [];
+          renderGrid();
+          setStatus(error.message || "Could not load linked_icons.js.", "error");
+        }
+      }
+
+      search.addEventListener("input", renderGrid, { passive: true });
+      downloadButton.addEventListener("click", saveOrDownloadLinkedIcons);
+      addIconButton.addEventListener("click", () => openEditor(-1));
+      closeModalButton.addEventListener("click", closeEditor);
+      saveIconButton.addEventListener("click", saveEditor);
+      deleteIconButton.addEventListener("click", deleteActiveIcon);
+      copySvgButton.addEventListener("click", copyCurrentSvg);
+      svgCodeInput.addEventListener("input", () => renderPreview(modalPreview, svgCodeInput.value));
+
+      modalBackdrop.addEventListener("click", event => {
+        if (event.target === modalBackdrop) closeEditor();
+      });
+
+      window.addEventListener("keydown", event => {
+        if (event.key === "Escape" && document.body.classList.contains("modal-open")) closeEditor();
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && document.body.classList.contains("modal-open")) {
+          event.preventDefault();
+          saveEditor();
+        }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

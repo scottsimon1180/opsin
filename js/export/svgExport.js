@@ -814,7 +814,10 @@ window.SvgExport = (function() {
       if (!d) return '';
       // Path coords already include rotation baked in (per Opsin model).
       const styleProps = _shapeStyleProps(s);
-      if (!s.closed) styleProps.fill = 'none';   // open paths shouldn't fill in SVG
+      const subs = _pathSubpaths(s);
+      const anyClosed = subs.some(sp => sp.closed);
+      if (!anyClosed) styleProps.fill = 'none';   // open paths shouldn't fill in SVG
+      if (subs.length > 1) styleProps['fill-rule'] = 'evenodd';
       _applyCurrentColor(styleProps, o);
       return '<path d="' + d + '"' + _styleAttr(styleProps, o) + '/>';
     }
@@ -829,20 +832,25 @@ window.SvgExport = (function() {
       + _fmt(cx, o.precision) + ' ' + _fmt(cy, o.precision) + ')"';
   }
 
+  function _pathSubpaths(s) {
+    if (s.subpaths && s.subpaths.length) return s.subpaths;
+    return [{ points: s.points || [], closed: !!s.closed }];
+  }
+
   function _pathD(s, o) {
     const sx = o._sx, sy = o._sy;
-    const pts = s.points || [];
-    if (pts.length < 1) return '';
     const cmds = [];
-    cmds.push('M' + _fmt(pts[0].x * sx, o.precision) + ',' + _fmt(pts[0].y * sy, o.precision));
-    for (let i = 1; i < pts.length; i++) {
-      const prev = pts[i-1], cur = pts[i];
-      cmds.push(_segCommand(prev, cur, sx, sy, o.precision));
-    }
-    if (s.closed && pts.length > 1) {
-      const prev = pts[pts.length - 1], cur = pts[0];
-      cmds.push(_segCommand(prev, cur, sx, sy, o.precision));
-      cmds.push('Z');
+    for (const sp of _pathSubpaths(s)) {
+      const pts = sp.points || [];
+      if (pts.length < 1) continue;
+      cmds.push('M' + _fmt(pts[0].x * sx, o.precision) + ',' + _fmt(pts[0].y * sy, o.precision));
+      for (let i = 1; i < pts.length; i++) {
+        cmds.push(_segCommand(pts[i-1], pts[i], sx, sy, o.precision));
+      }
+      if (sp.closed && pts.length > 1) {
+        cmds.push(_segCommand(pts[pts.length - 1], pts[0], sx, sy, o.precision));
+        cmds.push('Z');
+      }
     }
     return cmds.join(' ');
   }

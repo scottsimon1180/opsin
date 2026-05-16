@@ -113,6 +113,7 @@ function restoreHostSelection(selState) {
   } else {
     selectionPath = null;
   }
+  if (typeof updateCropToSelectionButtonState === 'function') updateCropToSelectionButtonState();
 }
 
 // ──── Gradient memento (host side) ────────────────────────────────────────
@@ -198,6 +199,7 @@ function afterHostRestore() {
   updateLayerPanel();
   updateStatus();
   drawOverlay();
+  if (typeof updateCropToSelectionButtonState === 'function') updateCropToSelectionButtonState();
   reactivateAfterHistoryRestore();
 }
 
@@ -633,6 +635,7 @@ function commitNewSelection(newPath, newSelData) {
     selectionMaskCtx.globalCompositeOperation = 'source-over';
     rebuildPathFromMask();
   }
+  if (typeof updateCropToSelectionButtonState === 'function') updateCropToSelectionButtonState();
   pushUndo('Selection');
 }
 
@@ -682,7 +685,7 @@ function rebuildPathFromMask() {
   selection = { type:'composite', x:minX, y:minY, w:maxX-minX+1, h:maxY-minY+1, contours: contours };
 }
 
-function selectAll() { selectionFillRule = 'nonzero'; selection = { type:'rect', x:0, y:0, w:canvasW, h:canvasH }; buildSelectionPath(); drawOverlay(); pushUndo('Select All'); }
+function selectAll() { selectionFillRule = 'nonzero'; selection = { type:'rect', x:0, y:0, w:canvasW, h:canvasH }; buildSelectionPath(); drawOverlay(); if (typeof updateCropToSelectionButtonState === 'function') updateCropToSelectionButtonState(); pushUndo('Select All'); }
 
 function commitFloating() {
   if (!floatingActive || !floatingCanvas) return;
@@ -713,6 +716,7 @@ function clearSelection() {
   selection = null; selectionPath = null; lassoPoints = []; polyPoints = [];
   if (selectionMask) selectionMaskCtx.clearRect(0, 0, canvasW, canvasH);
   transformSelActive = (currentTool === 'movesel');
+  if (typeof updateCropToSelectionButtonState === 'function') updateCropToSelectionButtonState();
   drawOverlay();
 }
 
@@ -745,6 +749,8 @@ function deleteSelection() {
 }
 
 function cropToSelection() {
+  if (pxTransformActive) commitPixelTransform();
+  if (floatingActive) commitFloating();
   const b = getSelectionBounds();
   if (!b || b.w < 1 || b.h < 1) return;
   const nx=Math.max(0,Math.round(b.x)), ny=Math.max(0,Math.round(b.y));
@@ -2044,17 +2050,48 @@ ThemeManager.init();
 // colorMode without restructuring.
 let _settingsBaseline = null;
 
+function perfStatsEnabled() {
+  return localStorage.getItem('opsin_perf_enabled') !== 'false';
+}
+
+function applyPerfStats(enabled) {
+  var el = document.getElementById('statusSystemMonitor');
+  if (el) el.hidden = !enabled;
+  if (enabled) {
+    if (window.OpsinTelemetryHelper) window.OpsinTelemetryHelper.start();
+    if (window.OpsinSystemMonitor) window.OpsinSystemMonitor.start();
+  } else {
+    if (window.OpsinTelemetryHelper) window.OpsinTelemetryHelper.stop();
+    if (window.OpsinSystemMonitor) window.OpsinSystemMonitor.stop();
+  }
+}
+
 function openSettings() {
   closeAllMenus();
+  // The keyboard editor must never be able to block the Settings modal.
+  var kbSnap = null;
+  if (window.OpsinKeyboard) {
+    try { OpsinKeyboard.initEditor(); kbSnap = OpsinKeyboard.snapshotOverrides(); }
+    catch (e) { console.error('[Keyboard] editor init failed', e); }
+  }
   _settingsBaseline = {
-    colorMode: ThemeManager._current
+    colorMode: ThemeManager._current,
+    perfEnabled: perfStatsEnabled(),
+    kbOverrides: kbSnap
   };
+  var perfChk = document.getElementById('perfStatsToggle');
+  if (perfChk) perfChk.checked = _settingsBaseline.perfEnabled;
   ThemeManager._syncUI();
   document.getElementById('settingsModal').classList.add('show');
 }
 
 // OK — changes were applied in real-time and already persisted. Just close.
 function commitSettings() {
+  var perfChk = document.getElementById('perfStatsToggle');
+  if (perfChk) localStorage.setItem('opsin_perf_enabled', String(perfChk.checked));
+  if (window.OpsinKeyboard) {
+    try { OpsinKeyboard.persist(); } catch (e) { console.error('[Keyboard] persist failed', e); }
+  }
   _settingsBaseline = null;
   document.getElementById('settingsModal').classList.remove('show');
 }
@@ -2065,6 +2102,15 @@ function cancelSettings() {
   if (_settingsBaseline) {
     if (_settingsBaseline.colorMode !== ThemeManager._current) {
       ThemeManager.set(_settingsBaseline.colorMode);
+    }
+    var perfChk = document.getElementById('perfStatsToggle');
+    if (perfChk && perfChk.checked !== _settingsBaseline.perfEnabled) {
+      perfChk.checked = _settingsBaseline.perfEnabled;
+      applyPerfStats(_settingsBaseline.perfEnabled);
+    }
+    if (window.OpsinKeyboard && _settingsBaseline.kbOverrides !== null) {
+      try { OpsinKeyboard.restoreOverrides(_settingsBaseline.kbOverrides); }
+      catch (e) { console.error('[Keyboard] restore failed', e); }
     }
     _settingsBaseline = null;
   }
@@ -2088,6 +2134,12 @@ document.getElementById('settingsModal').addEventListener('click', function(e) {
 document.querySelectorAll('.theme-choice').forEach(btn => {
   btn.addEventListener('click', () => ThemeManager.set(btn.dataset.mode));
 });
+
+// Wire up performance stats toggle (real-time preview; persisted on OK)
+(function() {
+  var perfChk = document.getElementById('perfStatsToggle');
+  if (perfChk) perfChk.addEventListener('change', function() { applyPerfStats(perfChk.checked); });
+})();
 
 // Wire up Settings sidebar category switching (ready for future categories)
 document.querySelectorAll('.settings-cat').forEach(btn => {
@@ -2232,10 +2284,9 @@ function updatePropertiesPanel() {
       shapeBoundsActive = true;
       if (sb.rotation != null) shapeRotation = Math.round(sb.rotation * 100) / 100;
     }
-  } else if (currentTool === 'move') {
-    // Move tool driving a shape layer — same panel surface as Shape tool.
-    let _shapeBoundsHandled = false;
-    if (window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool()
+  } else if (currentTool === 'pathselect') {
+    // Selection tool driving a shape layer — same panel surface as Shape tool.
+    if (window.ShapeTool && window.ShapeTool.isSelectToolActive && window.ShapeTool.isSelectToolActive()
         && window.ShapeTool.getSelectedBounds) {
       const sb = window.ShapeTool.getSelectedBounds();
       if (sb) {
@@ -2243,24 +2294,22 @@ function updatePropertiesPanel() {
         editable = true;
         shapeBoundsActive = true;
         if (sb.rotation != null) shapeRotation = Math.round(sb.rotation * 100) / 100;
-        _shapeBoundsHandled = true;
       }
     }
-    if (!_shapeBoundsHandled) {
-      if (window.TextTool && window.TextTool.isActive && window.TextTool.isActive()) {
-        const _tm = window.TextTool.getActiveModel && window.TextTool.getActiveModel();
-        if (_tm) {
-          bounds = { x: Math.round(_tm.boxX), y: Math.round(_tm.boxY), w: Math.round(_tm.boxW), h: Math.round(_tm.boxH) };
-          editable = true;
-        }
-      } else if (pxTransformActive && pxTransformData) {
-        const cb = pxTransformData.curBounds;
-        bounds = { x: Math.round(cb.x), y: Math.round(cb.y), w: Math.round(cb.w), h: Math.round(cb.h) };
-        editable = true;
-      } else if (floatingActive && floatingCanvas) {
-        bounds = { x: Math.round(floatingOffset.x), y: Math.round(floatingOffset.y), w: floatingCanvas.width, h: floatingCanvas.height };
+  } else if (currentTool === 'move') {
+    if (window.TextTool && window.TextTool.isActive && window.TextTool.isActive()) {
+      const _tm = window.TextTool.getActiveModel && window.TextTool.getActiveModel();
+      if (_tm) {
+        bounds = { x: Math.round(_tm.boxX), y: Math.round(_tm.boxY), w: Math.round(_tm.boxW), h: Math.round(_tm.boxH) };
         editable = true;
       }
+    } else if (pxTransformActive && pxTransformData) {
+      const cb = pxTransformData.curBounds;
+      bounds = { x: Math.round(cb.x), y: Math.round(cb.y), w: Math.round(cb.w), h: Math.round(cb.h) };
+      editable = true;
+    } else if (floatingActive && floatingCanvas) {
+      bounds = { x: Math.round(floatingOffset.x), y: Math.round(floatingOffset.y), w: floatingCanvas.width, h: floatingCanvas.height };
+      editable = true;
     }
   } else if (currentTool === 'movesel') {
     if (selection) {
@@ -2367,9 +2416,9 @@ function initPropertiesPanel() {
       return;
     }
 
-    // Move tool driving a shape layer — same surface as Shape tool.
-    if (currentTool === 'move'
-        && window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool()
+    // Selection tool driving a shape layer — same surface as Shape tool.
+    if (currentTool === 'pathselect'
+        && window.ShapeTool && window.ShapeTool.isSelectToolActive && window.ShapeTool.isSelectToolActive()
         && window.ShapeTool.setSelectedBoundsField) {
       window.ShapeTool.setSelectedBoundsField(field, val);
       return;
@@ -2484,8 +2533,8 @@ function initPropertiesPanel() {
       window.ShapeTool.setSelectedBoundsField('rotation', angle);
       return;
     }
-    if (currentTool === 'move'
-        && window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool()
+    if (currentTool === 'pathselect'
+        && window.ShapeTool && window.ShapeTool.isSelectToolActive && window.ShapeTool.isSelectToolActive()
         && window.ShapeTool.setSelectedBoundsField) {
       if (isNaN(angle)) { rotIn.value = 0; return; }
       window.ShapeTool.setSelectedBoundsField('rotation', angle);
@@ -2505,8 +2554,8 @@ function initPropertiesPanel() {
 
   // Flip buttons
   function _moveOnShape() {
-    return currentTool === 'move'
-      && window.ShapeTool && window.ShapeTool.isOpenForMoveTool && window.ShapeTool.isOpenForMoveTool();
+    return currentTool === 'pathselect'
+      && window.ShapeTool && window.ShapeTool.isSelectToolActive && window.ShapeTool.isSelectToolActive();
   }
 
   document.getElementById('propFlipH').addEventListener('click', () => {

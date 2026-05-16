@@ -169,12 +169,12 @@
         <svg><use href="#icon-shape-line"/></svg>
       </button>
     </div>
-    <div class="tool-indicator-group hidden" id="toolIndicatorPen">
-      <button class="tool-indicator-btn active" id="optPenVariantPen" onclick="setPenVariant('pen')" title="Pen">
-        <svg><use href="#icon-pen"/></svg>
+    <div class="tool-indicator-group hidden" id="toolIndicatorBrush">
+      <button class="tool-indicator-btn active" id="optBrushVariantBrush" onclick="selectBrushGroupTool('brush')" title="Brush (B)">
+        <svg><use href="#icon-brush"/></svg>
       </button>
-      <button class="tool-indicator-btn" id="optPenVariantAnchor" onclick="setPenVariant('anchor')" title="Anchor Point">
-        <svg><use href="#icon-anchor-point"/></svg>
+      <button class="tool-indicator-btn" id="optBrushVariantPencil" onclick="selectBrushGroupTool('pencil')" title="Pencil (P)">
+        <svg><use href="#icon-pencil"/></svg>
       </button>
     </div>
   </div>
@@ -363,6 +363,32 @@
     <span class="opt-unit">px</span>
   </div>
 
+  <!-- Z-order of the selected path within its shape layer -->
+  <div class="opt-group hidden" id="opt-shape-order">
+    <div class="sh-preset-drop sh-order-drop">
+      <button type="button" class="sh-preset-btn" id="shOrderBtn">Order</button>
+      <div class="sh-preset-menu sh-order-menu" id="shOrderMenu" role="menu">
+        <button type="button" class="layer-ctx-item" data-order="front">Send to Front</button>
+        <button type="button" class="layer-ctx-item" data-order="forward">Send Forward</button>
+        <button type="button" class="layer-ctx-item" data-order="backward">Send Backward</button>
+        <button type="button" class="layer-ctx-item" data-order="back">Send to Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Boolean combine of 2+ selected paths/shapes -->
+  <div class="opt-group hidden" id="opt-shape-combine">
+    <div class="sh-preset-drop sh-combine-drop">
+      <button type="button" class="sh-preset-btn" id="shCombineBtn">Combine</button>
+      <div class="sh-preset-menu sh-combine-menu" id="shCombineMenu" role="menu">
+        <button type="button" class="layer-ctx-item" data-combine="unite">Unite</button>
+        <button type="button" class="layer-ctx-item" data-combine="minus">Minus Front</button>
+        <button type="button" class="layer-ctx-item" data-combine="intersect">Intersect</button>
+        <button type="button" class="layer-ctx-item" data-combine="exclude">Exclude</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Text tool — Pixlr-inspired -->
   <div class="opt-group hidden" id="opt-text-font">
     <span class="opt-label">Font</span>
@@ -445,6 +471,8 @@
   <div class="layer-ctx-menu" id="layerCtxMenu" hidden>
     <button type="button" class="layer-ctx-item" id="layerCtxRasterize">Rasterize Layer</button>
     <button type="button" class="layer-ctx-item" id="layerCtxEditText">Edit Text</button>
+    <button type="button" class="layer-ctx-item" id="layerCtxMergeSvgs">Merge SVGs</button>
+    <button type="button" class="layer-ctx-item" id="layerCtxRasterizeMerge">Rasterize &amp; Merge</button>
   </div>
 
   <!-- Shape rasterize confirmation modal (mirrors the text-tool variant) -->
@@ -493,6 +521,9 @@
     </div>
     <button class="opt-action-btn opt-deselect-btn" id="optDeselect" onclick="clearSelection()" title="Deselect (Ctrl+D)">Deselect</button>
   </div>
+  <div class="opt-group hidden" id="opt-crop-selection">
+    <button class="opt-action-btn opt-crop-selection-btn" id="optCropSelection" onclick="cropToSelection()" title="Crop to Selection" disabled>Crop to Selection</button>
+  </div>
   <div class="opt-group hidden" id="opt-wand-tolerance">
     <span class="opt-label">Tolerance</span>
     <input type="range" class="opt-range" id="wandTolerance" min="0" max="255" value="32">
@@ -540,13 +571,13 @@
 
   <!-- ═══ TOOLBAR ═══ -->
   <div class="toolbar" id="toolbarEl">
-    <button class="tool-btn active" data-tool="move" title="Move (V)">
+    <button class="tool-btn active" data-tool="move" id="moveToolBtn" title="Move (V)">
       <svg><use href="#icon-move"/></svg>
     </button>
-    <button class="tool-btn" data-tool="movesel" title="Move Selection (Q)">
+    <button class="tool-btn" data-tool="movesel" id="moveSelectionToolBtn" title="Move Selection (Q)">
       <svg><use href="#icon-move-selection"/></svg>
     </button>
-    <button class="tool-btn" data-tool="pan" title="Pan / Hand (H)">
+    <button class="tool-btn" data-tool="pan" id="panToolBtn" title="Pan / Hand (H)">
       <svg><use href="#icon-pan"/></svg>
     </button>
 
@@ -564,11 +595,12 @@
 
     <div class="tool-sep"></div>
 
-    <button class="tool-btn" data-tool="brush" title="Brush (B)">
-      <svg><use href="#icon-brush"/></svg>
+    <button class="tool-btn" data-tool="brush" id="brushToolBtn" title="Brush (B)">
+      <svg><use id="brushToolIcon" href="#icon-brush"/></svg>
     </button>
-    <button class="tool-btn" data-tool="pencil" title="Pencil (P)">
-      <svg><use href="#icon-pencil"/></svg>
+    <!-- Clone Stamp placeholder: no data-tool until tool behavior is added later. -->
+    <button class="tool-btn" type="button" id="cloneStampToolBtn" title="Clone Stamp (coming soon)" aria-label="Clone Stamp (coming soon)">
+      <svg><use href="#icon-clone-stamp"/></svg>
     </button>
     <button class="tool-btn" data-tool="eraser" title="Eraser (E)">
       <svg><use href="#icon-eraser"/></svg>
@@ -600,9 +632,21 @@
     <button class="tool-btn" data-tool="pen" id="penToolBtn" title="Pen">
       <svg><use href="#icon-pen"/></svg>
     </button>
+
+    <div class="tool-sep"></div>
+
+    <button class="tool-btn" data-tool="pathselect" id="pathSelectToolBtn" title="Selection">
+      <svg><use href="#icon-select-object"/></svg>
+    </button>
     <button class="tool-btn" data-tool="directselect" id="directSelectToolBtn" title="Direct Selection (A)">
       <svg><use href="#icon-direct-select"/></svg>
     </button>
+    <button class="tool-btn" data-tool="anchor" id="anchorPointToolBtn" title="Anchor Point">
+      <svg><use href="#icon-anchor-point"/></svg>
+    </button>
+
+    <div class="tool-sep"></div>
+
     <button class="tool-btn" data-tool="shape" id="shapeToolBtn" title="Shapes (U)">
       <svg><use href="#icon-shape"/></svg>
     </button>
@@ -1047,7 +1091,7 @@
   <span class="status-item" id="statusTool">Move</span>
   <span class="status-spacer"></span>
   <span class="status-item" id="statusVersionAlt" onclick="openInfoPopup()"></span>
-  <span class="status-item status-system-monitor" id="statusSystemMonitor" title="Browser-safe live estimates. OS-wide CPU, GPU, and RAM usage are not exposed to file:// pages.">CPU --% | GPU --% | RAM --</span>
+  <span class="status-item status-system-monitor" id="statusSystemMonitor" title="Waiting for performance data"><span class="status-system-monitor__metric status-system-monitor__metric--cpu">CPU--%</span><span class="status-system-monitor__sep">|</span><span class="status-system-monitor__metric status-system-monitor__metric--gpu">GPU--%</span><span class="status-system-monitor__sep">|</span><span class="status-system-monitor__metric status-system-monitor__metric--ram">RAM-- GB</span></span>
 </div>
 
 <!-- ═══════════════════ NEW IMAGE MODAL ═══════════════════ -->
@@ -1646,6 +1690,14 @@
           <span class="settings-cat-dot"></span>
           <span class="settings-cat-label">Appearance</span>
         </button>
+        <button class="settings-cat" data-cat="performance">
+          <span class="settings-cat-dot"></span>
+          <span class="settings-cat-label">Performance</span>
+        </button>
+        <button class="settings-cat" data-cat="keyboard">
+          <span class="settings-cat-dot"></span>
+          <span class="settings-cat-label">Keyboard</span>
+        </button>
       </nav>
       <!-- Right pane: category content -->
       <div class="settings-content" id="settingsContent">
@@ -1691,11 +1743,21 @@
               </button>
               <button class="theme-choice" data-mode="system" aria-pressed="true">
                 <div class="theme-choice-preview theme-choice-preview-system">
-                  <div class="tcp-menubar"><span></span><span></span><span></span></div>
-                  <div class="tcp-body">
-                    <div class="tcp-toolbar"><i></i><i></i><i></i></div>
-                    <div class="tcp-canvas"></div>
-                    <div class="tcp-panel"><b></b><b></b></div>
+                  <div class="theme-choice-system-layer theme-choice-system-layer-light theme-choice-preview-light" aria-hidden="true">
+                    <div class="tcp-menubar"><span></span><span></span><span></span></div>
+                    <div class="tcp-body">
+                      <div class="tcp-toolbar"><i></i><i></i><i></i></div>
+                      <div class="tcp-canvas"></div>
+                      <div class="tcp-panel"><b></b><b></b></div>
+                    </div>
+                  </div>
+                  <div class="theme-choice-system-layer theme-choice-system-layer-dark theme-choice-preview-dark" aria-hidden="true">
+                    <div class="tcp-menubar"><span></span><span></span><span></span></div>
+                    <div class="tcp-body">
+                      <div class="tcp-toolbar"><i></i><i></i><i></i></div>
+                      <div class="tcp-canvas"></div>
+                      <div class="tcp-panel"><b></b><b></b></div>
+                    </div>
                   </div>
                 </div>
                 <div class="theme-choice-meta">
@@ -1706,6 +1768,102 @@
             </div>
             <p class="settings-hint" id="themeHint">Matches your device's color scheme automatically.</p>
           </div>
+        </section>
+
+        <!-- Performance category -->
+        <section class="settings-panel" data-panel="performance">
+          <header class="settings-panel-header">
+            <h2 class="settings-panel-title">Performance</h2>
+            <p class="settings-panel-sub">Monitor real-time CPU, GPU, and RAM usage directly in Opsin.</p>
+          </header>
+
+          <!-- Status bar toggle -->
+          <div class="settings-section">
+            <div class="settings-section-head">
+              <h3 class="settings-section-title">Status Bar</h3>
+              <p class="settings-section-sub">Show or hide live metrics in the bottom status bar.</p>
+            </div>
+            <div class="perf-toggle-row">
+              <div class="perf-toggle-label-group">
+                <span class="perf-toggle-name">Show Performance Stats</span>
+                <span class="perf-toggle-desc">CPU%, GPU%, and RAM usage displayed in real time.</span>
+              </div>
+              <label class="perf-toggle" title="Toggle performance stats">
+                <input type="checkbox" id="perfStatsToggle" checked>
+                <span class="perf-toggle-track"><span class="perf-toggle-dot"></span></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Helper info + download -->
+          <div class="settings-section">
+            <div class="settings-section-head">
+              <h3 class="settings-section-title">Opsin Helper</h3>
+              <p class="settings-section-sub">A small background service required for live metrics.</p>
+            </div>
+            <div class="helper-card">
+              <div class="helper-card-header">
+                <span class="helper-card-icon">
+                  <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="3" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+                    <path d="M7 17h6M10 14v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                    <path d="M6 10.5l2-2 2 2 3-3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span class="helper-card-title">What is Opsin Helper?</span>
+              </div>
+              <div class="helper-card-body">
+                <p class="helper-card-text">
+                  Opsin runs entirely in your browser and cannot read your system hardware directly.
+                  <strong>Opsin Helper</strong> is a small, lightweight background service that reads your
+                  CPU, GPU, and RAM and shares it with Opsin over a private local connection —
+                  nothing ever leaves your machine.
+                </p>
+                <p class="helper-card-text">
+                  Once installed it runs silently and starts automatically with Windows,
+                  so you always have live stats without any extra steps.
+                </p>
+                <div class="helper-steps">
+                  <p class="helper-steps-title">How to install:</p>
+                  <ol class="helper-steps-list">
+                    <li>Click <strong>Download Installer</strong> below and save the file</li>
+                    <li>Run <strong>OpsinHelperInstaller.exe</strong> — if Windows SmartScreen appears, click <em>"More info"</em> then <em>"Run anyway"</em></li>
+                    <li>The installer adds the helper to your Windows Startup folder so it launches at login</li>
+                    <li>Reload Opsin — metrics will appear in the status bar within a few seconds</li>
+                  </ol>
+                </div>
+                <div class="helper-safety">
+                  <svg class="helper-safety-icon" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1.5L2.5 4v4c0 3 2.2 5.7 5.5 6.5C11.3 13.7 13.5 11 13.5 8V4L8 1.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                    <path d="M5.5 8l2 2 3-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <p class="helper-safety-text">
+                    The installer is safe. It places a single Python-based service that only listens on
+                    <code class="helper-code">localhost:4821</code> — completely inaccessible from the internet.
+                    The full source code (<code class="helper-code">opsin_helper.py</code>) is included in the
+                    download folder so you can inspect exactly what it does.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <a class="helper-dl-btn" href="downloads/OpsinHelperInstaller.exe" download="OpsinHelperInstaller.exe">
+              <svg class="helper-dl-btn-icon" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2v8.5M5 7.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3 13.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              Download Installer
+              <span class="helper-dl-btn-tag">exe · Windows</span>
+            </a>
+          </div>
+        </section>
+
+        <!-- Keyboard category -->
+        <section class="settings-panel" data-panel="keyboard">
+          <header class="settings-panel-header">
+            <h2 class="settings-panel-title">Keyboard</h2>
+            <p class="settings-panel-sub">Customize keyboard shortcuts. Click a shortcut and press the keys you want. Changes are saved when you click OK.</p>
+          </header>
+          <div id="kbEditorRoot" class="kb-editor-root"></div>
         </section>
       </div>
     </div>
@@ -1852,7 +2010,6 @@
 <script src="js/core/mathInput.js"></script>
 <script src="js/core/state.js"></script>
 <script src="js/core/coordinates.js"></script>
-<script src="js/core/systemMonitor.js"></script>
 <script src="js/script.js"></script>
 <script src="js/history/historyPanel.js"></script>
 <script src="js/document/layers.js"></script>
@@ -1874,8 +2031,9 @@
 <script src="js/storage/customFonts.js"></script>
 <script src="js/tools/textTool.js"></script>
 <script src="js/tools/drawingTools.js"></script>
+<script src="js/tools/combine.js"></script>
 <script src="js/tools/directSelection.js"></script>
-<script src="js/core/keyboardShortcuts.js"></script>
+<script src="js/keyboard/keyboardShortcuts.js"></script>
 <script src="js/export/jpgExport.js"></script>
 <script src="js/export/webpExport.js"></script>
 <script src="js/export/bmpExport.js"></script>
@@ -1885,6 +2043,8 @@
 <script src="js/export/svgExport.js"></script>
 <script src="js/modes/iconEditMode.js"></script>
 <script src="js/core/app.js"></script>
+<script src="js/core/systemMonitor.js"></script>
+<script src="js/core/telemetryHelper.js"></script>
 <script>
   if (typeof OPSIN_VERSION !== 'undefined') {
     document.getElementById('statusVersion').textContent = OPSIN_VERSION;

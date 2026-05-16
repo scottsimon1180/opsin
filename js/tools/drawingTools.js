@@ -82,7 +82,7 @@ window.ShapeTool = (function () {
   };
   let _activeCornerRadius = 0;
   let _activeOpacity = 1;
-  let _moveToolActive = false;  // true while Move tool is using shape mode
+  let _selectToolActive = false;  // true while the Selection tool (pen group) is editing shapes
 
   // ── Session state ─────────────────────────────────────────
   let session = null;
@@ -116,14 +116,19 @@ window.ShapeTool = (function () {
       return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
     }
     if (s.type === 'path') {
-      if (!s.points || !s.points.length) return { x: 0, y: 0, w: 0, h: 0 };
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const p of s.points) {
-        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-        if (p.ohx !== undefined) { if (p.ohx < minX) minX = p.ohx; if (p.ohx > maxX) maxX = p.ohx; if (p.ohy < minY) minY = p.ohy; if (p.ohy > maxY) maxY = p.ohy; }
-        if (p.ihx !== undefined) { if (p.ihx < minX) minX = p.ihx; if (p.ihx > maxX) maxX = p.ihx; if (p.ihy < minY) minY = p.ihy; if (p.ihy > maxY) maxY = p.ihy; }
+      const subs = (s.subpaths && s.subpaths.length)
+        ? s.subpaths : [{ points: s.points }];
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, any = false;
+      for (const sp of subs) {
+        for (const p of (sp.points || [])) {
+          any = true;
+          if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+          if (p.ohx !== undefined) { if (p.ohx < minX) minX = p.ohx; if (p.ohx > maxX) maxX = p.ohx; if (p.ohy < minY) minY = p.ohy; if (p.ohy > maxY) maxY = p.ohy; }
+          if (p.ihx !== undefined) { if (p.ihx < minX) minX = p.ihx; if (p.ihx > maxX) maxX = p.ihx; if (p.ihy < minY) minY = p.ihy; if (p.ihy > maxY) maxY = p.ihy; }
+        }
       }
+      if (!any) return { x: 0, y: 0, w: 0, h: 0 };
       return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
     return { x: s.x, y: s.y, w: s.w, h: s.h };
@@ -183,7 +188,66 @@ window.ShapeTool = (function () {
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
 
+  // Compound-aware subpath list for a path shape. A normal single-contour
+  // path returns one entry; boolean results with holes carry s.subpaths
+  // (rendered/exported with even-odd fill).
+  function _pathSubpaths(s) {
+    if (s.subpaths && s.subpaths.length) return s.subpaths;
+    return [{ points: s.points || [], closed: !!s.closed }];
+  }
+  function _pathIsCompound(s) {
+    return s.type === 'path' && s.subpaths && s.subpaths.length > 1;
+  }
+
+  // Every editable point array of a path shape. For a compound path the
+  // subpaths are the source of truth (rendering/hit/export read them via
+  // _pathSubpaths); re-alias s.points to subpaths[0] so a geometry edit can
+  // never move the outer ring while a hole stays behind, even after a
+  // clone/undo splits the arrays. Use this for ALL path geometry transforms.
+  function _pathPointArrays(s) {
+    if (s.subpaths && s.subpaths.length) {
+      s.points = s.subpaths[0].points;
+      return s.subpaths.map(sp => sp.points || []);
+    }
+    return [s.points || []];
+  }
+  // Same shape, for a _cloneShape() snapshot (arrays are independent copies).
+  function _snapPointArrays(o) {
+    if (o.subpaths && o.subpaths.length) return o.subpaths.map(sp => sp.points || []);
+    return [o.points || []];
+  }
+
   // ── Path building (stroke-aligned) ─────────────────────────
+
+  function _appendPathContour(ctx, pts, closed) {
+    if (pts.length < 1) return;
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const prev = pts[i - 1], cur = pts[i];
+      const cp1x = prev.ohx !== undefined ? prev.ohx : prev.x;
+      const cp1y = prev.ohy !== undefined ? prev.ohy : prev.y;
+      const cp2x = cur.ihx  !== undefined ? cur.ihx  : cur.x;
+      const cp2y = cur.ihy  !== undefined ? cur.ihy  : cur.y;
+      if (cp1x === prev.x && cp1y === prev.y && cp2x === cur.x && cp2y === cur.y) {
+        ctx.lineTo(cur.x, cur.y);
+      } else {
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, cur.x, cur.y);
+      }
+    }
+    if (closed && pts.length > 1) {
+      const prev = pts[pts.length - 1], cur = pts[0];
+      const cp1x = prev.ohx !== undefined ? prev.ohx : prev.x;
+      const cp1y = prev.ohy !== undefined ? prev.ohy : prev.y;
+      const cp2x = cur.ihx  !== undefined ? cur.ihx  : cur.x;
+      const cp2y = cur.ihy  !== undefined ? cur.ihy  : cur.y;
+      if (cp1x === prev.x && cp1y === prev.y && cp2x === cur.x && cp2y === cur.y) {
+        ctx.closePath();
+      } else {
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, cur.x, cur.y);
+        ctx.closePath();
+      }
+    }
+  }
 
   function _buildShapePath(ctx, s) {
     if (s.type === 'rect') {
@@ -215,33 +279,9 @@ window.ShapeTool = (function () {
       ctx.lineTo(s.p2.x, s.p2.y);
     } else if (s.type === 'path') {
       ctx.beginPath();
-      const pts = s.points || [];
-      if (pts.length < 1) return;
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length; i++) {
-        const prev = pts[i - 1], cur = pts[i];
-        const cp1x = prev.ohx !== undefined ? prev.ohx : prev.x;
-        const cp1y = prev.ohy !== undefined ? prev.ohy : prev.y;
-        const cp2x = cur.ihx  !== undefined ? cur.ihx  : cur.x;
-        const cp2y = cur.ihy  !== undefined ? cur.ihy  : cur.y;
-        if (cp1x === prev.x && cp1y === prev.y && cp2x === cur.x && cp2y === cur.y) {
-          ctx.lineTo(cur.x, cur.y);
-        } else {
-          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, cur.x, cur.y);
-        }
-      }
-      if (s.closed && pts.length > 1) {
-        const prev = pts[pts.length - 1], cur = pts[0];
-        const cp1x = prev.ohx !== undefined ? prev.ohx : prev.x;
-        const cp1y = prev.ohy !== undefined ? prev.ohy : prev.y;
-        const cp2x = cur.ihx  !== undefined ? cur.ihx  : cur.x;
-        const cp2y = cur.ihy  !== undefined ? cur.ihy  : cur.y;
-        if (cp1x === prev.x && cp1y === prev.y && cp2x === cur.x && cp2y === cur.y) {
-          ctx.closePath();
-        } else {
-          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, cur.x, cur.y);
-          ctx.closePath();
-        }
+      const subs = _pathSubpaths(s);
+      for (let k = 0; k < subs.length; k++) {
+        _appendPathContour(ctx, subs[k].points || [], !!subs[k].closed);
       }
     }
   }
@@ -323,7 +363,7 @@ window.ShapeTool = (function () {
     if (s.type !== 'line' && s.fill && s.fill.type !== 'none') {
       ctx.fillStyle = s.fill.color || '#000';
       _buildShapePath(ctx, s);
-      ctx.fill();
+      if (_pathIsCompound(s)) ctx.fill('evenodd'); else ctx.fill();
     }
     // Stroke
     _strokeWithAlignment(ctx, s);
@@ -421,8 +461,6 @@ window.ShapeTool = (function () {
       return _pointInRotatedEllipse(px, py, padded, s.rotation || 0);
     }
     if (s.type === 'path') {
-      const pts = s.points || [];
-      if (pts.length < 2) return false;
       const w = (s.stroke && s.stroke.width) ? s.stroke.width : 1;
       const tol = Math.max(w / 2 + pad, pad + 2);
       const _hitSeg = (p0, p1) => {
@@ -441,11 +479,18 @@ window.ShapeTool = (function () {
         }
         return false;
       };
-      for (let i = 0; i < pts.length - 1; i++) {
-        if (_hitSeg(pts[i], pts[i + 1])) return true;
+      const subs = _pathSubpaths(s);
+      let oddFill = false;
+      for (const sp of subs) {
+        const pts = sp.points || [];
+        if (pts.length < 2) continue;
+        for (let i = 0; i < pts.length - 1; i++) {
+          if (_hitSeg(pts[i], pts[i + 1])) return true;
+        }
+        if (sp.closed && _hitSeg(pts[pts.length - 1], pts[0])) return true;
+        if (sp.closed && pts.length >= 3 && _pointInPolygon(px, py, pts)) oddFill = !oddFill;
       }
-      if (s.closed && _hitSeg(pts[pts.length - 1], pts[0])) return true;
-      if (s.closed && s.fill && s.fill.type !== 'none' && _pointInPolygon(px, py, pts)) return true;
+      if (s.fill && s.fill.type !== 'none' && oddFill) return true;
       return false;
     }
     return false;
@@ -556,14 +601,20 @@ window.ShapeTool = (function () {
       cp.p1 = { x: s.p1.x, y: s.p1.y };
       cp.p2 = { x: s.p2.x, y: s.p2.y };
     } else if (s.type === 'path') {
-      cp.points = (s.points || []).map(p => {
+      const clonePts = (arr) => (arr || []).map(p => {
         const pt = { x: p.x, y: p.y };
         if (p.type)            pt.type = p.type;
         if (p.ohx !== undefined) { pt.ohx = p.ohx; pt.ohy = p.ohy; }
         if (p.ihx !== undefined) { pt.ihx = p.ihx; pt.ihy = p.ihy; }
         return pt;
       });
+      cp.points = clonePts(s.points);
       cp.closed = !!s.closed;
+      if (s.subpaths && s.subpaths.length) {
+        cp.subpaths = s.subpaths.map(sp => ({
+          points: clonePts(sp.points), closed: !!sp.closed
+        }));
+      }
     } else {
       cp.x = s.x; cp.y = s.y; cp.w = s.w; cp.h = s.h;
       if (s.type === 'rect') cp.cornerRadius = s.cornerRadius || 0;
@@ -928,11 +979,6 @@ window.ShapeTool = (function () {
   // outline in screen coordinates. Used by both selected-state (solid) and
   // pen-draft (dashed) overlays.
   function _pathD(s) {
-    const pts = s.points || [];
-    if (!pts.length) return '';
-    let d = '';
-    const start = _localToScreen(pts[0].x, pts[0].y);
-    d += 'M ' + start.x.toFixed(2) + ' ' + start.y.toFixed(2);
     const seg = (p0, p1) => {
       const cp1x = p0.ohx !== undefined ? p0.ohx : p0.x;
       const cp1y = p0.ohy !== undefined ? p0.ohy : p0.y;
@@ -942,15 +988,21 @@ window.ShapeTool = (function () {
       const c2 = _localToScreen(cp2x, cp2y);
       const e  = _localToScreen(p1.x, p1.y);
       if (cp1x === p0.x && cp1y === p0.y && cp2x === p1.x && cp2y === p1.y) {
-        d += ' L ' + e.x.toFixed(2) + ' ' + e.y.toFixed(2);
-      } else {
-        d += ' C ' + c1.x.toFixed(2) + ' ' + c1.y.toFixed(2)
-          +  ' ' + c2.x.toFixed(2) + ' ' + c2.y.toFixed(2)
-          +  ' ' + e.x.toFixed(2)  + ' ' + e.y.toFixed(2);
+        return ' L ' + e.x.toFixed(2) + ' ' + e.y.toFixed(2);
       }
+      return ' C ' + c1.x.toFixed(2) + ' ' + c1.y.toFixed(2)
+        +  ' ' + c2.x.toFixed(2) + ' ' + c2.y.toFixed(2)
+        +  ' ' + e.x.toFixed(2)  + ' ' + e.y.toFixed(2);
     };
-    for (let i = 0; i < pts.length - 1; i++) seg(pts[i], pts[i + 1]);
-    if (s.closed && pts.length > 2) { seg(pts[pts.length - 1], pts[0]); d += ' Z'; }
+    let d = '';
+    for (const sp of _pathSubpaths(s)) {
+      const pts = sp.points || [];
+      if (!pts.length) continue;
+      const start = _localToScreen(pts[0].x, pts[0].y);
+      d += (d ? ' ' : '') + 'M ' + start.x.toFixed(2) + ' ' + start.y.toFixed(2);
+      for (let i = 0; i < pts.length - 1; i++) d += seg(pts[i], pts[i + 1]);
+      if (sp.closed && pts.length > 2) { d += seg(pts[pts.length - 1], pts[0]) + ' Z'; }
+    }
     return d;
   }
 
@@ -1102,11 +1154,16 @@ window.ShapeTool = (function () {
           s.p1.x = o.p1.x + dxC; s.p1.y = o.p1.y + dyC;
           s.p2.x = o.p2.x + dxC; s.p2.y = o.p2.y + dyC;
         } else if (s.type === 'path') {
-          for (let k = 0; k < o.points.length; k++) {
-            const op = o.points[k], lp = s.points[k];
-            lp.x = op.x + dxC; lp.y = op.y + dyC;
-            if (op.ohx !== undefined) { lp.ohx = op.ohx + dxC; lp.ohy = op.ohy + dyC; }
-            if (op.ihx !== undefined) { lp.ihx = op.ihx + dxC; lp.ihy = op.ihy + dyC; }
+          const liveArrs = _pathPointArrays(s);
+          const snapArrs = _snapPointArrays(o);
+          for (let a = 0; a < liveArrs.length && a < snapArrs.length; a++) {
+            const live = liveArrs[a], snap = snapArrs[a];
+            for (let k = 0; k < snap.length && k < live.length; k++) {
+              const sp = snap[k], lp = live[k];
+              lp.x = sp.x + dxC; lp.y = sp.y + dyC;
+              if (sp.ohx !== undefined) { lp.ohx = sp.ohx + dxC; lp.ohy = sp.ohy + dyC; }
+              if (sp.ihx !== undefined) { lp.ihx = sp.ihx + dxC; lp.ihy = sp.ihy + dyC; }
+            }
           }
         } else {
           s.x = o.x + dxC; s.y = o.y + dyC;
@@ -1166,17 +1223,22 @@ window.ShapeTool = (function () {
           s.p1.x = p1.x; s.p1.y = p1.y;
           s.p2.x = p2.x; s.p2.y = p2.y;
         } else if (s.type === 'path') {
-          for (let k = 0; k < o.points.length; k++) {
-            const op2 = o.points[k], lp = s.points[k];
-            const a = _rotXY(op2.x, op2.y);
-            lp.x = a.x; lp.y = a.y;
-            if (op2.ohx !== undefined) {
-              const oh = _rotXY(op2.ohx, op2.ohy);
-              lp.ohx = oh.x; lp.ohy = oh.y;
-            }
-            if (op2.ihx !== undefined) {
-              const ih = _rotXY(op2.ihx, op2.ihy);
-              lp.ihx = ih.x; lp.ihy = ih.y;
+          const liveArrs = _pathPointArrays(s);
+          const snapArrs = _snapPointArrays(o);
+          for (let ai = 0; ai < liveArrs.length && ai < snapArrs.length; ai++) {
+            const live = liveArrs[ai], snap = snapArrs[ai];
+            for (let k = 0; k < snap.length && k < live.length; k++) {
+              const op2 = snap[k], lp = live[k];
+              const a = _rotXY(op2.x, op2.y);
+              lp.x = a.x; lp.y = a.y;
+              if (op2.ohx !== undefined) {
+                const oh = _rotXY(op2.ohx, op2.ohy);
+                lp.ohx = oh.x; lp.ohy = oh.y;
+              }
+              if (op2.ihx !== undefined) {
+                const ih = _rotXY(op2.ihx, op2.ihy);
+                lp.ihx = ih.x; lp.ihy = ih.y;
+              }
             }
           }
         } else {
@@ -1338,11 +1400,16 @@ window.ShapeTool = (function () {
         s.p2.x = nx + (o.p2.x - bb.x) * sx;
         s.p2.y = ny + (o.p2.y - bb.y) * sy;
       } else if (s.type === 'path') {
-        for (let k = 0; k < o.points.length; k++) {
-          const op = o.points[k], lp = s.points[k];
-          lp.x = nx + (op.x - bb.x) * sx; lp.y = ny + (op.y - bb.y) * sy;
-          if (op.ohx !== undefined) { lp.ohx = nx + (op.ohx - bb.x) * sx; lp.ohy = ny + (op.ohy - bb.y) * sy; }
-          if (op.ihx !== undefined) { lp.ihx = nx + (op.ihx - bb.x) * sx; lp.ihy = ny + (op.ihy - bb.y) * sy; }
+        const liveArrs = _pathPointArrays(s);
+        const snapArrs = _snapPointArrays(o);
+        for (let ai = 0; ai < liveArrs.length && ai < snapArrs.length; ai++) {
+          const live = liveArrs[ai], snap = snapArrs[ai];
+          for (let k = 0; k < snap.length && k < live.length; k++) {
+            const sp = snap[k], lp = live[k];
+            lp.x = nx + (sp.x - bb.x) * sx; lp.y = ny + (sp.y - bb.y) * sy;
+            if (sp.ohx !== undefined) { lp.ohx = nx + (sp.ohx - bb.x) * sx; lp.ohy = ny + (sp.ohy - bb.y) * sy; }
+            if (sp.ihx !== undefined) { lp.ihx = nx + (sp.ihx - bb.x) * sx; lp.ihy = ny + (sp.ihy - bb.y) * sy; }
+          }
         }
       } else {
         s.x = nx + (o.x - bb.x) * sx;
@@ -1493,12 +1560,10 @@ window.ShapeTool = (function () {
       if (Math.hypot(tmp.p2.x - tmp.p1.x, tmp.p2.y - tmp.p1.y) < 1) return false;
     } else if (tmp.w < 1 || tmp.h < 1) return false;
     // Materialize the target layer NOW (deferred from _beginDraw).
-    // Reuse the active layer only if it is already an empty shape layer;
-    // every new shape otherwise gets its own layer.
+    // Append to the active layer when it is already a shape layer; only a
+    // non-shape active layer spawns a fresh shape layer above it.
     let layer = (typeof getActiveLayer === 'function') ? getActiveLayer() : null;
-    const _isEmptyShape = layer && layer.kind === 'shape' &&
-      (!layer.shapeModel || layer.shapeModel.shapes.length === 0);
-    if (!_isEmptyShape) {
+    if (!layer || layer.kind !== 'shape') {
       layer = _addNewShapeLayerAbove();
     }
     if (!layer.shapeModel) layer.shapeModel = { nextId: 1, selectedIds: new Set(), shapes: [] };
@@ -1557,6 +1622,103 @@ window.ShapeTool = (function () {
     if (typeof pushUndo === 'function') pushUndo('Duplicate Shape');
   }
 
+  // ── Z-order within the layer (Order dropdown) ─────────────
+  // shapes[] is painted in array order, so the LAST element is frontmost.
+  // The selected shapes move as one block, preserving their relative order.
+
+  function _orderSelInfo() {
+    if (!session || !session.layer || !session.layer.shapeModel) return null;
+    const arr = session.layer.shapeModel.shapes;
+    if (!arr || !arr.length) return null;
+    const ids = _ensureSelectedSet(session.layer);
+    if (!ids.size) return null;
+    const idxs = [];
+    for (let i = 0; i < arr.length; i++) if (ids.has(arr[i].id)) idxs.push(i);
+    if (!idxs.length) return null;
+    return { arr, sel: new Set(arr.filter(s => ids.has(s.id))),
+             minI: idxs[0], maxI: idxs[idxs.length - 1] };
+  }
+
+  function _reorderSelected(kind) {
+    const info = _orderSelInfo();
+    if (!info) return;
+    const { arr, sel } = info;
+    if (kind === 'front') {
+      const keep = arr.filter(s => !sel.has(s));
+      const move = arr.filter(s =>  sel.has(s));
+      arr.length = 0; arr.push(...keep, ...move);
+    } else if (kind === 'back') {
+      const keep = arr.filter(s => !sel.has(s));
+      const move = arr.filter(s =>  sel.has(s));
+      arr.length = 0; arr.push(...move, ...keep);
+    } else if (kind === 'forward') {
+      for (let i = arr.length - 2; i >= 0; i--) {
+        if (sel.has(arr[i]) && !sel.has(arr[i + 1])) {
+          const t = arr[i]; arr[i] = arr[i + 1]; arr[i + 1] = t;
+        }
+      }
+    } else if (kind === 'backward') {
+      for (let i = 1; i < arr.length; i++) {
+        if (sel.has(arr[i]) && !sel.has(arr[i - 1])) {
+          const t = arr[i]; arr[i] = arr[i - 1]; arr[i - 1] = t;
+        }
+      }
+    } else return;
+    renderShapeLayer(session.layer);
+    if (typeof compositeAll === 'function') compositeAll();
+    _renderHandles();
+    _refreshOrderControl();
+    if (typeof pushUndo === 'function') pushUndo('Reorder Shape');
+  }
+
+  function _refreshOrderControl() {
+    const menu = document.getElementById('shOrderMenu');
+    if (!menu) return;
+    const info = _orderSelInfo();
+    const atFront = !info || info.maxI === info.arr.length - 1;
+    const atBack  = !info || info.minI === 0;
+    const dis = {
+      front:    atFront, forward:  atFront,
+      backward: atBack,  back:     atBack
+    };
+    menu.querySelectorAll('[data-order]').forEach(btn => {
+      btn.disabled = !!dis[btn.dataset.order];
+    });
+  }
+
+  function _wireOrderDropdown() {
+    const btn  = document.getElementById('shOrderBtn');
+    const menu = document.getElementById('shOrderMenu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('is-open');
+      if (menu.classList.contains('is-open')) _refreshOrderControl();
+    });
+    menu.querySelectorAll('[data-order]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (item.disabled) return;
+        _reorderSelected(item.dataset.order);
+        // Menu intentionally stays open so the user can step repeatedly.
+      });
+    });
+    document.addEventListener('mousedown', (e) => {
+      if (menu.classList.contains('is-open') &&
+          !menu.contains(e.target) && e.target !== btn) {
+        menu.classList.remove('is-open');
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') menu.classList.remove('is-open');
+    });
+  }
+
+  // ── Boolean combine (Pathfinder) ──────────────────────────
+  // All combine logic lives in js/tools/combine.js (window.OpsinCombine).
+  // ShapeTool only exposes the active layer + a selection setter (see the
+  // public surface below); the dropdown wires/refreshes itself.
+
   // ── Right-click context menu ──────────────────────────────
 
   function _showContextMenu(e) {
@@ -1608,6 +1770,8 @@ window.ShapeTool = (function () {
     _refreshDashControls();
     _refreshCornerRadiusControl();
     _refreshOpacityControl();
+    _refreshOrderControl();
+    if (window.OpsinCombine) window.OpsinCombine.refresh();
     _refreshShapePanel();
     if (typeof updatePropertiesPanel === 'function') updatePropertiesPanel();
   }
@@ -1639,7 +1803,7 @@ window.ShapeTool = (function () {
     const panel = document.getElementById('propertiesPanel');
     const section = document.getElementById('propsShapeSection');
     if (!panel || !section) return;
-    const isShape = (typeof currentTool !== 'undefined' && (currentTool === 'shape' || (currentTool === 'move' && _moveToolActive)));
+    const isShape = (typeof currentTool !== 'undefined' && (currentTool === 'shape' || (currentTool === 'pathselect' && _selectToolActive)));
     _setShapePanelMode(panel, isShape);
     section.hidden = !isShape;
     if (!isShape) return;
@@ -1978,6 +2142,8 @@ window.ShapeTool = (function () {
       _onOp();
     });
 
+    _wireOrderDropdown();
+    if (window.OpsinCombine) window.OpsinCombine.wire();
   }
 
   function _previewDashCss(p) {
@@ -2077,7 +2243,7 @@ window.ShapeTool = (function () {
 
   ToolRegistry.register('shape', {
     activate() {
-      const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-opacity'];
+      const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-shape-order','opt-shape-combine','opt-opacity'];
       ids.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); });
       // Hide legacy fill-mode + simple stroke-width controls (drawingTools era).
       const old1 = document.getElementById('opt-fill-mode'); if (old1) old1.classList.add('hidden');
@@ -2089,10 +2255,9 @@ window.ShapeTool = (function () {
       const _activeLayer = (typeof layers !== 'undefined' && typeof activeLayerIndex !== 'undefined')
         ? layers[activeLayerIndex] : null;
       if (_activeLayer && _activeLayer.kind === 'shape') {
+        // Entering a multi-path layer selects nothing; only a selection
+        // carried over from Move / Pen / Direct Selection is preserved.
         _ensureSession(_activeLayer);
-        if (_selectedShapes(_activeLayer).length === 0 && _activeLayer.shapeModel && _activeLayer.shapeModel.shapes.length > 0) {
-          _setSelection(_activeLayer, _activeLayer.shapeModel.shapes.map(s => s.id));
-        }
       }
       _syncOptionsBarFromSelection();
       _refreshShapePanel();
@@ -2100,7 +2265,7 @@ window.ShapeTool = (function () {
     },
     deactivate() {
       if (session) endEdit(true);
-      const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner'];
+      const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-shape-order','opt-shape-combine'];
       ids.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
       // Force the properties-panel shape section closed — toolbar.js
       // calls deactivate while currentTool is still 'shape', so we
@@ -2223,15 +2388,13 @@ window.ShapeTool = (function () {
   // Keyboard shortcuts within an active shape session.
   document.addEventListener('keydown', (e) => {
     if (!session) return;
-    if (typeof currentTool !== 'undefined' && currentTool !== 'shape' && !(currentTool === 'move' && _moveToolActive)) return;
+    if (typeof currentTool !== 'undefined' && currentTool !== 'shape' && !(currentTool === 'pathselect' && _selectToolActive)) return;
     const tag = (e.target && e.target.tagName || '').toUpperCase();
     if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
+      e.stopPropagation();
       _deleteSelected();
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      _duplicateSelected();
     } else if (e.key === 'Escape') {
       _clearSelection(session.layer);
     }
@@ -2343,7 +2506,7 @@ window.ShapeTool = (function () {
   function _translateShape(s, dx, dy) {
     if (s.type === 'line') { s.p1.x += dx; s.p1.y += dy; s.p2.x += dx; s.p2.y += dy; }
     else if (s.type === 'path') {
-      for (const p of (s.points || [])) {
+      for (const pts of _pathPointArrays(s)) for (const p of pts) {
         p.x += dx; p.y += dy;
         if (p.ohx !== undefined) { p.ohx += dx; p.ohy += dy; }
         if (p.ihx !== undefined) { p.ihx += dx; p.ihy += dy; }
@@ -2356,7 +2519,7 @@ window.ShapeTool = (function () {
       s.p1.x = ax + (s.p1.x - ax) * sx; s.p1.y = ay + (s.p1.y - ay) * sy;
       s.p2.x = ax + (s.p2.x - ax) * sx; s.p2.y = ay + (s.p2.y - ay) * sy;
     } else if (s.type === 'path') {
-      for (const p of (s.points || [])) {
+      for (const pts of _pathPointArrays(s)) for (const p of pts) {
         p.x = ax + (p.x - ax) * sx; p.y = ay + (p.y - ay) * sy;
         if (p.ohx !== undefined) { p.ohx = ax + (p.ohx - ax) * sx; p.ohy = ay + (p.ohy - ay) * sy; }
         if (p.ihx !== undefined) { p.ihx = ax + (p.ihx - ax) * sx; p.ihy = ay + (p.ihy - ay) * sy; }
@@ -2398,7 +2561,7 @@ window.ShapeTool = (function () {
     }
     if (s.type === 'path') {
       const bb = groupBB || _shapeBBox(s);
-      for (const p of (s.points || [])) {
+      for (const pts of _pathPointArrays(s)) for (const p of pts) {
         if (axis === 'h') {
           p.x = bb.x + bb.w - (p.x - bb.x);
           if (p.ohx !== undefined) p.ohx = bb.x + bb.w - (p.ohx - bb.x);
@@ -2555,50 +2718,64 @@ window.ShapeTool = (function () {
 
   function getShapeBBox(s) { return _shapeBBox(s); }
 
-  // ── Move Tool Integration ─────────────────────────────────
-  // Opens shape editing behavior while the Move tool is active.
+  // ── Selection Tool Integration ────────────────────────────
+  // Drives Illustrator-style whole-path selection while the Selection
+  // tool (pen group, between Pen and Direct Selection) is active.
 
-  function _showMoveShapeOptionsBar() {
-    const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-opacity'];
+  function _showSelectShapeOptionsBar() {
+    const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-shape-order','opt-shape-combine','opt-opacity'];
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); });
     const old1 = document.getElementById('opt-fill-mode'); if (old1) old1.classList.add('hidden');
     const old2 = document.getElementById('opt-stroke-width'); if (old2) old2.classList.add('hidden');
     const moveOpt = document.getElementById('opt-move'); if (moveOpt) moveOpt.classList.add('hidden');
   }
 
-  function _hideMoveShapeOptionsBar() {
-    const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-opacity'];
+  function _hideSelectShapeOptionsBar() {
+    const ids = ['opt-shape-fill','opt-shape-stroke','opt-shape-stroke-style','opt-shape-dash','opt-shape-corner','opt-shape-order','opt-shape-combine','opt-opacity'];
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
   }
 
-  function openForMoveTool(layer) {
-    if (!layer || layer.kind !== 'shape') return;
-    _moveToolActive = true;
-    _showMoveShapeOptionsBar();
-    _ensureSession(layer);
-    if (_selectedShapes(layer).length === 0 && layer.shapeModel && layer.shapeModel.shapes.length > 0) {
-      _setSelection(layer, layer.shapeModel.shapes.map(s => s.id));
-    }
+  function openForSelectTool(layer) {
+    _selectToolActive = true;
+    _showSelectShapeOptionsBar();
+    // Entering a shape layer with the Selection tool selects nothing
+    // (Illustrator behavior) — the user clicks a path to select it. Any
+    // selection carried over from another tool is preserved. When the
+    // active layer isn't a shape, drop any stale session so old handles
+    // don't linger.
+    if (layer && layer.kind === 'shape') _ensureSession(layer);
+    else if (session) endEdit(true);
     _syncOptionsBarFromSelection();
     _refreshShapePanel();
   }
 
-  function closeForMoveTool() {
-    if (!_moveToolActive) return;
-    _moveToolActive = false;
+  function closeForSelectTool() {
+    if (!_selectToolActive) return;
+    _selectToolActive = false;
     if (session) endEdit(true);
-    _hideMoveShapeOptionsBar();
+    _hideSelectShapeOptionsBar();
     const panel = document.getElementById('propertiesPanel');
     const section = document.getElementById('propsShapeSection');
     if (panel) _setShapePanelMode(panel, false);
     if (section) section.hidden = true;
   }
 
-  function isOpenForMoveTool() { return _moveToolActive; }
+  function isSelectToolActive() { return _selectToolActive; }
 
-  // Handles Move tool mouse-down on the canvas: hit-test shapes, select,
-  // begin drag — but never draws a new shape (that stays shape-tool-only).
-  function handleMoveMouseDown(e, pos) {
+  // Toggle one shape's membership in the active layer's selection set
+  // (Shift-click multi-select). Returns whether the shape ends up selected.
+  function _toggleShapeSelection(layer, id) {
+    const set = _ensureSelectedSet(layer);
+    let nowSelected;
+    if (set.has(id)) { set.delete(id); nowSelected = false; }
+    else { set.add(id); nowSelected = true; }
+    _setSelection(layer, Array.from(set));
+    return nowSelected;
+  }
+
+  // Handles Selection tool mouse-down: cross-layer hit-test, select (with
+  // Shift-add multi-select), begin a move drag. Never draws a new shape.
+  function handleSelectMouseDown(e, pos) {
     if (e.button === 2) {
       const hit = _hitAcrossLayers(pos.x, pos.y);
       if (hit) {
@@ -2607,7 +2784,7 @@ window.ShapeTool = (function () {
           selectedLayers = new Set([hit.layerIndex]);
           if (typeof updateLayerPanel === 'function') updateLayerPanel();
         }
-        if (!session || session.layer !== layers[hit.layerIndex]) openForMoveTool(layers[hit.layerIndex]);
+        if (!session || session.layer !== layers[hit.layerIndex]) openForSelectTool(layers[hit.layerIndex]);
         _ensureSession(layers[hit.layerIndex]);
         if (!_ensureSelectedSet(session.layer).has(hit.shape.id)) {
           _setSelection(session.layer, [hit.shape.id]);
@@ -2621,13 +2798,24 @@ window.ShapeTool = (function () {
 
     const hit = _hitAcrossLayers(pos.x, pos.y);
     if (hit) {
-      if (typeof activeLayerIndex !== 'undefined' && activeLayerIndex !== hit.layerIndex) {
+      // Cross-layer auto-select: clicking any path makes its layer active.
+      const switchedLayer = (typeof activeLayerIndex !== 'undefined' && activeLayerIndex !== hit.layerIndex);
+      if (switchedLayer) {
         window.activeLayerIndex = hit.layerIndex;
         selectedLayers = new Set([hit.layerIndex]);
         if (typeof updateLayerPanel === 'function') updateLayerPanel();
       }
-      if (!session || session.layer !== layers[hit.layerIndex]) openForMoveTool(layers[hit.layerIndex]);
+      if (!session || session.layer !== layers[hit.layerIndex]) openForSelectTool(layers[hit.layerIndex]);
       _ensureSession(layers[hit.layerIndex]);
+      // Shift-click adds/removes within one layer's selection (used to feed
+      // Combine). The selection model is per-layer, so a Shift-click that
+      // lands on a different layer than the current session can't extend a
+      // cross-layer set — it just selects that path on the new layer.
+      if (e.shiftKey && !switchedLayer) {
+        const stillSelected = _toggleShapeSelection(session.layer, hit.shape.id);
+        if (stillSelected) _beginMoveDrag(e);
+        return true;
+      }
       if (!_ensureSelectedSet(session.layer).has(hit.shape.id)) {
         _setSelection(session.layer, [hit.shape.id]);
       }
@@ -2635,10 +2823,67 @@ window.ShapeTool = (function () {
       return true;
     }
 
-    // No shape hit — clear selection but keep shape mode active.
-    if (_moveToolActive && session) _clearSelection(session.layer);
+    // No shape hit — clear selection but keep the tool active.
+    if (_selectToolActive && session) _clearSelection(session.layer);
     return false;
   }
+
+  // Move tool integration: translate every path on a shape layer together
+  // as one object (no per-path picking, no selection chrome). Reuses the
+  // same vector translate the properties panel uses, so the layer stays
+  // fully editable afterward.
+  function beginWholeLayerMove(layer, e) {
+    if (!layer || layer.kind !== 'shape' || !layer.shapeModel
+        || !layer.shapeModel.shapes.length || e.button !== 0) return false;
+    const startMouse = { x: e.clientX, y: e.clientY };
+    let lastDx = 0, lastDy = 0, changed = false;
+    function _mm(ev) {
+      const z = (typeof zoom !== 'undefined' ? zoom : 1) || 1;
+      const dx = (ev.clientX - startMouse.x) / z;
+      const dy = (ev.clientY - startMouse.y) / z;
+      const incX = dx - lastDx, incY = dy - lastDy;
+      lastDx = dx; lastDy = dy;
+      if (!incX && !incY) return;
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) changed = true;
+      for (const s of layer.shapeModel.shapes) _translateShape(s, incX, incY);
+      renderShapeLayer(layer);
+      if (typeof compositeAll === 'function') compositeAll();
+      if (typeof drawOverlay === 'function') drawOverlay();
+    }
+    function _mu() {
+      document.removeEventListener('mousemove', _mm);
+      document.removeEventListener('mouseup', _mu);
+      if (changed) {
+        if (typeof pushUndo === 'function') pushUndo('Move');
+        if (typeof updateLayerPanel === 'function') updateLayerPanel();
+      }
+    }
+    document.addEventListener('mousemove', _mm);
+    document.addEventListener('mouseup', _mu);
+    return true;
+  }
+
+  // ── Tool registration: Selection tool (pen group) ─────────
+  ToolRegistry.register('pathselect', {
+    activate() {
+      const layer = (typeof layers !== 'undefined' && typeof activeLayerIndex !== 'undefined')
+        ? layers[activeLayerIndex] : null;
+      openForSelectTool(layer && layer.kind === 'shape' ? layer : null);
+      if (typeof workspace !== 'undefined') workspace.style.cursor = 'default';
+      if (typeof updatePropertiesPanel === 'function') updatePropertiesPanel();
+    },
+    deactivate() {
+      closeForSelectTool();
+      if (typeof updatePropertiesPanel === 'function') updatePropertiesPanel();
+    },
+    mouseDown(e, pos) {
+      if (handleSelectMouseDown(e, pos)) return true;
+      // Empty-canvas left-click: swallow so it doesn't fall through to
+      // pixel-selection behavior. The Selection tool never marquees pixels.
+      if (e.button === 0) { if (typeof isDrawing !== 'undefined') isDrawing = false; return true; }
+      return false;
+    }
+  });
 
   // Init wiring once DOM is ready.
   if (document.readyState === 'loading') {
@@ -2667,10 +2912,14 @@ window.ShapeTool = (function () {
     flipSelected,
     alignSelectedToCanvas,
     refreshPropertiesPanel: _refreshShapePanel,
-    openForMoveTool,
-    closeForMoveTool,
-    isOpenForMoveTool,
-    handleMoveMouseDown,
+    // Bridge for js/tools/combine.js (OpsinCombine).
+    getActiveLayer: () => (session ? session.layer : null),
+    selectShapes: (layer, ids) => _setSelection(layer, ids),
+    openForSelectTool,
+    closeForSelectTool,
+    isSelectToolActive,
+    handleSelectMouseDown,
+    beginWholeLayerMove,
     convertShapeToPath,
     getShapeAnchors,
     hitAcrossLayers,
@@ -2885,11 +3134,9 @@ window.PenTool = (function () {
   }
   function _ensureLayerForDraft() {
     let L = (typeof getActiveLayer === 'function') ? getActiveLayer() : null;
-    // Reuse the active layer only if it is already an empty shape layer;
-    // every new path otherwise gets its own layer.
-    const _isEmptyShape = L && L.kind === 'shape' &&
-      (!L.shapeModel || L.shapeModel.shapes.length === 0);
-    if (!_isEmptyShape) {
+    // Append to the active layer when it is already a shape layer; only a
+    // non-shape active layer spawns a fresh shape layer above it.
+    if (!L || L.kind !== 'shape') {
       const initial = { nextId: 1, selectedIds: new Set(), shapes: [] };
       L = addShapeLayer(initial, true);
     }

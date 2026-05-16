@@ -627,6 +627,8 @@ function resetMagneticState() {
 ToolRegistry.register('select', {
   activate() {
     document.getElementById('opt-sel-mode').classList.remove('hidden');
+    document.getElementById('opt-crop-selection').classList.remove('hidden');
+    updateCropToSelectionButtonState();
     workspace.style.cursor = 'crosshair';
   },
   mouseDown(e, pos) {

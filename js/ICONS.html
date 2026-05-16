@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SVG Icon Gallery</title>
+  <style>
+    :root {
+      --bg: #242428;
+      --ink: #8e8e93;
+      --card: rgba(255, 255, 255, 0.035);
+      --card-hover: rgba(255, 255, 255, 0.075);
+      --border: rgba(142, 142, 147, 0.18);
+      --border-hover: rgba(142, 142, 147, 0.42);
+      --shadow: rgba(0, 0, 0, 0.22);
+      --radius: 14px;
+      --gap: 10px;
+      --icon-size: 30px;
+      --label-size: 10.5px;
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+
+    .page {
+      width: min(100%, 1800px);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 0 16px;
+      background: linear-gradient(to bottom, var(--bg) 72%, rgba(36, 36, 40, 0));
+      backdrop-filter: blur(16px);
+    }
+
+    .title-group {
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+
+    .meta {
+      margin-top: 3px;
+      color: var(--ink);
+      opacity: 0.72;
+      font-size: 12px;
+    }
+
+    .search {
+      width: min(320px, 42vw);
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0 13px;
+      outline: none;
+      background: rgba(0, 0, 0, 0.16);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .search::placeholder {
+      color: var(--ink);
+      opacity: 0.58;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+      gap: var(--gap);
+      align-items: stretch;
+    }
+
+    .icon-card {
+      min-width: 0;
+      height: 86px;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      place-items: center;
+      gap: 7px;
+      padding: 10px 7px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 0 8px 20px var(--shadow);
+      transition:
+        background 130ms ease,
+        border-color 130ms ease,
+        transform 130ms ease;
+    }
+
+    .icon-card:hover {
+      background: var(--card-hover);
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+
+    .icon-wrap {
+      width: 100%;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+    }
+
+    .icon-wrap svg {
+      width: var(--icon-size);
+      height: var(--icon-size);
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      color: var(--ink);
+      fill: currentColor;
+      overflow: visible;
+    }
+
+    .icon-wrap svg * {
+      transition: none !important;
+    }
+
+    .icon-name {
+      width: 100%;
+      color: var(--ink);
+      font-size: var(--label-size);
+      line-height: 1.15;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: text;
+    }
+
+    .empty {
+      display: none;
+      margin-top: 48px;
+      text-align: center;
+      font-size: 14px;
+      opacity: 0.72;
+    }
+
+    body.no-results .empty {
+      display: block;
+    }
+
+    body.no-results .grid {
+      display: none;
+    }
+
+    @media (max-width: 700px) {
+      .page {
+        padding: 12px;
+      }
+
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+        padding-top: 10px;
+      }
+
+      .search {
+        width: 100%;
+      }
+
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+        gap: 8px;
+      }
+
+      .icon-card {
+        height: 78px;
+        border-radius: 12px;
+      }
+
+      :root {
+        --icon-size: 27px;
+        --label-size: 9.8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div class="title-group">
+        <h1>SVG Icon Gallery</h1>
+        <div class="meta"><span id="visibleCount">88</span> / 88 SVGs</div>
+      </div>
+      <input id="search" class="search" type="search" placeholder="Search SVG names…" autocomplete="off" spellcheck="false">
+    </header>
+
+    <section id="grid" class="grid" aria-label="SVG icon gallery">
+      <article class="icon-card" aria-label="align-bottom">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g id="ink-wrapper"><rect x="2.5" y="19.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="6" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="9.5" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="align-bottom">align-bottom</div>
+      </article>
+      <article class="icon-card" aria-label="align-center-h">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g id="ink-wrapper"><rect x="11" y="2.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="3.5" y="6" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="14" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="align-center-h">align-center-h</div>
+      </article>
+      <article class="icon-card" aria-label="align-center-v">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g id="ink-wrapper"><rect x="2.5" y="11" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="3.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="6" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="align-center-v">align-center-v</div>
+      </article>
+      <article class="icon-card" aria-label="align-left">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g id="ink-wrapper"><rect x="2.5" y="2.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="5.5" y="6" rx="0.5" fill="currentColor" stroke="none"/><rect x="5.5" y="14" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="align-left">align-left</div>
+      </article>
+      <article class="icon-card" aria-label="align-right">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g id="ink-wrapper"><rect x="19.5" y="2.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="5.5" y="6" rx="0.5" fill="currentColor" stroke="none"/><rect x="9.5" y="14" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="align-right">align-right</div>
+      </article>
+      <article class="icon-card" aria-label="align-top">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g id="ink-wrapper"><rect x="2.5" y="2.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="6" y="5.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="14" y="5.5" rx="0.5" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="align-top">align-top</div>
+      </article>
+      <article class="icon-card" aria-label="anchor-point">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g id="ink-wrapper"><path d="M22.93,10.1h0S1.54,1.1,1.54,1.1c-0.28-0.12-0.55.16-0.44.44l9,21.39" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/></g></svg>
+        </div>
+        <div class="icon-name" title="anchor-point">anchor-point</div>
+      </article>
+      <article class="icon-card" aria-label="arrow-horizontal">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g transform="translate(-3.9999, -3.9997) scale(1.3333, 1.3333)"><path d="M21 12L17 8V11H7V8L3 12L7 16V13H17V16Z" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="arrow-horizontal">arrow-horizontal</div>
+      </article>
+      <article class="icon-card" aria-label="arrow-vertical">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><g transform="translate(-3.9997, -3.9999) scale(1.3333, 1.3333)"><path d="M12 3L8 7H11V17H8L12 21L16 17H13V7H16Z" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="arrow-vertical">arrow-vertical</div>
+      </article>
+      <article class="icon-card" aria-label="brush">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -0.81 23.64 22.05"><path d="M.21 17.82c1.66 2.38 5.33 3.19 7.66 1.56 2.02-1.4 2.47-3.58 1.13-5.5-1.2-1.73-3.37-2.2-4.8-1.19-1.66 1.17-.98 2.78-2 3.5-.84.59-1.43.22-1.91.55-.32.2-.44.58-.08 1.08zm9.13-5.32c.73.73 1.26 1.68 1.39 2.5.77-.15 1.41-.53 2.09-1.22.09-.09.19-.18.27-.28-.43-2.41-2.4-4.33-4.74-4.75-.1.09-.2.18-.29.27-.69.69-1.07 1.33-1.21 2.1.8.12 1.76.63 2.49 1.38zm9.61-11.98c-.54.39-6.39 4.44-9.78 7.47 2.24.66 4.01 2.39 4.68 4.69 3.04-3.39 7.08-9.24 7.47-9.79 1.12-1.59-.87-3.49-2.37-2.37z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="brush">brush</div>
+      </article>
+      <article class="icon-card" aria-label="color-swap">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
+        </div>
+        <div class="icon-name" title="color-swap">color-swap</div>
+      </article>
+      <article class="icon-card" aria-label="copy-svg">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0.24219 0.21875 22.4766 27.17965"><g id="ink-wrapper"><path d="M21.72 4.26L21.72 18.42C21.72 20.44 20.7 21.46 18.7 21.46L18.08 21.46L18.08 15.18C18.08 13.96 17.88 13.06 16.83 11.99L11.25 6.34C10.08 5.14 9.28 4.91 8.05 4.91L6.13 4.91L6.13 4.26C6.13 2.23 7.14 1.22 9.14 1.22L18.7 1.22C20.7 1.22 21.72 2.23 21.72 4.26ZM11.53 3.23C11.13 3.23 10.93 3.49 10.93 3.78L10.93 3.98C10.93 4.27 11.13 4.53 11.53 4.53L16.31 4.53C16.73 4.53 16.91 4.27 16.91 3.98L16.91 3.78C16.91 3.49 16.73 3.23 16.31 3.23Z" fill="currentColor" stroke="none"/><path d="M1.24 23.36C1.24 25.38 2.26 26.4 4.26 26.4L13.82 26.4C15.82 26.4 16.83 25.38 16.83 23.36L16.83 15.18L9.85 15.18C8.63 15.18 8.05 14.59 8.05 13.38L8.05 6.16L4.26 6.16C2.27 6.16 1.24 7.19 1.24 9.2ZM9.87 13.93L16.64 13.93C16.55 13.59 16.33 13.26 15.94 12.86L10.37 7.21C9.98 6.81 9.64 6.54 9.3 6.45L9.3 13.36C9.3 13.74 9.48 13.93 9.87 13.93Z" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="copy-svg">copy-svg</div>
+      </article>
+      <article class="icon-card" aria-label="direct-select">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_2" viewBox="0 0 24 24"><g id="ink-wrapper"><path d="M12.35,13.35" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5"/><path d="M12.35,13.35l3.98,8.3-2,0.96s-4.02-8.37-4.02-8.37l-3.84,4c-0.150.06-0.3-0.01-0.3-0.15l-0.24-16.45c0-0.210.25-0.330.41-0.17l11.67,11.59h0c0.10.110.050.27-0.10.33h-5.56s0-0.03,0-0.03Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5"/></g></svg>
+        </div>
+        <div class="icon-name" title="direct-select">direct-select</div>
+      </article>
+      <article class="icon-card" aria-label="select-object">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g id="ink-wrapper"><path d="M18.02,13.05L6.34,1.46c-0.15-0.15-0.4-0.04-0.41 0.17l0.24,16.45c0,0.14 0.16 0.22 0.30 0.15l4.56-4.75c0.08-0.08 0.18-0.13 0.29-0.12h6.59c0.15-0.05 0.2-0.21 0.1-0.31h0Z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5" fill="currentColor"/></g><rect x="12.17" y="13.11" transform="translate(-6.42 7.5) rotate(-25.64)" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="select-object">select-object</div>
+      </article>
+      <article class="icon-card" aria-label="duplicate-layer">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(0.3282, -0.2879) scale(1.1516, 1.1516)"><g><path d="M19.27 13.59C19.98 14 20.27 14.33 20.27 14.84C20.27 15.34 19.98 15.66 19.27 16.09L11.27 20.72C10.84 20.97 10.5 21.09 10.13 21.09C9.77 21.09 9.43 20.97 8.99 20.72L1.01 16.09C0.29 15.66 0 15.34 0 14.84C0 14.33 0.29 14 1.01 13.59L6.03 10.67L7.46 11.5L1.88 14.7C1.83 14.73 1.78 14.77 1.78 14.84C1.78 14.9 1.83 14.94 1.88 14.97L9.72 19.46C9.88 19.55 10 19.59 10.13 19.59C10.27 19.59 10.39 19.55 10.55 19.46L18.38 14.97C18.45 14.94 18.48 14.9 18.48 14.84C18.48 14.77 18.45 14.73 18.38 14.7L12.8 11.5L14.24 10.67Z" fill="currentColor" fill-opacity="1" stroke="none"/><path d="M10.13 12.77C10.5 12.77 10.84 12.64 11.27 12.39L19.27 7.76C19.98 7.34 20.27 7.01 20.27 6.51C20.27 6 19.98 5.68 19.27 5.26L11.27 0.63C10.84 0.38 10.5 0.25 10.13 0.25C9.77 0.25 9.43 0.38 8.99 0.63L1.01 5.26C0.29 5.68 0 6 0 6.51C0 7.01 0.29 7.34 1.01 7.76L8.99 12.39C9.43 12.64 9.77 12.77 10.13 12.77Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="duplicate-layer">duplicate-layer</div>
+      </article>
+      <article class="icon-card" aria-label="eraser">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_5" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><line x1="19.38" y1="21.35" x2="22.38" y2="21.35" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="1.5"/><line x1="13.71" y1="21.35" x2="16.71" y2="21.35" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="1.5"/><path d="M9.66,21.34h-3.38c-0.41,0-0.79-0.16-1.08-0.45l-2.18-2.18c-1.23-1.23-1.23-3.23,0-4.46l3.67-3.67,7.18,7.18-3.13,3.13c-0.290.29-0.670.45-1.080.45Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="1.5"/><path d="M9.53,21.34h-3.13c-0.49,0-0.95-0.19-1.3-0.54l-2.9-2.9c-0.78-0.78-0.78-2.05,0-2.83L14.04,3.24c0.78-0.78,2.05-0.78,2.83,0l4.34,4.34c0.780.780.78,2.05,0,2.83l-10.39,10.39c-0.340.34-0.810.54-1.30.54Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="1.5"/></g></svg>
+        </div>
+        <div class="icon-name" title="eraser">eraser</div>
+      </article>
+      <article class="icon-card" aria-label="eyedropper">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="Layer_2" x="0px" y="0px" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><path d="M14.31,7.57l2.11,2.11l-4.29,4.29c-1.47,1.47-3.1,2.78-4.85,3.9L4.09,19.9l2.03-3.18c1.12-1.75,2.43-3.38,3.9-4.85L14.31,7.57M14.31,6.26l-4.95,4.95c-1.52,1.52-2.87,3.2-4.02,5.01l-3.2,5.01v0.62h0.62l5.01-3.2c1.81-1.16,3.49-2.5,5.01-4.02l4.95-4.95L14.31,6.26L14.31,6.26zM21.94,4.16c-0.22-1.04-1.05-1.87-2.09-2.09c-0.93-0.19-1.79,0.09-2.41,0.64l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.37-0.37-0.9-0.57-1.48-0.48c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.37,0.37,0.9,0.57,1.48,0.48c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0C21.85,5.95,22.13,5.09,21.94,4.16zM19.27,2.94c0.13,0,0.26,0.01,0.39,0.04c0.68,0.14,1.23,0.69,1.37,1.37c0.12,0.58-0.03,1.16-0.42,1.6l-0.05,0.06l-0.02,0.02l-1.95,1.95l-0.66,0.66l0.66,0.66l0.37,0.37c0.18,0.18,0.26,0.43,0.22,0.68c-0.05,0.32-0.32,0.59-0.64,0.64C18.49,11,18.44,11,18.4,11c-0.21,0-0.4-0.08-0.55-0.23l-4.64-4.64C13.04,5.96,12.96,5.71,13,5.46c0.05-0.32,0.32-0.59,0.64-0.64c0.04-0.01,0.09-0.01,0.13-0.01c0.21,0,0.4,0.08,0.55,0.23l0.4,0.4l0.66,0.66l0.66-0.66l1.95-1.95l0.09-0.08C18.4,3.11,18.83,2.94,19.27,2.94M19.27,2.01c-0.7,0-1.34,0.27-1.82,0.7l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.31-0.31-0.74-0.5-1.21-0.5c-0.09,0-0.18,0.01-0.27,0.02c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.31,0.31,0.74,0.5,1.21,0.5c0.09,0,0.18-0.01,0.27-0.02c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0c0.55-0.62,0.83-1.48,0.64-2.41c-0.22-1.04-1.05-1.87-2.09-2.09C19.65,2.03,19.46,2.01,19.27,2.01L19.27,2.01zM2.65,21.92l0.11-0.07l-0.62-0.62l-0.07,0.11C1.83,21.72,2.27,22.16,2.65,21.92z" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="eyedropper">eyedropper</div>
+      </article>
+      <article class="icon-card" aria-label="fill">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 24.27 26.13"><path d="M1.08 17.53l5.52 5.52c1.42 1.43 2.87 1.44 4.28.03l8.52-8.52c1.37-1.38 1.36-2.89-.02-4.27L13.85 4.77c-1.42-1.42-2.87-1.45-4.29-.02L1.05 13.25c-1.43 1.41-1.39 2.86.03 4.28zm.99-.96c-.78-.77-.77-1.6.01-2.39l8.41-8.41c.78-.78 1.61-.78 2.38-.01l5.49 5.49c.77.77.77 1.61-.01 2.39L9.95 22.05c-.77.77-1.61.77-2.39.01zm9.9-2.28c1.15 0 2.09-.94 2.09-2.1 0-1.15-.94-2.09-2.1-2.09-1.15 0-2.1.94-2.1 2.09 0 1.16.95 2.1 2.1 2.1zm0-.97c-.63 0-1.13-.5-1.13-1.13 0-.61.5-1.12 1.13-1.12.61 0 1.12.51 1.12 1.12 0 .63-.51 1.13-1.12 1.13zm-.52-2.58h1.05V3.25c0-1.94-1.27-3.25-3.13-3.25-1.86 0-3.12 1.31-3.12 3.25v5.55l1.06-1.05V3.25c0-1.29.84-2.16 2.06-2.16 1.23 0 2.07.87 2.07 2.16zM16.07 7.68l3.72 3.93v1.63l-1.2 1.39v8.36c0 .88 1.03.98 1.41.36l1.78-3.03c.39-.65.5-1.01.5-2.03v-6.04c0-.92-.2-1.83-.93-2.56l-2.69-2.7c-.58-.57-1.37-.54-1.84-.07z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="fill">fill</div>
+      </article>
+      <article class="icon-card" aria-label="gradient">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 925.44 925.44"><defs><linearGradient id="grad-icon-fill" gradientUnits="userSpaceOnUse" x1="59.86" y1="462.72" x2="865.58" y2="462.72" gradientTransform="matrix(1 0 0 -1 0 926)"><stop offset="0" stop-color="currentColor"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs><path d="M155.35 59.86h614.74c52.71 0 95.5 42.8 95.5 95.5v614.74c0 52.71-42.8 95.5-95.5 95.5H155.35c-52.71 0-95.5-42.8-95.5-95.5V155.35c0-52.71 42.79-95.49 95.5-95.49z" fill="url(#grad-icon-fill)"/><path d="M759.37 105.8c33.24 0 60.27 27.04 60.27 60.27v593.3c0 33.24-27.04 60.27-60.27 60.27h-593.3c-33.24 0-60.27-27.04-60.27-60.27v-593.3c0-33.24 27.04-60.27 60.27-60.27h593.3M759.37 42.02h-593.3c-68.52 0-124.06 55.54-124.06 124.06v593.3c0 68.52 55.54 124.06 124.06 124.06h593.3c68.52 0 124.06-55.54 124.06-124.06v-593.3c0-68.52-55.54-124.06-124.06-124.06z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="gradient">gradient</div>
+      </article>
+      <article class="icon-card" aria-label="import-layer">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(-4.4592, 0.5821) scale(0.8559, 0.8559)"><g><path d="M28.88 6.2L28.88 12.18C28.66 12.15 28.43 12.14 28.2 12.14C27.96 12.14 27.72 12.15 27.49 12.18L27.49 6.27C27.49 5.16 26.88 4.57 25.81 4.57L8.28 4.57C7.19 4.57 6.59 5.16 6.59 6.27L6.59 17.72L9.73 14.86C10.14 14.48 10.56 14.29 11.03 14.29C11.52 14.29 11.97 14.49 12.4 14.88L14.28 16.59L18.86 12.51C19.33 12.09 19.82 11.88 20.39 11.88C20.96 11.88 21.48 12.09 21.94 12.52L23.65 14.12C22.56 15.25 21.9 16.78 21.9 18.45C21.9 19.57 22.2 20.64 22.73 21.55L8.25 21.55C6.23 21.55 5.21 20.55 5.21 18.55L5.21 6.2C5.21 4.2 6.23 3.19 8.25 3.19L25.84 3.19C27.86 3.19 28.88 4.21 28.88 6.2Z" fill="currentColor" fill-opacity="1" stroke="none"/><path d="M15.02 10.13C15.02 11.44 13.96 12.5 12.66 12.5C11.34 12.5 10.28 11.44 10.28 10.13C10.28 8.82 11.34 7.74 12.66 7.74C13.96 7.74 15.02 8.82 15.02 10.13Z" fill="currentColor" fill-opacity="1" stroke="none"/><path d="M33.25 18.45C33.25 21.21 30.95 23.49 28.2 23.49C25.43 23.49 23.15 21.23 23.15 18.45C23.15 15.67 25.43 13.39 28.2 13.39C30.97 13.39 33.25 15.67 33.25 18.45ZM27.63 15.83L27.63 17.88L25.58 17.88C25.24 17.88 25.01 18.09 25.01 18.45C25.01 18.79 25.24 19.01 25.58 19.01L27.63 19.01L27.63 21.06C27.63 21.41 27.85 21.63 28.2 21.63C28.55 21.63 28.77 21.41 28.77 21.06L28.77 19.01L30.81 19.01C31.16 19.01 31.38 18.79 31.38 18.45C31.38 18.09 31.16 17.88 30.81 17.88L28.77 17.88L28.77 15.83C28.77 15.49 28.55 15.26 28.2 15.26C27.85 15.26 27.63 15.49 27.63 15.83Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="import-layer">import-layer</div>
+      </article>
+      <article class="icon-card" aria-label="info">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><g id="Layer_1"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/></g><g id="Layer_2"><circle cx="12" cy="6.76" r="1.13" fill="currentColor" stroke="none"/><g><rect x="11" y="9.42" rx=".25" ry=".25" fill="currentColor" stroke="none"/><path d="M12.75,9.42h-1.49c-0.14,0-0.250.11-0.250.25v8.44c0,0.140.110.250.250.25h1.49c0.14,0,0.25-0.110.25-0.25v-8.44c0-0.14-0.11-0.25-0.25-0.25h0Z" fill="currentColor" stroke="none"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="info">info</div>
+      </article>
+      <article class="icon-card" aria-label="lasso-free">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.63 0.93 25.22 22.66"><path d="M9.53,16.16c-0.01,0-0.02,0-0.03,0c-0.85,0-1.69-0.06-2.49-0.18L7.31,14c0.7,0.11,1.49,0.15,2.22,0.16 c0.5,0,1.01-0.02,1.53-0.07l0.18,1.99C10.66,16.13,10.09,16.16,9.53,16.16z M13.32,15.78l-0.38-1.96c1.28-0.25,2.49-0.62,3.61-1.11 l0.79,1.84C16.09,15.09,14.74,15.5,13.32,15.78z M4.9,15.49c-1.71-0.56-3.02-1.46-3.78-2.58l1.66-1.12c0.51,0.75,1.46,1.38,2.74,1.8 L4.9,15.49z M19.24,13.58l-1.03-1.72c1.17-0.7,2.09-1.51,2.68-2.34l1.63,1.15C21.78,11.73,20.65,12.74,19.24,13.58z M0.45,11.28 c-0.05-0.27-0.08-0.54-0.08-0.82c0-1.24,0.53-2.51,1.55-3.68l1.51,1.31c-0.69,0.8-1.06,1.62-1.06,2.37c0,0.15,0.01,0.29,0.04,0.44 L0.45,11.28z M23.51,8.49l-1.96-0.39c0.03-0.16,0.05-0.32,0.05-0.48c0-0.15-0.01-0.29-0.04-0.44c-0.12-0.6-0.48-1.15-1.07-1.62 L21.74,4c0.95,0.77,1.57,1.74,1.77,2.8c0.05,0.27,0.08,0.54,0.08,0.82C23.59,7.9,23.56,8.2,23.51,8.49z M4.74,6.88l-1.2-1.6 C4.6,4.49,5.87,3.8,7.29,3.25l0.72,1.87C6.76,5.6,5.66,6.2,4.74,6.88z M19.01,4.7c-1-0.41-2.24-0.67-3.58-0.76l0.12-2 c1.58,0.1,2.99,0.4,4.21,0.9L19.01,4.7z M9.81,4.54L9.29,2.6c0.45-0.12,0.91-0.22,1.38-0.32c0.93-0.18,1.86-0.3,2.77-0.35l0.11,2 c-0.82,0.04-1.66,0.15-2.5,0.31C10.63,4.33,10.21,4.43,9.81,4.54z" fill="currentColor"/><path d="M6,17.93c-0.56,0-1.11-0.17-1.59-0.49c-0.63-0.43-1.06-1.07-1.2-1.82c-0.3-1.54,0.71-3.04,2.25-3.34 c1.54-0.3,3.04,0.71,3.34,2.25c0.15,0.75-0.01,1.51-0.43,2.14c-0.43,0.63-1.07,1.06-1.82,1.2C6.37,17.91,6.19,17.93,6,17.93z M6.01,14.23c-0.05,0-0.11,0-0.16,0.02c-0.46,0.09-0.76,0.54-0.67,1c0.04,0.22,0.17,0.42,0.36,0.54c0.19,0.13,0.41,0.17,0.64,0.13 c0.22-0.04,0.42-0.17,0.54-0.36c0.13-0.19,0.17-0.41,0.13-0.64C6.77,14.51,6.41,14.23,6.01,14.23z" fill="currentColor"/><path d="M6.02,22.59l-0.38-1.96c0.6-0.12,0.99-0.36,1.2-0.75c0.49-0.9,0.06-2.44-0.15-2.96l1.85-0.75c0.11,0.28,1.08,2.77,0.06,4.66 C8.25,21.47,7.52,22.3,6.02,22.59z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="lasso-free">lasso-free</div>
+      </article>
+      <article class="icon-card" aria-label="lasso-poly">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0.63 -0.65 24.39 23.31"><path d="M6.67,11.3L6.1,9.76l-1.69,0.62l0.54,1.47c-0.86,0.63-1.33,1.72-1.12,2.83c0.14,0.75,0.57,1.39,1.2,1.82 C5.52,16.83,6.07,17,6.63,17c0.19,0,0.37-0.02,0.55-0.06c0.13-0.03,0.26-0.07,0.39-0.11c0.15,0.67,0.22,1.53-0.1,2.12 c-0.21,0.39-0.6,0.63-1.2,0.75l0.38,1.96c1.5-0.29,2.23-1.12,2.58-1.76c0.95-1.76,0.18-4.03-0.02-4.55 c0.06-0.12,0.1-0.25,0.14-0.38l2.36,0.02l0.02-1.8L9.3,13.17C8.89,12.06,7.84,11.31,6.67,11.3z M6.81,14.99 c-0.23,0.04-0.45,0-0.64-0.13c-0.19-0.12-0.32-0.32-0.36-0.54c-0.09-0.46,0.21-0.91,0.67-1c0.05-0.02,0.11-0.02,0.16-0.02 c0.4,0,0.76,0.28,0.84,0.69c0.04,0.23,0,0.45-0.13,0.64C7.23,14.82,7.03,14.95,6.81,14.99z" fill="currentColor"/><polygon points="14.8,4.23 12.77,5.73 11.21,5.32 10.75,7.07 13.15,7.69 15.87,5.68" fill="currentColor"/><polygon points="19.24,3.2 20.83,2.67 20.07,0.35 16.01,3.34 17.08,4.79" fill="currentColor"/><rect x="20.34" y="4.25" transform="matrix(0.9494 -0.3141 0.3141 0.9494 -1.0466 7.0124)" fill="currentColor"/><polygon points="5.59,8.36 4.51,5.44 9.3,6.69 9.76,4.95 4.92,3.69 4.48,5.36 3.92,3.82 3.47,3.31 1.63,2.83 3.9,8.98" fill="currentColor"/><polygon points="17.43,13.25 13.23,13.21 13.21,15.01 17.81,15.05 18.53,14.73 17.8,13.08" fill="currentColor"/><polygon points="23.35,10.27 21.64,10.83 21.8,11.31 19.17,12.47 19.9,14.12 24.02,12.29" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="lasso-poly">lasso-poly</div>
+      </article>
+      <article class="icon-card" aria-label="lasso-magnetic">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25.22 22.66" data-native-w="25.22" data-native-h="22.66"><g id="ink-wrapper"><g id="Layer_1"><path d="M6.63,17c-0.56,0-1.11-0.17-1.59-0.49-0.63-0.43-1.06-1.07-1.2-1.82-0.3-1.540.71-3.04,2.25-3.34,1.54-0.3,3.040.71,3.34,2.250.150.75-0.01,1.51-0.43,2.14-0.430.63-1.07,1.06-1.82,1.2-0.180.04-0.360.06-0.550.06ZM6.64,13.3c-0.05,0-0.11,0-0.160.02-0.460.09-0.760.54-0.67,1,0.040.220.170.420.360.540.190.130.410.170.640.130.22-0.040.42-0.170.54-0.360.13-0.190.17-0.410.13-0.64-0.08-0.41-0.44-0.69-0.84-0.69Z" fill="currentColor" stroke="none"/><path d="M6.65,21.66l-0.38-1.96c0.6-0.120.99-0.36,1.2-0.750.49-0.90.06-2.44-0.15-2.96l1.85-0.75c0.110.28,1.08,2.770.06,4.66-0.350.64-1.08,1.47-2.58,1.76Z" fill="currentColor" stroke="none"/></g><g id="Layer_2"><g id="Layer_21"><path d="M19.58,21.66c-2.55,0-4.63-2.08-4.63-4.63v-3.03h3v3.03c0,0.90.73,1.63,1.63,1.63s1.63-0.73,1.63-1.63v-3.03h3v3.03c0,2.55-2.08,4.63-4.63,4.63Z" fill="currentColor" stroke="none"/><path d="M17.7,11.86v1.89h-2.5v-1.89h2.5M17.95,11.61h-3v2.5h3v-2.5h0Z" fill="currentColor" stroke="none"/><path d="M23.97,11.86v1.89h-2.5v-1.89h2.5M24.22,11.61h-3v2.5h3v-2.5h0Z" fill="currentColor" stroke="none"/></g></g><g id="Layer_3"><g><path d="M3,9.53c0-0.750.37-1.57,1.06-2.37l-1.51-1.31c-1.02,1.17-1.55,2.44-1.55,3.68,0,0.280.030.550.080.82l1.96-0.38c-0.03-0.15-0.04-0.29-0.04-0.44Z" fill="currentColor" stroke="none"/><path d="M8.64,4.19l-0.72-1.87c-1.420.55-2.69,1.24-3.75,2.03l1.2,1.6c0.92-0.68,2.02-1.28,3.27-1.76Z" fill="currentColor" stroke="none"/><path d="M11.68,3.31c0.84-0.16,1.68-0.27,2.5-0.31l-0.11-2c-0.910.05-1.840.17-2.770.35-0.470.1-0.930.2-1.380.32l0.52,1.94c0.4-0.110.82-0.21,1.24-0.3Z" fill="currentColor" stroke="none"/><path d="M20.39,1.91c-1.22-0.5-2.63-0.8-4.21-0.9l-0.12,2c1.340.09,2.580.35,3.580.76l0.75-1.86Z" fill="currentColor" stroke="none"/><path d="M3.41,10.86l-1.66,1.12c0.76,1.12,2.07,2.02,3.78,2.58l0.62-1.9c-1.28-0.42-2.23-1.05-2.74-1.8Z" fill="currentColor" stroke="none"/><path d="M18.84,10.93l1.03,1.72c0.35-0.210.69-0.43,1-0.660.03-0.20.05-0.470.19-0.58s0.41-0.080.64-0.08c0.58-0.51,1.07-1.04,1.45-1.59l-1.63-1.15c-0.590.83-1.51,1.64-2.68,2.34Z" fill="currentColor" stroke="none"/><path d="M24.14,5.87c-0.2-1.06-0.82-2.03-1.77-2.8l-1.25,1.56c0.590.470.95,1.02,1.07,1.620.030.150.040.290.040.44,0,0.16-0.020.32-0.050.48l1.960.39c0.05-0.290.08-0.590.08-0.87s-0.03-0.55-0.08-0.82Z" fill="currentColor" stroke="none"/><path d="M10.16,13.23c-0.73-0.01-1.52-0.05-2.22-0.16l-0.3,1.98c0.80.12,1.640.18,2.490.18h0.03c0.56,0,1.13-0.03,1.71-0.08l-0.18-1.99c-0.520.05-1.030.07-1.530.07Z" fill="currentColor" stroke="none"/><path d="M14.52,12.65c-0.320.08-0.630.17-0.950.24l0.38,1.96c0.2-0.040.38-0.10.57-0.14v-2.05Z" fill="currentColor" stroke="none"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="lasso-magnetic">lasso-magnetic</div>
+      </article>
+      <article class="icon-card" aria-label="layer-add">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(1, 1) scale(1.3374, 1.3374)"><g><path d="M8.98 15.68L8.98 0.77C8.98 0.35 8.64 0 8.22 0C7.8 0 7.46 0.35 7.46 0.77L7.46 15.68C7.46 16.09 7.8 16.45 8.22 16.45C8.64 16.45 8.98 16.09 8.98 15.68ZM0.77 8.98L15.68 8.98C16.09 8.98 16.45 8.64 16.45 8.23C16.45 7.8 16.09 7.46 15.68 7.46L0.77 7.46C0.35 7.46 0 7.8 0 8.23C0 8.64 0.35 8.98 0.77 8.98Z" fill="currentColor" fill-opacity="1" stroke="currentColor" stroke-width="1"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="layer-add">layer-add</div>
+      </article>
+      <article class="icon-card" aria-label="layer-delete">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(-2.4, -2.4) scale(1.2, 1.2)"><g id="Layer_2"><g><path d="M9.24,19.29c-0.3,0-0.5-0.19-0.51-0.48L8.45,8.71c-0.01-0.29,0.19-0.48,0.5-0.48c0.28,0,0.49,0.18,0.5,0.47l0.3,10.11C9.76,19.09,9.55,19.29,9.24,19.29zM12,19.29c-0.3,0-0.52-0.2-0.52-0.48V8.71c0-0.29,0.22-0.48,0.52-0.48c0.3,0,0.52,0.19,0.52,0.48v10.1C12.52,19.09,12.3,19.29,12,19.29zM14.76,19.29c-0.31,0-0.5-0.2-0.5-0.48l0.29-10.11c0.01-0.29,0.22-0.48,0.5-0.48c0.31,0,0.5,0.19,0.5,0.48l-0.29,10.1C15.25,19.11,15.06,19.29,14.76,19.29zM8.1,6.01h1.23V4.08c0-0.56,0.39-0.92,0.99-0.92h3.35c0.6,0,0.99,0.36,0.99,0.92v1.93h1.23v-2c0-1.25-0.81-2.01-2.14-2.01h-3.49C8.92,2,8.1,2.76,8.1,4.01V6.01zM3.9,6.61h16.2c0.32,0,0.58-0.27,0.58-0.58c0-0.32-0.26-0.59-0.58-0.59H3.9c-0.31,0-0.58,0.27-0.58,0.59C3.32,6.36,3.59,6.61,3.9,6.61zM7.89,22h8.23c1.2,0,2.05-0.82,2.11-2.02L18.9,6.43H5.11l0.67,13.55C5.83,21.19,6.67,22,7.89,22z" fill="currentColor" stroke="none"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="layer-delete">layer-delete</div>
+      </article>
+      <article class="icon-card" aria-label="layer-move-down">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(3.2174, 1) scale(1.1609, 1.1609)"><g><path d="M7.56 18.95C7.77 18.95 7.97 18.86 8.13 18.69L14.89 11.93C15.05 11.76 15.13 11.59 15.13 11.38C15.13 10.95 14.81 10.63 14.39 10.63C14.19 10.63 13.98 10.7 13.85 10.84L11.08 13.58L7.55 17.39L4.05 13.58L1.27 10.84C1.14 10.7 0.94 10.63 0.73 10.63C0.31 10.63 0 10.95 0 11.38C0 11.59 0.07 11.76 0.23 11.93L6.99 18.69C7.16 18.86 7.35 18.95 7.56 18.95ZM7.56 18C7.96 18 8.23 17.72 8.23 17.32L8.32 14.49L8.32 0.75C8.32 0.31 8.01 0 7.56 0C7.12 0 6.8 0.31 6.8 0.75L6.8 14.49L6.89 17.33C6.89 17.72 7.16 18 7.56 18Z" fill="currentColor" fill-opacity="1" stroke="currentColor" stroke-width="1"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="layer-move-down">layer-move-down</div>
+      </article>
+      <article class="icon-card" aria-label="layer-move-up">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(3.2174, 1) scale(1.1609, 1.1609)"><g><path d="M0.73 8.31C0.94 8.31 1.14 8.24 1.27 8.11L4.05 5.37L7.55 1.55L11.08 5.37L13.85 8.11C13.98 8.24 14.19 8.31 14.39 8.31C14.81 8.31 15.13 7.99 15.13 7.56C15.13 7.36 15.05 7.19 14.89 7.02L8.13 0.26C7.97 0.09 7.77 0 7.56 0C7.35 0 7.16 0.09 6.99 0.26L0.23 7.02C0.07 7.19 0 7.36 0 7.56C0 7.99 0.31 8.31 0.73 8.31ZM7.56 18.95C8.01 18.95 8.32 18.63 8.32 18.2L8.32 4.45L8.23 1.63C8.23 1.23 7.96 0.95 7.56 0.95C7.16 0.95 6.89 1.23 6.89 1.62L6.8 4.45L6.8 18.2C6.8 18.63 7.12 18.95 7.56 18.95Z" fill="currentColor" fill-opacity="1" stroke="currentColor" stroke-width="1"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="layer-move-up">layer-move-up</div>
+      </article>
+      <article class="icon-card" aria-label="layer-visibility-off">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_6" x="0px" y="0px" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(-2.4, -2.4028) scale(1.2, 1.2)"><g><g><path d="M15.44,10.91C15.2,11.54,14.59,12,13.87,12c-0.93,0-1.68-0.75-1.68-1.68c0-0.79,0.54-1.45,1.28-1.63c-0.45-0.2-0.94-0.31-1.46-0.31C10,8.38,8.38,10,8.38,12S10,15.62,12,15.62S15.62,14,15.62,12C15.62,11.62,15.55,11.25,15.44,10.91z" fill="currentColor" stroke="none"/></g><g><path d="M9.96,7.16c0.63-0.26,1.31-0.41,2.04-0.41c2.9,0,5.25,2.35,5.25,5.25c0,0.72-0.15,1.41-0.41,2.04l2.06,2.06c1.15-1.07,2.21-2.43,3.1-4.09c-3.28-6.14-8.72-8.21-13.48-6.29L9.96,7.16z" fill="currentColor" stroke="none"/><path d="M16.35,14.95c-0.95,1.39-2.54,2.3-4.35,2.3c-2.9,0-5.25-2.35-5.25-5.25c0-1.81,0.91-3.4,2.3-4.35l-1.5-1.5C5.43,7.28,3.49,9.21,2,12c3.91,7.31,10.88,8.87,16.13,4.74L16.35,14.95z" fill="currentColor" stroke="none"/></g><rect x="16.26" y="11.71" transform="matrix(0.7071 -0.7071 0.7071 0.7071 -7.1513 17.2646)" fill="currentColor" stroke="none"/><rect x="6" y="1.07" transform="matrix(0.7071 -0.7071 0.7071 0.7071 -2.9002 7.0017)" fill="currentColor" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="layer-visibility-off">layer-visibility-off</div>
+      </article>
+      <article class="icon-card" aria-label="layer-visibility-on">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_7" x="0px" y="0px" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(-2.4, -2.4) scale(1.2, 1.2)"><g><g><path d="M2,12c5,9.34,15,9.34,20,0C17,2.66,7,2.66,2,12zM12,17.25c-2.9,0-5.25-2.35-5.25-5.25S9.1,6.75,12,6.75S17.25,9.1,17.25,12S14.9,17.25,12,17.25z" fill="currentColor" stroke="none"/></g><g><path d="M15.44,10.91C15.2,11.54,14.59,12,13.87,12c-0.93,0-1.68-0.75-1.68-1.68c0-0.79,0.54-1.45,1.28-1.63c-0.45-0.2-0.94-0.31-1.46-0.31C10,8.38,8.38,10,8.38,12S10,15.62,12,15.62S15.62,14,15.62,12C15.62,11.62,15.55,11.25,15.44,10.91z" fill="currentColor" stroke="none"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="layer-visibility-on">layer-visibility-on</div>
+      </article>
+      <article class="icon-card" aria-label="logo-opsin">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" viewBox="0 0 1024 1024" data-native-w="1024" data-native-h="1024"><g id="ink-wrapper"><path d="M1023.9,372.9c0-14.2,0-28.5-0.1-42.7,0-12-0.2-24-0.5-36-0.7-26.1-2.2-52.5-6.9-78.3-4.7-26.2-12.4-50.6-24.5-74.4-11.9-23.4-27.5-44.8-46.1-63.4-18.6-18.6-40-34.2-63.4-46.1-23.8-12.1-48.2-19.8-74.4-24.5-25.8-4.7-52.2-6.2-78.3-6.9-12-0.3-24-0.4-36-0.5-14.2-0.1-28.5-0.1-42.7-0.1h-278c-14.2,0-28.5,0-42.80.1-12,0-24,0.2-36,0.5-26.10.7-52.5,2.2-78.3,6.9-26.2,4.7-50.6,12.4-74.4,24.5-23.4,11.9-44.8,27.5-63.4,46.1-18.6,18.6-34.1,40-46.1,63.5-12.1,23.8-19.8,48.2-24.5,74.4-4.7,25.8-6.2,52.2-6.9,78.3-0.3,12-0.4,24-0.5,36-0.1,14.2-0.1,28.5-0.1,42.7v278c0,14.2,0,28.50.1,42.7,0,12,0.2,24,0.5,36,0.7,26.1,2.2,52.5,6.9,78.3,4.7,26.3,12.4,50.7,24.6,74.4,11.9,23.4,27.5,44.8,46.1,63.4,18.6,18.6,40,34.2,63.4,46.1,23.8,12.1,48.2,19.8,74.4,24.5,25.8,4.7,52.2,6.2,78.3,6.9,12,0.3,24,0.4,36,0.5,14.20.1,28.50.1,42.70.1h278.1c14.2,0,28.5,0,42.7-0.1,12,0,24-0.2,36-0.5,26.1-0.7,52.5-2.2,78.3-6.9,26.2-4.7,50.6-12.4,74.4-24.5,23.4-11.9,44.8-27.5,63.4-46.1s34.2-40,46.1-63.4c12.1-23.8,19.8-48.2,24.5-74.4,4.7-25.8,6.2-52.2,6.9-78.30.3-12,0.4-24,0.5-36,0.1-14.20.1-28.50.1-42.7h-0.1v-278.1Z" fill="#18251f" stroke="none"/><path d="M753.18,932.66h-482.35c-99.05,0-179.48-80.32-179.48-179.38v-482.46c0-99.05,80.32-179.48,179.48-179.48h482.46c99.05,0,179.38,80.32,179.38,179.48v482.46c0,99.05-80.32,179.38-179.48,179.38Z" fill="#002027" stroke="none"/><path d="M760.3,108.5c41.45,0,80.42,16.15,109.73,45.47s45.47,68.29,45.47,109.73v496.6c0,41.45-16.15,80.42-45.47,109.73s-68.29,45.47-109.73,45.47h-496.6c-41.45,0-80.42-16.15-109.73-45.47s-45.47-68.29-45.47-109.73v-496.6c0-41.45,16.15-80.42,45.47-109.73s68.29-45.47,109.73-45.47h496.6M760.3,83.5h-496.6c-99.5,0-180.2,80.7-180.2,180.2v496.6c0,99.5,80.7,180.2,180.2,180.2h496.6c99.5,0,180.2-80.7,180.2-180.2v-496.6c0-99.5-80.7-180.2-180.2-180.2h0Z" fill="#007a3d" stroke="none"/><path d="M198.1,512c156.9-292.2,470.8-292.2,627.7,0-156.9,292.2-470.7,292.2-627.7,0" fill="none" stroke="#767676" stroke-linecap="round" stroke-linejoin="round" stroke-width="61"/><path d="M512,761.6h0c-65.5,0-130.7-20.8-188.7-60-60.4-40.9-111.5-99.8-152-175.2-4.8-9-4.8-19.9,0-28.9,40.5-75.4,91.6-134.3,152-175.2,58-39.3,123.3-60,188.7-60s130.7,20.8,188.7,60c60.4,40.9,111.5,99.8,152,175.2,4.8,9,4.8,19.9,0,28.9-40.5,75.4-91.6,134.3-152,175.2-58,39.3-123.2,60-188.7,60ZM198.1,520c34.3,59.6,103,126.4,151.3,159.1,47.9,32.4,113.6,52,166.9,52s120.3-31.3,168.2-63.7c48.3-32.7,98.1-95.8,132.4-155.4-34.3-59.6-74.1-120.4-122.4-153.1-47.9-32.4-117.3-55.5-170.5-55.5s-134.7,15.5-182.5,48c-48.3,32.6-109,109-143.4,168.6Z" fill="#c4c4c4" stroke="none"/><path d="M198.1,512c156.9-292.2,470.8-292.2,627.7,0-156.9,292.2-470.7,292.2-627.7,0" fill="none" stroke="#999" stroke-linecap="round" stroke-linejoin="round" stroke-width="40"/><path d="M522.1,375.3c89.6,0,97.8,42.3,97.8,136.7,0,100.5-13.8,129.4-97.8,129.4-90.5,0-105.4-35-105.4-129.40.1-100.5,20.1-136.7,105.4-136.7ZM516.1,593.8c31.2,0,47.2-21.2,47.2-84.4,0-51.5-10.8-84.4-47.2-84.4-30.7,0-46.8,25.5-46.8,84.40.1,55.4,13.5,84.4,46.8,84.4Z" fill="none" stroke="#767676" stroke-miterlimit="10" stroke-width="23"/><path d="M516.1,351.3c89.6,0,133.8,63.6,133.8,158,0,100.5-49.8,158-133.8,158-90.5,0-133.4-63.7-133.4-158,0.1-100.4,48.1-158,133.4-158ZM512,617.8c31.2,0,77.3-42.6,77.3-105.8,0-51.5-40.9-113.1-77.3-113.1-30.7,0-76.7,54.2-76.7,113,0.1,55.5,43.4,105.9,76.7,105.9Z" fill="#c4c4c4" stroke="#c4c4c4" stroke-miterlimit="10" stroke-width="14"/><path d="M516.1,355c87.6,0,130.7,62.2,130.7,154.4,0,98.1-48.6,154.4-130.7,154.4-88.4,0-130.3-62.2-130.3-154.4,0-98.2,47-154.4,130.3-154.4ZM516.1,591.9c30.5,0,46.1-20.7,46.1-82.5,0-50.3-10.6-82.5-46.1-82.5-30,0-45.7,25-45.7,82.5,0,54.1,13.1,82.5,45.7,82.5Z" fill="#999" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="logo-opsin">logo-opsin</div>
+      </article>
+      <article class="icon-card" aria-label="magic-wand">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(2.1391, 2.0004) scale(1.0179, 1.0179)"><g><path d="M13.98 7.45C14.12 7.45 14.22 7.36 14.25 7.23C14.7 4.84 15.05 4.35 17.47 3.99C17.61 3.97 17.7 3.87 17.7 3.73C17.7 3.59 17.61 3.48 17.47 3.46C15.05 3.1 14.62 2.58 14.25 0.25C14.22 0.09 14.12 0 13.98 0C13.84 0 13.73 0.09 13.71 0.24C13.26 2.61 12.9 3.1 10.49 3.46C10.34 3.48 10.25 3.59 10.25 3.73C10.25 3.87 10.34 3.96 10.49 3.99C12.9 4.35 13.33 4.83 13.71 7.22C13.73 7.36 13.82 7.45 13.98 7.45ZM2.75 15.53C2.89 15.53 2.97 15.45 2.99 15.31C3.27 13.49 3.27 13.31 5.28 13.02C5.42 13 5.51 12.91 5.51 12.78C5.51 12.65 5.42 12.56 5.28 12.54C3.27 12.24 3.27 12.07 2.99 10.25C2.97 10.12 2.89 10.02 2.75 10.02C2.62 10.02 2.53 10.12 2.51 10.25C2.23 12.07 2.23 12.24 0.22 12.54C0.09 12.56 0 12.65 0 12.78C0 12.91 0.09 13 0.22 13.02C2.23 13.31 2.23 13.49 2.51 15.31C2.53 15.45 2.62 15.53 2.75 15.53ZM6.13 18.47C6.23 18.47 6.3 18.39 6.32 18.29C6.5 17.19 6.47 17.09 7.77 16.84C7.88 16.82 7.95 16.74 7.95 16.64C7.95 16.54 7.88 16.47 7.77 16.45C6.48 16.2 6.52 16.11 6.32 14.99C6.3 14.89 6.22 14.82 6.13 14.82C6.02 14.82 5.95 14.89 5.93 15.01C5.71 16.11 5.77 16.23 4.48 16.45C4.38 16.47 4.3 16.53 4.3 16.64C4.3 16.74 4.38 16.82 4.48 16.84C5.77 17.09 5.71 17.19 5.93 18.29C5.95 18.39 6.02 18.47 6.13 18.47Z" fill="currentColor" fill-opacity="1" stroke="none"/><path d="M17.65 19.34C18.05 19.76 18.7 19.74 19.08 19.34C19.47 18.94 19.48 18.34 19.07 17.91L6.09 4.94C5.69 4.53 5.03 4.54 4.66 4.94C4.27 5.34 4.27 5.95 4.66 6.36ZM8.66 9.4L5.26 5.99C5.13 5.86 5.13 5.67 5.26 5.54C5.38 5.41 5.59 5.41 5.72 5.54L9.12 8.95Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="magic-wand">magic-wand</div>
+      </article>
+      <article class="icon-card" aria-label="menu-refresh">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.25 -1.25 20.15 24.05"><path d="M8.82 21.55c4.88 0 8.83-3.95 8.83-8.84 0-.37-.31-.69-.7-.69-.37 0-.69.31-.69.69 0 4.11-3.34 7.45-7.44 7.45-4.11 0-7.44-3.34-7.44-7.45 0-4.11 3.33-7.44 7.44-7.44.96 0 1.88.18 2.71.52.45.17.96-.08.97-.6.02-.43-.27-.61-.52-.7A8.72 8.72 0 008.82 3.9C3.95 3.9 0 7.85 0 12.73c0 4.87 3.95 8.83 8.82 8.83zm2.9-16.48L7.86 8.93c-.14.13-.2.3-.2.49 0 .39.29.7.68.7.21 0 .37-.08.5-.2l4.24-4.28c.17-.19.24-.36.24-.56 0-.19-.09-.38-.24-.55L8.84.22A.65.65 0 008.34 0c-.38 0-.68.32-.68.71 0 .18.05.37.19.5z" fill="currentColor" stroke="currentColor" stroke-width=".5"/></svg>
+        </div>
+        <div class="icon-name" title="menu-refresh">menu-refresh</div>
+      </article>
+      <article class="icon-card" aria-label="merge-layers">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="Layer_1" x="0px" y="0px" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><path fill-rule="evenodd" clip-rule="evenodd" fill="#8E8E93" stroke="#8E8E93" stroke-width="2" stroke-miterlimit="10" id="Shape_1_copy" d="M22,0v7c0,1.6-1.3,3-3,3H5c-1.7,0-3-1.3-3-3V0" fill-opacity="0.25"/><path fill-rule="evenodd" clip-rule="evenodd" fill="#8E8E93" stroke="#8E8E93" stroke-width="2" stroke-miterlimit="10" id="Shape_1_copy_2" d="M2,24v-7c0-1.6,1.3-3,3-3h14c1.7,0,3,1.3,3,3v7" fill-opacity="0.25"/><g><path stroke="#EBEBEB" stroke-miterlimit="10" d="M12,22.8c0.2,0,0.4-0.1,0.6-0.3l5.2-5.2C18,17.1,18,17,18,16.8c0-0.4-0.3-0.8-0.7-0.8c-0.2,0-0.4,0.1-0.6,0.2l-1.2,1.1L12,21.2l-3.6-3.9l-1.2-1.2C7.1,16,6.9,16,6.7,16c-0.4,0-0.7,0.3-0.7,0.8c0,0.2,0.1,0.4,0.2,0.6l5.3,5.3C11.6,22.7,11.8,22.8,12,22.8zM12,21.8c0.4,0,0.7-0.3,0.7-0.7l0.1-2.9v-14c0-0.4-0.3-0.8-0.8-0.8s-0.8,0.3-0.8,0.8v14l0.1,2.9C11.3,21.5,11.6,21.8,12,21.8z" fill="#EBEBEB" stroke-width="1"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="merge-layers">merge-layers</div>
+      </article>
+      <article class="icon-card" aria-label="move">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><path d="M22.85,10.02L1.46,1.03c-0.28-0.12-0.550.16-0.440.44l9,21.39c0.080.180.320.20.480.04l3.46-8.62c0.06-0.140.17-0.260.31-0.31l8.62-3.46c0.16-0.160.14-0.4-0.04-0.48Z" fill="currentColor" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/></g></svg>
+        </div>
+        <div class="icon-name" title="move">move</div>
+      </article>
+      <article class="icon-card" aria-label="move-selection">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><path d="M22.85,10.02L1.46,1.03c-0.28-0.12-0.550.16-0.440.44l9,21.39c0.080.180.320.20.480.04l3.46-8.62c0.06-0.140.17-0.260.31-0.31l8.62-3.46c0.16-0.160.14-0.4-0.04-0.48Z" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/></g></svg>
+        </div>
+        <div class="icon-name" title="move-selection">move-selection</div>
+      </article>
+      <article class="icon-card" aria-label="pan">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 18.91 23.31"><path d="M7.99 21.31c3.19 0 5.27-1.41 6.56-4.4.7-1.51 1.26-3.26 1.84-5.23.22-.72.52-1.6.52-2.01 0-.53-.39-.87-.93-.87-.57 0-.93.34-1.34 1.2l-1.36 2.99c-.16.36-.34.48-.53.48-.23 0-.45-.14-.4-.55l1.18-10.29c.07-.64-.35-1.01-.82-1.1-.52-.09-1.09.16-1.19.78L10.28 9.95c-.29-.11-.6-.21-.94-.27V.99C9.35.44 8.89 0 8.32 0 7.75 0 7.28.44 7.28.99v8.57c-.34.03-.7.07-1.02.13l-.99-7.63c-.09-.67-.63-.93-1.15-.85-.49.07-.95.48-.87 1.12l.95 8.02c-.36.16-.67.35-.95.55L2.01 4.8c-.13-.64-.67-.88-1.16-.8-.48.09-.92.49-.84 1.16l1.17 9.16c.58 4.45 2.91 7 6.81 7z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="pan">pan</div>
+      </article>
+      <article class="icon-card" aria-label="pencil">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -0.95 18.03 17.94"><path d="M2.6 15.04L13.87 3.79l-1.6-1.61L1 13.43l-.98 2.16c-.09.22.16.47.38.37zm12.1-12.06l.95-.94c.48-.48.51-.99.08-1.42l-.28-.28c-.42-.42-.94-.38-1.41.09l-.95.94z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="pencil">pencil</div>
+      </article>
+      <article class="icon-card" aria-label="redo">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(2, 2.2005) scale(1.0554, 1.0554)"><g><path d="M18.95 6.73C18.95 6.52 18.87 6.32 18.7 6.16L12.71 0.25C12.56 0.1 12.35 0.02 12.16 0.02C11.7 0.02 11.41 0.33 11.41 0.77C11.41 0.98 11.48 1.16 11.61 1.29L14.7 4.32L17.44 6.73L14.7 9.13L11.61 12.16C11.48 12.3 11.41 12.47 11.41 12.69C11.41 13.13 11.7 13.44 12.16 13.44C12.35 13.44 12.56 13.35 12.71 13.2L18.7 7.3C18.87 7.13 18.95 6.94 18.95 6.73ZM10.2 17.8C10.2 17.38 9.9 17.04 9.43 17.04L6.83 17.04C3.41 17.04 1.52 15.01 1.52 12.21C1.52 9.41 3.41 7.48 6.83 7.48L14.34 7.48L17.49 7.37C17.84 7.35 18.13 7.08 18.13 6.73C18.13 6.38 17.84 6.1 17.49 6.09L14.34 5.97L6.95 5.97C2.56 5.97 0 8.54 0 12.29C0 16.05 2.51 18.55 6.81 18.55L9.43 18.55C9.89 18.55 10.2 18.21 10.2 17.8Z" fill="currentColor" fill-opacity="1" stroke="currentColor" stroke-width="1"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="redo">redo</div>
+      </article>
+      <article class="icon-card" aria-label="rotate">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g id="ink-wrapper" transform="translate(0.01, 2.285) scale(1, 1)"><g id="Layer 1"><path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5" id="Shape 3" fill-rule="evenodd" d="m21.2 15.61h-18.42l18.42-11.79"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="rotate">rotate</div>
+      </article>
+      <article class="icon-card" aria-label="ruler-tool">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><g id="Layer_2"><rect x="8.27" y=".16" transform="translate(12 28.97) rotate(-135)" fill="none" stroke="currentColor" stroke-miterlimit="10"/></g><g id="Layer_3"><line x1="14.64" y1="14.64" x2="12" y2="12" fill="none" stroke="currentColor" stroke-miterlimit="10"/><line x1="10.45" y1="18.82" x2="7.81" y2="16.19" fill="none" stroke="currentColor" stroke-miterlimit="10"/><line x1="18.82" y1="10.45" x2="16.19" y2="7.81" fill="none" stroke="currentColor" stroke-miterlimit="10"/><line x1="16.73" y1="12.54" x2="15.41" y2="11.23" fill="none" stroke="currentColor" stroke-miterlimit="10"/><line x1="20.92" y1="8.36" x2="19.6" y2="7.04" fill="none" stroke="currentColor" stroke-miterlimit="10"/><line x1="12.54" y1="16.73" x2="11.23" y2="15.41" fill="none" stroke="currentColor" stroke-miterlimit="10"/><line x1="8.36" y1="20.92" x2="7.04" y2="19.6" fill="none" stroke="currentColor" stroke-miterlimit="10"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="ruler-tool">ruler-tool</div>
+      </article>
+      <article class="icon-card" aria-label="select-ellipse">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 22.35 22.35"><path d="M1.46094 10.1797C1.46094 9.21875 1.61719 8.28906 1.90625 7.4375L0.554688 6.875C0.203125 7.91406 0 9.02344 0 10.1797C0 11.3281 0.203125 12.4453 0.5625 13.4844L1.90625 12.9219C1.625 12.0703 1.46094 11.1406 1.46094 10.1797ZM6.25781 2.375L5.70312 1.0625C3.6875 2.05469 2.03906 3.70312 1.04688 5.71875L2.375 6.28125C3.21094 4.59375 4.57812 3.22656 6.25781 2.375ZM10.1641 1.46094C11.125 1.46094 12.0547 1.61719 12.9219 1.90625L13.4688 0.570312C12.4297 0.203125 11.3203 0 10.1641 0C9.01562 0 7.89062 0.203125 6.85156 0.570312L7.41406 1.90625C8.28125 1.60938 9.20312 1.46094 10.1641 1.46094ZM17.9688 6.27344L19.2969 5.71875C18.2969 3.69531 16.6406 2.04688 14.625 1.04688L14.0703 2.375C15.7578 3.21875 17.125 4.57812 17.9688 6.27344ZM18.8906 10.1797C18.8906 11.1406 18.7344 12.0703 18.4531 12.9297L19.7812 13.4922C20.1484 12.4531 20.3516 11.3281 20.3516 10.1797C20.3516 9.02344 20.1484 7.90625 19.7812 6.86719L18.4531 7.42969C18.7422 8.28906 18.8906 9.21875 18.8906 10.1797ZM14.0703 17.9766L14.625 19.3047C16.6484 18.3047 18.3047 16.6562 19.2891 14.6406L17.9766 14.0859C17.1328 15.7734 15.7656 17.1406 14.0703 17.9766ZM10.1719 18.8984C9.20312 18.8984 8.28125 18.7422 7.41406 18.4453L6.85938 19.7891C7.89844 20.1484 9.02344 20.3516 10.1719 20.3516C11.3281 20.3516 12.4375 20.1562 13.4766 19.7969L12.9141 18.4609C12.0469 18.7422 11.1328 18.8984 10.1719 18.8984ZM2.38281 14.0859L1.04688 14.6406C2.04688 16.6562 3.69531 18.3047 5.71094 19.2969L6.25781 17.9688C4.57812 17.1328 3.21094 15.7656 2.38281 14.0859Z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="select-ellipse">select-ellipse</div>
+      </article>
+      <article class="icon-card" aria-label="select-rect">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 20.37 20.36"><path d="M0 5.31h1.38V3.1c0-1.12.6-1.7 1.69-1.7h2.2V0H3.04C1.02 0 0 1.03 0 3.03zm6.51-3.9h5.34V0H6.51zm10.48 3.9h1.38V3.03c0-1.99-1.03-3.01-3.05-3.01h-2.22v1.38h2.2c1.07 0 1.69.58 1.69 1.7zM16.98 11.84h1.38V6.56h-1.38zm-3.88 6.54h2.22c2.02 0 3.05-1.02 3.05-3.01v-2.28h-1.38v2.21c0 1.12-.62 1.7-1.69 1.7h-2.2zm-6.6 0h5.35V17H6.51zM3.04 18.38h2.22V17H3.07c-1.09 0-1.7-.58-1.7-1.7v-2.21H0v2.28c0 2 1.02 3.01 3.04 3.01zM0 11.84h1.38V6.56H0z" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="select-rect">select-rect</div>
+      </article>
+      <article class="icon-card" aria-label="settings-gear">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper"><g id="Layer_3"><circle cx="12" cy="12" r="6.3" opacity=".3" fill="currentColor" stroke="none"/></g><g id="Layer_4_copy"><path d="M22.73,9.83l-2.43-0.58c-0.14-0.42-0.31-0.8-0.45-1.15l1.3-2.14c0.32-0.510.29-1.04-0.13-1.47l-1.5-1.48c-0.42-0.39-0.93-0.48-1.44-0.16l-2.15,1.34c-0.36-0.18-0.75-0.32-1.16-0.47l-0.58-2.45c-0.13-0.6-0.56-0.95-1.16-0.95h-2.1c-0.6,0-1.010.34-1.160.95l-0.57,2.44c-0.40.13-0.80.29-1.170.47l-2.14-1.32c-0.51-0.32-1.04-0.24-1.450.16l-1.49,1.48c-0.430.43-0.470.96-0.14,1.47l1.3,2.14c-0.130.35-0.30.72-0.43,1.15l-2.430.58c-0.60.14-0.930.56-0.93,1.15v2.08c0,0.60.33,1.010.93,1.16l2.440.57c0.120.390.280.770.45,1.15l-1.3,2.1c-0.350.51-0.28,1.080.13,1.49l1.48,1.47c0.410.420.970.47,1.470.16l2.13-1.31c0.370.160.760.31,1.160.46l0.57,2.43c0.140.60.560.95,1.160.95h2.1c0.6,0,1.02-0.35,1.16-0.95l0.58-2.43c0.4-0.140.8-0.3,1.16-0.46l2.11,1.31c0.510.31,1.070.27,1.47-0.16l1.48-1.47c0.42-0.410.48-0.980.14-1.49l-1.31-2.1c0.17-0.380.32-0.760.45-1.15l2.45-0.57c0.6-0.140.92-0.560.92-1.16v-2.08c0-0.59-0.32-1-0.92-1.15ZM12,18.78c-3.75,0-6.78-3.04-6.78-6.78s3.04-6.78,6.78-6.78,6.78,3.04,6.78,6.78-3.04,6.78-6.78,6.78Z" fill="currentColor" stroke="none"/></g><g id="Layer_4"><circle cx="12" cy="12" r="6.78" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="4"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="settings-gear">settings-gear</div>
+      </article>
+      <article class="icon-card" aria-label="pen">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24"><g id="ink-wrapper" transform="translate(-1.176, -1.1734) scale(1.0763, 1.0763)"><g id="Layer_4"><g><rect x="14.34" y="16.91" rx="1.16" ry="1.16" transform="translate(-7.48 18.07) rotate(-45)" fill="currentColor" stroke="none"/><path d="M14.94,7.34L4.94,3.05c-0.43-0.18-0.91-0.11-1.280.17l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L3.22,3.66c-0.280.37-0.350.85-0.17,1.28l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="pen">pen</div>
+      </article>
+      <article class="icon-card" aria-label="pen-edit-cursor">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24"><g id="ink-wrapper"><g id="Layer_4"><g><rect x="11.39" y="13.96" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="currentColor" stroke="none"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="pen-edit-cursor">pen-edit-cursor</div>
+      </article>
+      <article class="icon-card" aria-label="pen-add-cursor">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24"><g id="ink-wrapper"><g id="Layer_4"><g><rect x="11.39" y="13.96" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="currentColor" stroke="none"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/><line x1="19.07" y1="16.2" x2="23.36" y2="16.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="21.21" y1="18.34" x2="21.21" y2="14.05" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="pen-add-cursor">pen-add-cursor</div>
+      </article>
+      <article class="icon-card" aria-label="pen-minus-cursor">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24"><g id="ink-wrapper"><g id="Layer_4"><g><rect x="11.39" y="13.96" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="currentColor" stroke="none"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="currentColor" stroke="none"/><line x1="19.07" y1="16.2" x2="23.36" y2="16.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="pen-minus-cursor">pen-minus-cursor</div>
+      </article>
+      <article class="icon-card" aria-label="shape">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(-5.3356, -5.3356) scale(0.034, 0.034)"><g id="Layer_2"><g><g><g><g><path fill="none" stroke="currentColor" stroke-width="32.826" stroke-miterlimit="10" d="M522.47,728.62c-34.8,42.02-87.32,68.93-146.4,68.93c-104.71,0-189.73-85.02-189.73-189.73s85.02-189.73,189.73-189.73c78.45,0,146.08,47.93,174.96,115.88"/><path fill="none" stroke="currentColor" stroke-width="32.826" stroke-miterlimit="10" d="M635.39,396.42L447.3,722.38c-1.97,3.61,0.66,7.88,4.6,7.88h376.51c3.94,0,6.57-4.27,4.6-7.88L644.58,396.42C642.61,392.81,637.69,392.81,635.39,396.42z"/><path fill="none" stroke="currentColor" stroke-width="32.826" stroke-miterlimit="10" d="M330.76,424v-23.96V237.54c0-8.21,6.89-15.1,15.1-15.1h355.51c8.21,0,15.1,6.89,15.1,15.1v281.65"/></g></g></g></g></g></g></svg>
+        </div>
+        <div class="icon-name" title="shape">shape</div>
+      </article>
+      <article class="icon-card" aria-label="shape-ellipse">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(1.0737, 1.0737) scale(1.0737, 1.0737)"><g><path d="M10.17 20.35C15.79 20.35 20.35 15.8 20.35 10.18C20.35 4.56 15.79 0 10.17 0C4.55 0 0 4.56 0 10.18C0 15.8 4.55 20.35 10.17 20.35ZM10.17 18.9C5.35 18.9 1.45 15 1.45 10.18C1.45 5.36 5.35 1.46 10.17 1.46C14.99 1.46 18.89 5.36 18.89 10.18C18.89 15 14.99 18.9 10.17 18.9Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="shape-ellipse">shape-ellipse</div>
+      </article>
+      <article class="icon-card" aria-label="shape-line">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(1.2973, 1.2732) scale(1.2973, 1.2973)"><g><path d="M0.35 14.47C-0.12 14.93-0.12 15.69 0.34 16.16C0.81 16.63 1.59 16.64 2.05 16.17L16.16 2.07C16.62 1.61 16.61 0.83 16.16 0.37C15.7-0.1 14.91-0.1 14.45 0.36Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="shape-line">shape-line</div>
+      </article>
+      <article class="icon-card" aria-label="shape-rect">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(1.1767, 1.1767) scale(1.1784, 1.1784)"><g><path d="M3.04 18.37L15.32 18.37C17.34 18.37 18.37 17.34 18.37 15.36L18.37 3.02C18.37 1.02 17.34 0 15.32 0L3.04 0C1.02 0 0 1.02 0 3.02L0 15.36C0 17.36 1.02 18.37 3.04 18.37ZM3.07 16.98C1.98 16.98 1.38 16.41 1.38 15.28L1.38 3.09C1.38 1.97 1.98 1.38 3.07 1.38L15.3 1.38C16.37 1.38 16.98 1.97 16.98 3.09L16.98 15.28C16.98 16.41 16.37 16.98 15.3 16.98Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="shape-rect">shape-rect</div>
+      </article>
+      <article class="icon-card" aria-label="text">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" id="Layer_3" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(1.6907, 1.6907) scale(0.8591, 0.8591)"><rect x="10.5" y="1.86" fill="currentColor" stroke="none"/><rect x="2.04" y=".36" fill="currentColor" stroke="none"/><path d="M2.04,7.16c-0.83,0-1.5-0.67-1.5-1.5V1.86C0.54,1.03,1.210.36,2.040.36s1.50.67,1.5,1.5v3.8c0,0.83-0.67,1.5-1.5,1.5Z" fill="currentColor" stroke="none"/><path d="M21.96,7.16c-0.83,0-1.5-0.67-1.5-1.5V1.86c0-0.830.67-1.5,1.5-1.5s1.50.67,1.5,1.5v3.8c0,0.83-0.67,1.5-1.5,1.5Z" fill="currentColor" stroke="none"/><path d="M15.14,23.64h-6.28c-0.83,0-1.5-0.67-1.5-1.5s0.67-1.5,1.5-1.5h6.28c0.83,0,1.50.67,1.5,1.5s-0.67,1.5-1.5,1.5Z" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="text">text</div>
+      </article>
+      <article class="icon-card" aria-label="undo">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(2, 2.2005) scale(1.0554, 1.0554)"><g><path d="M0 6.73C0 6.94 0.08 7.13 0.25 7.3L6.23 13.2C6.38 13.35 6.6 13.44 6.79 13.44C7.24 13.44 7.54 13.13 7.54 12.69C7.54 12.47 7.47 12.3 7.34 12.16L4.25 9.13L1.51 6.73L4.25 4.32L7.34 1.29C7.47 1.16 7.54 0.98 7.54 0.77C7.54 0.33 7.24 0.02 6.79 0.02C6.6 0.02 6.38 0.1 6.23 0.25L0.25 6.16C0.08 6.32 0 6.52 0 6.73ZM8.74 17.8C8.74 18.21 9.05 18.55 9.52 18.55L12.13 18.55C16.45 18.55 18.95 16.05 18.95 12.29C18.95 8.54 16.39 5.97 12.01 5.97L4.61 5.97L1.46 6.09C1.1 6.1 0.82 6.38 0.82 6.73C0.82 7.08 1.1 7.35 1.46 7.37L4.61 7.48L12.12 7.48C15.53 7.48 17.43 9.41 17.43 12.21C17.43 15.01 15.53 17.04 12.12 17.04L9.52 17.04C9.05 17.04 8.74 17.38 8.74 17.8Z" fill="currentColor" fill-opacity="1" stroke="currentColor" stroke-width="1"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="undo">undo</div>
+      </article>
+      <article class="icon-card" aria-label="chain-linked">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 15.71 21.64"><g id="ink-wrapper"><path d="M2.19 19.64L11.52 19.64C12.92 19.64 13.71 18.83 13.71 17.33L13.71 10.22C13.71 8.73 12.92 7.91 11.52 7.91L2.19 7.91C0.78 7.91 0 8.73 0 10.22L0 17.33C0 18.83 0.78 19.64 2.19 19.64ZM1.79 8.58L3.16 8.58L3.16 5.38C3.16 2.78 4.81 1.3 6.85 1.3C8.89 1.3 10.55 2.78 10.55 5.38L10.55 8.58L11.93 8.58L11.93 5.55C11.93 1.91 9.55 0 6.85 0C4.16 0 1.79 1.91 1.79 5.55Z" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="chain-linked">chain-linked</div>
+      </article>
+      <article class="icon-card" aria-label="chain-unlinked">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 22.88 21.625"><g id="ink-wrapper"><path d="M2.19 19.63L11.52 19.63C12.92 19.63 13.71 18.82 13.71 17.32L13.71 10.21C13.71 8.71 12.92 7.91 11.52 7.91L2.19 7.91C0.78 7.91 0 8.71 0 10.21L0 17.32C0 18.82 0.78 19.63 2.19 19.63ZM10.75 8.57L12.12 8.57L12.12 5.38C12.12 2.78 13.77 1.3 15.81 1.3C17.86 1.3 19.52 2.78 19.52 5.38L19.52 7.61C19.52 8.11 19.82 8.37 20.2 8.37C20.57 8.37 20.88 8.13 20.88 7.61L20.88 5.54C20.88 1.91 18.52 0 15.81 0C13.12 0 10.75 1.91 10.75 5.54Z" fill="currentColor" stroke="none"/></g></svg>
+        </div>
+        <div class="icon-name" title="chain-unlinked">chain-unlinked</div>
+      </article>
+      <article class="icon-card" aria-label="flip-horizontal">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(3.393, 2) scale(0.8493, 0.8493)"><g><path d="M2.14 19.88L18.12 19.88C19.71 19.88 20.54 18.9 20.19 17.43L17.36 5.83C17.01 4.41 16.12 3.68 14.71 3.68L5.55 3.68C4.15 3.68 3.26 4.41 2.91 5.83L0.08 17.43C-0.27 18.9 0.55 19.88 2.14 19.88ZM10.15 23.55C9.73 23.55 9.48 23.29 9.48 22.86L9.48 0.7C9.48 0.27 9.73 0 10.15 0C10.54 0 10.79 0.27 10.79 0.7L10.79 22.86C10.79 23.29 10.54 23.55 10.15 23.55Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="flip-horizontal">flip-horizontal</div>
+      </article>
+      <article class="icon-card" aria-label="flip-vertical">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" data-native-w="24" data-native-h="24"><g id="ink-wrapper" transform="translate(2, 4.7829) scale(0.8319, 0.8319)"><g><path d="M6.28 15.36L17.4 17.29C19.23 17.61 20.43 16.62 20.43 14.82L20.43 2.54C20.43 0.73 19.23-0.26 17.4 0.06L6.28 2C4.55 2.29 3.61 3.29 3.61 4.8L3.61 12.55C3.61 14.05 4.55 15.06 6.28 15.36ZM0.69 9.33C0.26 9.33 0 9.08 0 8.68C0 8.27 0.26 8.02 0.69 8.02L23.35 8.02C23.78 8.02 24.04 8.27 24.04 8.68C24.04 9.08 23.78 9.33 23.35 9.33Z" fill="currentColor" fill-opacity="1" stroke="none"/></g></g></svg>
+        </div>
+        <div class="icon-name" title="flip-vertical">flip-vertical</div>
+      </article>
+      <article class="icon-card" aria-label="alert-triangle">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        </div>
+        <div class="icon-name" title="alert-triangle">alert-triangle</div>
+      </article>
+      <article class="icon-card" aria-label="canvas-expand">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="3" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2.5" opacity="0.55"/><rect x="11.5" y="11.5" rx="1.5" fill="currentColor" opacity="0.14" stroke="currentColor" stroke-width="1.4"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M8.5 8.5 L5 5"/><polyline points="5,9 5,5 9,5"/><path d="M31.5 8.5 L35 5"/><polyline points="31,5 35,5 35,9"/><path d="M8.5 31.5 L5 35"/><polyline points="9,35 5,35 5,31"/><path d="M31.5 31.5 L35 35"/><polyline points="35,31 35,35 31,35"/></g></svg>
+        </div>
+        <div class="icon-name" title="canvas-expand">canvas-expand</div>
+      </article>
+      <article class="icon-card" aria-label="canvas-keep">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="9.5" y="14.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.5"/><rect x="6.5" y="7.5" rx="1.5" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.4"/><g stroke="currentColor" stroke-width="1.2"><rect x="5" y="6" rx="0.5" fill="var(--surface)"/><rect x="27" y="6" rx="0.5" fill="var(--surface)"/><rect x="5" y="24" rx="0.5" fill="var(--surface)"/><rect x="27" y="24" rx="0.5" fill="var(--surface)"/></g></svg>
+        </div>
+        <div class="icon-name" title="canvas-keep">canvas-keep</div>
+      </article>
+      <article class="icon-card" aria-label="eyedropper-cursor">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.31,7.57l2.11,2.11l-4.29,4.29c-1.47,1.47-3.1,2.78-4.85,3.9L4.09,19.9l2.03-3.18c1.12-1.75,2.43-3.38,3.9-4.85L14.31,7.57M14.31,6.26l-4.95,4.95c-1.52,1.52-2.87,3.2-4.02,5.01l-3.2,5.01v0.62h0.62l5.01-3.2c1.81-1.16,3.49-2.5,5.01-4.02l4.95-4.95L14.31,6.26L14.31,6.26zM21.94,4.16c-0.22-1.04-1.05-1.87-2.09-2.09c-0.93-0.19-1.79,0.09-2.41,0.64l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.37-0.37-0.9-0.57-1.48-0.48c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.37,0.37,0.9,0.57,1.48,0.48c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0C21.85,5.95,22.13,5.09,21.94,4.16zM19.27,2.94c0.13,0,0.26,0.01,0.39,0.04c0.68,0.14,1.23,0.69,1.37,1.37c0.12,0.58-0.03,1.16-0.42,1.6l-0.05,0.06l-0.02,0.02l-1.95,1.95l-0.66,0.66l0.66,0.66l0.37,0.37c0.18,0.18,0.26,0.43,0.22,0.68c-0.05,0.32-0.32,0.59-0.64,0.64C18.49,11,18.44,11,18.4,11c-0.21,0-0.4-0.08-0.55-0.23l-4.64-4.64C13.04,5.96,12.96,5.71,13,5.46c0.05-0.32,0.32-0.59,0.64-0.64c0.04-0.01,0.09-0.01,0.13-0.01c0.21,0,0.4,0.08,0.55,0.23l0.4,0.4l0.66,0.66l0.66-0.66l1.95-1.95l0.09-0.08C18.4,3.11,18.83,2.94,19.27,2.94M19.27,2.01c-0.7,0-1.34,0.27-1.82,0.7l-0.01-0.01l-2.07,2.07l-0.4-0.4l0,0c-0.31-0.31-0.74-0.5-1.21-0.5c-0.09,0-0.18,0.01-0.27,0.02c-0.72,0.11-1.31,0.7-1.42,1.42c-0.09,0.58,0.11,1.11,0.48,1.48l0,0l4.64,4.64l0,0c0.31,0.31,0.74,0.5,1.21,0.5c0.09,0,0.18-0.01,0.27-0.02c0.72-0.11,1.31-0.7,1.42-1.42c0.09-0.58-0.11-1.11-0.48-1.48l0,0l-0.37-0.37l1.95-1.95c0.01-0.01,0.02-0.02,0.02-0.02l0.09-0.09l0,0c0.55-0.62,0.83-1.48,0.64-2.41c-0.22-1.04-1.05-1.87-2.09-2.09C19.65,2.03,19.46,2.01,19.27,2.01L19.27,2.01zM2.65,21.92l0.11-0.07l-0.62-0.62l-0.07,0.11C1.83,21.72,2.27,22.16,2.65,21.92z" fill="#f2f2f7" stroke="black" stroke-width="0.5"/></svg>
+        </div>
+        <div class="icon-name" title="eyedropper-cursor">eyedropper-cursor</div>
+      </article>
+      <article class="icon-card" aria-label="grid-2x2">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" rx="1"/><rect x="14" y="3" rx="1"/><rect x="3" y="14" rx="1"/><rect x="14" y="14" rx="1"/></svg>
+        </div>
+        <div class="icon-name" title="grid-2x2">grid-2x2</div>
+      </article>
+      <article class="icon-card" aria-label="image-landscape">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <div class="icon-name" title="image-landscape">image-landscape</div>
+      </article>
+      <article class="icon-card" aria-label="no-color">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="#e84d4d" stroke-width="1.6"/></svg>
+        </div>
+        <div class="icon-name" title="no-color">no-color</div>
+      </article>
+      <article class="icon-card" aria-label="pen-add-cursor-bw">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 27"><g><rect x="11.39" y="13.96" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="black" stroke="white" stroke-width="0.6"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4h-0.01Z" fill="black" stroke="white" stroke-width="0.6"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="white" stroke-width="2.6" stroke-linecap="round"/><line x1="22.99" y1="16.34" x2="22.99" y2="12.05" stroke="white" stroke-width="2.6" stroke-linecap="round"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="black" stroke-width="1.3" stroke-linecap="round"/><line x1="22.99" y1="16.34" x2="22.99" y2="12.05" stroke="black" stroke-width="1.3" stroke-linecap="round"/></g></svg>
+        </div>
+        <div class="icon-name" title="pen-add-cursor-bw">pen-add-cursor-bw</div>
+      </article>
+      <article class="icon-card" aria-label="pen-anchor-cursor-bw">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g><path d="M22.93,10.1h0S1.54,1.1,1.54,1.1c-0.28-0.12-0.55.16-0.44.44l9,21.39" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M22.93,10.1h0S1.54,1.1,1.54,1.1c-0.28-0.12-0.55.16-0.44.44l9,21.39" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+        </div>
+        <div class="icon-name" title="pen-anchor-cursor-bw">pen-anchor-cursor-bw</div>
+      </article>
+      <article class="icon-card" aria-label="pen-close-cursor">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22" stroke="black" stroke-width="1"/><line x1="2" y1="12" x2="22" y2="12" stroke="black" stroke-width="1"/><circle cx="18" cy="6" r="3.6" fill="none" stroke="black" stroke-width="1.4"/></svg>
+        </div>
+        <div class="icon-name" title="pen-close-cursor">pen-close-cursor</div>
+      </article>
+      <article class="icon-card" aria-label="pen-edit-cursor-bw">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g><rect x="11.39" y="13.96" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="black" stroke="white" stroke-width="0.6"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4Z" fill="black" stroke="white" stroke-width="0.6"/></g></svg>
+        </div>
+        <div class="icon-name" title="pen-edit-cursor-bw">pen-edit-cursor-bw</div>
+      </article>
+      <article class="icon-card" aria-label="pen-minus-cursor-bw">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 27"><g><rect x="11.39" y="13.96" rx="1.16" ry="1.16" transform="translate(-6.26 15.12) rotate(-45)" fill="black" stroke="white" stroke-width="0.6"/><path d="M11.99,4.38L1.990.1C1.56-0.08,1.08,0,0.710.27l7.16,7.16c0.41-0.210.92-0.17,1.260.180.420.420.42,1.1,0,1.53s-1.10.42-1.53,0c-0.34-0.34-0.39-0.85-0.18-1.26L0.270.71C0,1.08-0.08,1.560.1,1.99l4.28,10c0.280.660.77,1.21,1.4,1.56l4.33,2.47c0.510.29,1.140.2,1.55-0.21l4.16-4.16c0.41-0.410.5-1.050.21-1.55l-2.47-4.33c-0.36-0.62-0.91-1.11-1.56-1.4h-0.01Z" fill="black" stroke="white" stroke-width="0.6"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="white" stroke-width="2.6" stroke-linecap="round"/><line x1="20.85" y1="14.2" x2="25.15" y2="14.2" stroke="black" stroke-width="1.3" stroke-linecap="round"/></g></svg>
+        </div>
+        <div class="icon-name" title="pen-minus-cursor-bw">pen-minus-cursor-bw</div>
+      </article>
+      <article class="icon-card" aria-label="plus-small">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+        <div class="icon-name" title="plus-small">plus-small</div>
+      </article>
+      <article class="icon-card" aria-label="rotate-cursor">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16 A10 10 0 1 1 16 26" stroke="#000" stroke-width="4"/><path d="M2 13 L6 16 L9 12" stroke="#000" stroke-width="4"/><path d="M20 26 L16 26 L18 22" stroke="#000" stroke-width="4"/><path d="M6 16 A10 10 0 1 1 16 26" stroke="#fff" stroke-width="2"/><path d="M2 13 L6 16 L9 12" stroke="#fff" stroke-width="2"/><path d="M20 26 L16 26 L18 22" stroke="#fff" stroke-width="2"/></g></svg>
+        </div>
+        <div class="icon-name" title="rotate-cursor">rotate-cursor</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-align-center">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="6"/><rect x="3" y="3" stroke-dasharray="2 2" opacity="0.45"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-align-center">stroke-align-center</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-align-inner">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4"/><rect x="7" y="7" stroke-dasharray="2 2" opacity="0.45"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-align-inner">stroke-align-inner</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-align-outer">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="2.5"/><rect x="7" y="7" stroke-dasharray="2 2" opacity="0.45"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-align-outer">stroke-align-outer</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-cap-butt">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="4" y="9" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-cap-butt">stroke-cap-butt</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-cap-round">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="6" y="9" rx="3" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-cap-round">stroke-cap-round</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-cap-square">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="9" fill="currentColor"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-cap-square">stroke-cap-square</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-join-bevel">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="bevel"><path d="M5 19 L12 5 L19 19"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-join-bevel">stroke-join-bevel</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-join-miter">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="miter"><path d="M5 19 L12 5 L19 19"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-join-miter">stroke-join-miter</div>
+      </article>
+      <article class="icon-card" aria-label="stroke-join-round">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M5 19 L12 5 L19 19"/></svg>
+        </div>
+        <div class="icon-name" title="stroke-join-round">stroke-join-round</div>
+      </article>
+      <article class="icon-card" aria-label="swap-horizontal-small">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 14 14"><path d="M3 5 L1 7 L3 9 M1 7 L9 7 M11 9 L13 7 L11 5 M13 7 L5 7" stroke="currentColor" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="icon-name" title="swap-horizontal-small">swap-horizontal-small</div>
+      </article>
+      <article class="icon-card" aria-label="text-align-center">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5"/><rect x="3" y="10"/><rect x="6.5" y="15"/><rect x="4" y="20"/></svg>
+        </div>
+        <div class="icon-name" title="text-align-center">text-align-center</div>
+      </article>
+      <article class="icon-card" aria-label="text-align-justify">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5"/><rect x="3" y="10"/><rect x="3" y="15"/><rect x="3" y="20"/></svg>
+        </div>
+        <div class="icon-name" title="text-align-justify">text-align-justify</div>
+      </article>
+      <article class="icon-card" aria-label="text-align-left">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5"/><rect x="3" y="10"/><rect x="3" y="15"/><rect x="3" y="20"/></svg>
+        </div>
+        <div class="icon-name" title="text-align-left">text-align-left</div>
+      </article>
+      <article class="icon-card" aria-label="text-align-right">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5"/><rect x="3" y="10"/><rect x="10" y="15"/><rect x="5" y="20"/></svg>
+        </div>
+        <div class="icon-name" title="text-align-right">text-align-right</div>
+      </article>
+      <article class="icon-card" aria-label="theme-check">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="icon-name" title="theme-check">theme-check</div>
+      </article>
+      <article class="icon-card" aria-label="trash-outline">
+        <div class="icon-wrap" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </div>
+        <div class="icon-name" title="trash-outline">trash-outline</div>
+      </article>
+    </section>
+
+    <p class="empty">No SVG names match that search.</p>
+  </main>
+
+  <script>
+    (() => {
+      const search = document.getElementById("search");
+      const cards = Array.from(document.querySelectorAll(".icon-card"));
+      const visibleCount = document.getElementById("visibleCount");
+
+      function normalize(value) {
+        return value.trim().toLowerCase();
+      }
+
+      function updateFilter() {
+        const query = normalize(search.value);
+        let visible = 0;
+
+        for (const card of cards) {
+          const name = normalize(card.getAttribute("aria-label") || "");
+          const match = !query || name.includes(query);
+          card.hidden = !match;
+          if (match) visible += 1;
+        }
+
+        visibleCount.textContent = String(visible);
+        document.body.classList.toggle("no-results", visible === 0);
+      }
+
+      search.addEventListener("input", updateFilter, { passive: true });
+    })();
+  </script>
+</body>
+</html>
