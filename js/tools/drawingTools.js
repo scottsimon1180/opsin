@@ -4039,11 +4039,6 @@ window.PenTool = (function () {
       ['opt-pen-mode','opt-pen-fill','opt-pen-width'].forEach(id => {
         const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !showPenChrome);
       });
-      // Sync the tool-indicator-group active state to the persisted variant.
-      const penBtn    = document.getElementById('optPenVariantPen');
-      const anchorBtn = document.getElementById('optPenVariantAnchor');
-      if (penBtn)    penBtn.classList.toggle('active',    _variant === 'pen');
-      if (anchorBtn) anchorBtn.classList.toggle('active', _variant === 'anchor');
       _ensureOverlay();
       _renderOverlay();
       if (typeof workspace !== 'undefined') {

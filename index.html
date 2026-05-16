@@ -177,6 +177,17 @@
         <svg><use href="#icon-pencil"/></svg>
       </button>
     </div>
+    <div class="tool-indicator-group hidden" id="toolIndicatorPathSelect">
+      <button class="tool-indicator-btn active" id="optPathSelectVariantSelect" onclick="selectPathSelectGroupTool('pathselect')" title="Selection">
+        <svg><use href="#icon-select-object"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optPathSelectVariantDirect" onclick="selectPathSelectGroupTool('directselect')" title="Direct Selection (A)">
+        <svg><use href="#icon-direct-select"/></svg>
+      </button>
+      <button class="tool-indicator-btn" id="optPathSelectVariantAnchor" onclick="selectPathSelectGroupTool('anchor')" title="Anchor Point">
+        <svg><use href="#icon-anchor-point"/></svg>
+      </button>
+    </div>
   </div>
   <!-- Move tool controls -->
   <div class="opt-group hidden" id="opt-move">
@@ -632,21 +643,9 @@
     <button class="tool-btn" data-tool="pen" id="penToolBtn" title="Pen">
       <svg><use href="#icon-pen"/></svg>
     </button>
-
-    <div class="tool-sep"></div>
-
     <button class="tool-btn" data-tool="pathselect" id="pathSelectToolBtn" title="Selection">
-      <svg><use href="#icon-select-object"/></svg>
+      <svg><use id="pathSelectToolIcon" href="#icon-select-object"/></svg>
     </button>
-    <button class="tool-btn" data-tool="directselect" id="directSelectToolBtn" title="Direct Selection (A)">
-      <svg><use href="#icon-direct-select"/></svg>
-    </button>
-    <button class="tool-btn" data-tool="anchor" id="anchorPointToolBtn" title="Anchor Point">
-      <svg><use href="#icon-anchor-point"/></svg>
-    </button>
-
-    <div class="tool-sep"></div>
-
     <button class="tool-btn" data-tool="shape" id="shapeToolBtn" title="Shapes (U)">
       <svg><use href="#icon-shape"/></svg>
     </button>

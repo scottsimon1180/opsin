@@ -17,7 +17,10 @@ const drawSettings = {
 
 const GROUPED_TOOL_META = {
   brush:     { buttonId: 'brushToolBtn', iconId: 'brushToolIcon', icon: 'brush',           title: 'Brush (B)',              indicatorId: 'optBrushVariantBrush' },
-  pencil:    { buttonId: 'brushToolBtn', iconId: 'brushToolIcon', icon: 'pencil',          title: 'Pencil (P)',             indicatorId: 'optBrushVariantPencil' }
+  pencil:    { buttonId: 'brushToolBtn', iconId: 'brushToolIcon', icon: 'pencil',          title: 'Pencil (P)',             indicatorId: 'optBrushVariantPencil' },
+  pathselect:{ buttonId: 'pathSelectToolBtn', iconId: 'pathSelectToolIcon', icon: 'select-object', title: 'Selection',       indicatorId: 'optPathSelectVariantSelect' },
+  directselect:{ buttonId: 'pathSelectToolBtn', iconId: 'pathSelectToolIcon', icon: 'direct-select', title: 'Direct Selection (A)', indicatorId: 'optPathSelectVariantDirect' },
+  anchor:    { buttonId: 'pathSelectToolBtn', iconId: 'pathSelectToolIcon', icon: 'anchor-point', title: 'Anchor Point',     indicatorId: 'optPathSelectVariantAnchor' }
 };
 
 function _setGroupedToolbarButton(meta, toolName) {
@@ -44,10 +47,24 @@ function _syncBrushGroupUi(toolName) {
   _setGroupedIndicatorState(meta.indicatorId, ['optBrushVariantBrush', 'optBrushVariantPencil']);
 }
 
+function _syncPathSelectGroupUi(toolName) {
+  const meta = GROUPED_TOOL_META[toolName] || GROUPED_TOOL_META.pathselect;
+  _setGroupedToolbarButton(meta, toolName);
+  _setGroupedIndicatorState(meta.indicatorId, ['optPathSelectVariantSelect', 'optPathSelectVariantDirect', 'optPathSelectVariantAnchor']);
+}
+
+function _getPathSelectGroupTool(name) {
+  if (name === 'pathselect' || name === 'directselect') return name;
+  if (name === 'pen' && _getPenToolbarVariant() === 'anchor') return 'anchor';
+  return '';
+}
+
 function _syncGroupedToolUi(name) {
   if (name === 'brush' || name === 'pencil') {
     _syncBrushGroupUi(name);
   }
+  const pathSelectTool = _getPathSelectGroupTool(name);
+  if (pathSelectTool) _syncPathSelectGroupUi(pathSelectTool);
 }
 
 function _getPenToolbarVariant() {
@@ -135,17 +152,20 @@ function selectTool(name) {
   const _tiL = document.getElementById('toolIndicatorLasso');
   const _tiSh = document.getElementById('toolIndicatorShape');
   const _tiB = document.getElementById('toolIndicatorBrush');
+  const _tiPS = document.getElementById('toolIndicatorPathSelect');
   _tiS.classList.add('hidden'); _tiSel.classList.add('hidden');
   _tiL.classList.add('hidden'); _tiSh.classList.add('hidden');
   if (_tiB) _tiB.classList.add('hidden');
+  if (_tiPS) _tiPS.classList.add('hidden');
+  const _pathSelectTool = _getPathSelectGroupTool(name);
   if (name === 'select') { _tiSel.classList.remove('hidden'); }
   else if (name === 'lasso') { _tiL.classList.remove('hidden'); }
   else if (name === 'brush' || name === 'pencil') { if (_tiB) _tiB.classList.remove('hidden'); }
+  else if (_pathSelectTool) { if (_tiPS) _tiPS.classList.remove('hidden'); }
   else if (name === 'shape') { _tiSh.classList.remove('hidden'); }
   else {
     _tiS.classList.remove('hidden');
-    const _tiMap = {move:'move',movesel:'move-selection',pan:'pan',pen:'pen',pathselect:'select-object',directselect:'direct-select',eraser:'eraser',fill:'fill',gradient:'gradient',text:'text',wand:'magic-wand',ruler:'ruler-tool',eyedropper:'eyedropper'};
-    if (name === 'pen' && _getPenToolbarVariant() === 'anchor') _tiMap.pen = 'anchor-point';
+    const _tiMap = {move:'move',movesel:'move-selection',pan:'pan',pen:'pen',eraser:'eraser',fill:'fill',gradient:'gradient',text:'text',wand:'magic-wand',ruler:'ruler-tool',eyedropper:'eyedropper'};
     document.getElementById('toolIndicatorIcon').setAttribute('href','#icon-'+(_tiMap[name]||'move'));
   }
 
@@ -286,17 +306,24 @@ function selectBrushGroupTool(toolName) {
 }
 
 function selectPenToolbarTool(toolName) {
+  if (toolName !== 'pen' && toolName !== 'anchor') return;
+  setPenVariant(toolName);
+  selectTool('pen');
+}
+
+function selectPathSelectGroupTool(toolName) {
   if (toolName === 'directselect') {
     selectTool('directselect');
     return;
   }
-  if (toolName === 'select') {
+  if (toolName === 'pathselect') {
     selectTool('pathselect');
     return;
   }
-  if (toolName !== 'pen' && toolName !== 'anchor') return;
-  setPenVariant(toolName);
-  if (currentTool !== 'pen') selectTool('pen');
+  if (toolName === 'anchor') {
+    setPenVariant('anchor');
+    selectTool('pen');
+  }
 }
 
 function deselectMove() {
@@ -377,6 +404,7 @@ function setShapeType(type) {
 function setPenVariant(variant) {
   if (variant !== 'pen' && variant !== 'anchor') return;
   if (window.PenTool && window.PenTool.setVariant) window.PenTool.setVariant(variant);
+  if (variant === 'anchor') _syncPathSelectGroupUi('anchor');
   if (typeof currentTool !== 'undefined') syncToolbarActiveState(currentTool);
   if (typeof currentTool !== 'undefined' && currentTool === 'pen') {
     const icon = document.getElementById('toolIndicatorIcon');
